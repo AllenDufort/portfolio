@@ -1,8 +1,14 @@
+:root {
+    --text-color: #4f4;
+    --card-color: #f4f;
+    --card-blue: #4ff;
+}
+
 body {
-    margin: 0;
+    margin: 10%;
     padding: 0;
     background-color: #222 !important;
-    color: #4f4 !important;
+    color: var(--text-color) !important;
     font-family: monospace, Helvetica, Arial, sans-serif !important;
     font-size: 16px;
     line-height: 1.5;
@@ -16,20 +22,25 @@ html {
     width: auto;
     height: 50px;
 }
+
 #projects div {
-    color: #f4f !important;
-}
-#projects div:hover {
-    color: #4f4 !important;
+    color: var(--card-color) !important;
+    transition: transform 0.3s;
+
 }
 
 #projects img {
+    box-shadow: 1px 1px 10px var(--card-color);
     transition: transform 0.3s;
-    box-shadow: 1px 1px 10px #f4f;
+
 }
-#projects img:hover {
-    transform: scale(1.05);
-    box-shadow: 1px 1px 10px #4f4;
+
+#projects div:hover img {
+    box-shadow: 2px 2px 15px var(--card-blue);
+}
+#projects div:hover {
+    transform: scale(1.03);
+    color: var(--card-blue) !important;
 }
 
 h1 {
