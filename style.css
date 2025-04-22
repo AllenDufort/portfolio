@@ -1,14 +1,15 @@
 :root {
-    --text-color: #4f4;
-    --card-color: #f4f;
-    --card-blue: #4ff;
+    --green: #4f4;
+    --pink: #f4f;
+    --light-blue: #4ff;
+    --off-white: #f4f4f4;
 }
 
 body {
     margin: 10%;
     padding: 0;
-    background-color: #222 !important;
-    color: var(--text-color) !important;
+    background-color: #333 !important;
+    color: var(--off-white) !important;
     font-family: Courier, monospace, Arial, sans-serif !important;
     font-size: 16px;
     line-height: 1.5;
@@ -24,38 +25,29 @@ html {
 }
 
 #projects div {
-    color: var(--card-color) !important;
+    color: var(--pink) !important;
     transition: transform 0.3s;
 
 }
 
 #projects img {
-    box-shadow: 1px 1px 10px var(--card-color);
+    box-shadow: 1px 1px 10px var(--pink);
     transition: transform 0.3s;
 
 }
 
 #projects div:hover img {
-    box-shadow: 2px 2px 15px var(--card-blue);
+    box-shadow: 2px 2px 15px var(--light-blue);
 }
 #projects div:hover {
     transform: scale(1.03);
-    color: var(--card-blue) !important;
+    color: var(--light-blue) !important;
 }
 
 h1 {
     font-weight: bold !important;
-    font-size: 300%;
-}
-
-h2 {
-    font-weight: bold !important;
-    font-size: 150%;
-}
-
-h3 {
-    font-style: italic !important;
-    font-size: 125%;
+    font-size: 200%;
+    color: var(--green) !important;
 }
 
 .navbar-dark, .navbar[data-bs-theme=dark] {
