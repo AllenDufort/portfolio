@@ -16,8 +16,11 @@ html {
     width: auto;
     height: 50px;
 }
-#projects {
+#projects div {
     color: #f4f !important;
+}
+#projects div:hover {
+    color: #4f4 !important;
 }
 
 #projects img {
