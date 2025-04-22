@@ -16,13 +16,17 @@ html {
     width: auto;
     height: 50px;
 }
-
-.container img {
-    transition: transform 0.3s;
-    /* box-shadow: 0 4px 8px rgba(0, 0, 0, 0.4); */
+#projects {
+    color: #f4f !important;
 }
-.container img:hover {
+
+#projects img {
+    transition: transform 0.3s;
+    box-shadow: 1px 1px 10px #f4f;
+}
+#projects img:hover {
     transform: scale(1.05);
+    box-shadow: 1px 1px 10px #4f4;
 }
 
 h1 {
