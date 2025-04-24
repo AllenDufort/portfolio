@@ -1,0 +1,96 @@
+<!-- DraftBears Sportsbook
+adufort1, mhe36, jlguallp
+Goal
+For DraftBears Sportsbook, we sought to explore the dynamics of NBA player performances to enhance our sports analytics and data storytelling capabilities while presenting interesting insights for potential sports fans. We focused on analyzing player statistics across different times of the NBA season to understand the relationship between player metrics and their game outcomes. Specifically, our hypotheses test the correlation between various player performance metrics and their scoring efficiency, game consistency, and impact on the team’s performance.
+Data
+Our data is derived from reputable API sources including balldontlie.io and api-nba-v1.p.rapidapi.com, which provide comprehensive statistics for NBA players and teams. We have collected a substantial dataset, which includes player performance metrics and team information for the 2023-24 NBA season (up to March 2024). Our database includes various player performance indicators such as points per game, field goal percentage, defensive rebounds, and personal fouls across multiple tables. The data has been rigorously cleaned and structured to ensure accuracy and relevance for analysis.
+Findings
+Claim #1: The correlation between plus-minus scores and field goal percentage indicates that
+players with higher plus-minus scores tend to have better scoring efficiency.
+Support for Claim #1: Using ordinary least squares regression, we further analyzed the effect of plus-minus scores on field goal percentage. Pearson correlation analysis shows a positive correlation, supported by a correlation coefficient of 0.179 and a highly significant p-value (p=4.074e-131). The regression results reveal that plus-minus scores are significantly predictive of field goal percentage, affirming the initial correlation analysis.
+Claim #2: There is no significant difference in the field goal percentage of players in March compared to their season average.
+Support for Claim #2: This was tested using a paired sample t-test and further analyzed using K-Nearest Neighbors with cross-validation, which classified the differences as non-significant, affirming the hypothesis with high model accuracy (94.35%). Our regression and classification
+ models provide support for the hypothesis, indicating consistent player performance in scoring efficiency across the season, including March.
+Claim #3: There is a significant correlation between the number of defensive rebounds and personal fouls committed by players.
+Support for Claim #3: With the correlation coefficient being 0.283, we also have quantitative evidence that there is a positive correlation between defensive rebounds and personal fouls committed by players, supporting the alternative hypothesis. We think that the correlation is not higher because there are other factors that relate to personal fouls, such as steals/offensive rebounds. This contradicts our initial hypothesis, showing that players with more defensive rebounds tend to commit more personal fouls, a correlation supported by a positive coefficient and a significant p-value. This unexpected correlation highlights the complexities of player behavior and performance dynamics, suggesting that players who are more active in defensive plays may also be more prone to committing fouls.
+Socio-historical Context and Impact Report Socio-historical Context
+Basketball was created in late 1891 by James Naismith, a physical education instructor at the Young Men’s Christian Association (YMCA). Notable events in the development of basketball include the formation of women’s basketball in 1895, the formation of the National Basketball Association (NBA) in 1949, and the formation of the Women’s National Basketball Association (NBA) in 1997 (Britannica, 2024). One societal factor that affects this project is the sexism against women. Since the beginning of basketball in the late 19th century, many people have thought that women could not physically handle the same type of sports. This has led to later development of basketball leagues for women and different rules for the same sport when compared to men (Britannica, 2024). This has had a significant effect on our data since most of the national basketball datasets only include NBA data, excluding women basketball players. The main impact on our data is that we only have data on male players and our analysis cannot be extended to women players due to a lack of data.
+Major stakeholders include gamblers, state legislatures, sports betting companies, basketball leagues, and basketball players (Harris et al., 2024). For gamblers, our analysis of basketball could benefit them by allowing them to make more informed bets, giving them higher odds of earning money. This could negatively affect sports betting companies because our analysis could give their customers (the gamblers) an advantage, causing them to lose profits. Basketball leagues and players may be negatively affected too because they do not want to be associated with sports betting, including sports betting analysis.
+
+Ethical Considerations
+One societal bias in basketball is racial bias. Research from Foy and Roy (2023) shows that lighter-skinned basketball players were more likely to be described for their performance and mental abilities, while darker-skinned players were more likely to be described for their physical abilities. We did not have to mitigate this negative bias because our data did not contain qualitative data and our dataset did not include race. One bias that may appear in the interpretation of our data is that we overgeneralize the trends we found and make overreaching assumptions about basketball.
+The privacy of NBA athletes could be affected by our analysis. That is why we did not use any personal biometric data (like age, weight, or race) in the analysis of our data. The data is being used in a way agreed to by the NBA athletes and the NBA; we are certain of this because they provided the data for public use, with no particular stipulations. One possible misinterpretation of our data is that our predictions will be true 100 percent of the time because our results were statistically significant. This could be mitigated by having a disclaimer that says our results should be solely relied on for sports betting due to uncertainties in predicting sports bets. -->
+
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="utf-8" name="viewport" content="width=device-width, initial-scale=1"
+        description="DraftBears Sportsbook" />
+    <title>DraftBears Sportsbook</title>
+    <link rel="icon" href="img/draftbears-logo.png" type="image/x-icon" />
+    <link rel="stylesheet" href="style.css" />
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet"
+        integrity="sha384-9ndCyUaIbzAi2FUVXJi0CjmCapSmO7SnpJef0486qhLnuZ2cdeRhO02iuK6FUUVM" crossorigin="anonymous" />
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"
+        integrity="sha384-geWF76RCwLtnZ8qwWowPQNguL3RmwHVBC9FhGdlKrxdiJJigb/j/68SIy3Te4Bkz"
+        crossorigin="anonymous"></script>
+</head>
+
+<body>
+    <nav class="navbar navbar-expand-sm navbar-dark bg-dark sticky-top">
+        <div class="container-fluid">
+            <a class="navbar-brand" href="index.html">
+                DraftBears Sportsbook
+            </a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav"
+                aria-controls="navbarNav" aria-expanded="false" aria-label="Toggle navigation">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <ul class="navbar-nav ms-auto">
+                    <li class="nav-item">
+                        <a class="nav-link" href="#overview">Overview</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="#context">Context</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="#process">Design Process</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="#Conclusion">Conclusion</a>
+                    </li>
+                </ul>
+            </div>
+        </div>
+    </nav>
+
+    <!--
+    Pay attention to the style of your writing and have a reasonable narrative. For example, items that can add to your narrative are:
+    Context/Problem - What problem does this solve? Why should we care?
+    Audience - Who is our audience? What do they want/think? What other options do they have?
+    Design Iterations (with justification) - What variations have you tried? What are the tradeoffs? Explain your design decisions.
+    Conclusion - What are your lessons learned, insights, takeaways, etc.?
+    -->
+
+    <div class="container" id="overview">
+        <h1>DraftBears Sportsbook</h1>
+        <h2>
+            A data analysis project on NBA player performance metrics.
+        </h2>
+        <p>
+            This project was created by Allen Dufort, Melvin He,
+            and José Guallpa as a final project for the course CS 1951A:
+            Data Science at Brown University in Spring 2024.
+            For DraftBears Sportsbook, our goal was to improve sports analytics
+            and sports predictions for sports fans by exploring the dynamics of
+            NBA player performances.
+            We focused on analyzing player statistics across different times of
+            the NBA season to understand the correlations between various
+            player performance metrics and their impact on the team's performance.
+        </p>
+    </div>
+</body>
+
+</html>

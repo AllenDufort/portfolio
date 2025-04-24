@@ -25,23 +25,21 @@ html {
 }
 
 #projects div {
-    color: var(--pink) !important;
+    color: white !important;
     transition: transform 0.3s;
 
 }
 
 #projects img {
-    box-shadow: 1px 1px 10px var(--pink);
     transition: transform 0.3s;
-
 }
 
 #projects div:hover img {
-    box-shadow: 2px 2px 15px var(--light-blue);
+    box-shadow: 0 0 15px yellow;
 }
 #projects div:hover {
     transform: scale(1.03);
-    color: var(--light-blue) !important;
+    color: yellow !important;
 }
 
 h1 {
