@@ -1,26 +1,3 @@
-<!-- DraftBears Sportsbook
-adufort1, mhe36, jlguallp
-Goal
-For DraftBears Sportsbook, we sought to explore the dynamics of NBA player performances to enhance our sports analytics and data storytelling capabilities while presenting interesting insights for potential sports fans. We focused on analyzing player statistics across different times of the NBA season to understand the relationship between player metrics and their game outcomes. Specifically, our hypotheses test the correlation between various player performance metrics and their scoring efficiency, game consistency, and impact on the team’s performance.
-Data
-Our data is derived from reputable API sources including balldontlie.io and api-nba-v1.p.rapidapi.com, which provide comprehensive statistics for NBA players and teams. We have collected a substantial dataset, which includes player performance metrics and team information for the 2023-24 NBA season (up to March 2024). Our database includes various player performance indicators such as points per game, field goal percentage, defensive rebounds, and personal fouls across multiple tables. The data has been rigorously cleaned and structured to ensure accuracy and relevance for analysis.
-Findings
-Claim #1: The correlation between plus-minus scores and field goal percentage indicates that
-players with higher plus-minus scores tend to have better scoring efficiency.
-Support for Claim #1: Using ordinary least squares regression, we further analyzed the effect of plus-minus scores on field goal percentage. Pearson correlation analysis shows a positive correlation, supported by a correlation coefficient of 0.179 and a highly significant p-value (p=4.074e-131). The regression results reveal that plus-minus scores are significantly predictive of field goal percentage, affirming the initial correlation analysis.
-Claim #2: There is no significant difference in the field goal percentage of players in March compared to their season average.
-Support for Claim #2: This was tested using a paired sample t-test and further analyzed using K-Nearest Neighbors with cross-validation, which classified the differences as non-significant, affirming the hypothesis with high model accuracy (94.35%). Our regression and classification
- models provide support for the hypothesis, indicating consistent player performance in scoring efficiency across the season, including March.
-Claim #3: There is a significant correlation between the number of defensive rebounds and personal fouls committed by players.
-Support for Claim #3: With the correlation coefficient being 0.283, we also have quantitative evidence that there is a positive correlation between defensive rebounds and personal fouls committed by players, supporting the alternative hypothesis. We think that the correlation is not higher because there are other factors that relate to personal fouls, such as steals/offensive rebounds. This contradicts our initial hypothesis, showing that players with more defensive rebounds tend to commit more personal fouls, a correlation supported by a positive coefficient and a significant p-value. This unexpected correlation highlights the complexities of player behavior and performance dynamics, suggesting that players who are more active in defensive plays may also be more prone to committing fouls.
-Socio-historical Context and Impact Report Socio-historical Context
-Basketball was created in late 1891 by James Naismith, a physical education instructor at the Young Men’s Christian Association (YMCA). Notable events in the development of basketball include the formation of women’s basketball in 1895, the formation of the National Basketball Association (NBA) in 1949, and the formation of the Women’s National Basketball Association (NBA) in 1997 (Britannica, 2024). One societal factor that affects this project is the sexism against women. Since the beginning of basketball in the late 19th century, many people have thought that women could not physically handle the same type of sports. This has led to later development of basketball leagues for women and different rules for the same sport when compared to men (Britannica, 2024). This has had a significant effect on our data since most of the national basketball datasets only include NBA data, excluding women basketball players. The main impact on our data is that we only have data on male players and our analysis cannot be extended to women players due to a lack of data.
-Major stakeholders include gamblers, state legislatures, sports betting companies, basketball leagues, and basketball players (Harris et al., 2024). For gamblers, our analysis of basketball could benefit them by allowing them to make more informed bets, giving them higher odds of earning money. This could negatively affect sports betting companies because our analysis could give their customers (the gamblers) an advantage, causing them to lose profits. Basketball leagues and players may be negatively affected too because they do not want to be associated with sports betting, including sports betting analysis.
-
-Ethical Considerations
-One societal bias in basketball is racial bias. Research from Foy and Roy (2023) shows that lighter-skinned basketball players were more likely to be described for their performance and mental abilities, while darker-skinned players were more likely to be described for their physical abilities. We did not have to mitigate this negative bias because our data did not contain qualitative data and our dataset did not include race. One bias that may appear in the interpretation of our data is that we overgeneralize the trends we found and make overreaching assumptions about basketball.
-The privacy of NBA athletes could be affected by our analysis. That is why we did not use any personal biometric data (like age, weight, or race) in the analysis of our data. The data is being used in a way agreed to by the NBA athletes and the NBA; we are certain of this because they provided the data for public use, with no particular stipulations. One possible misinterpretation of our data is that our predictions will be true 100 percent of the time because our results were statistically significant. This could be mitigated by having a disclaimer that says our results should be solely relied on for sports betting due to uncertainties in predicting sports bets. -->
-
 <!DOCTYPE html>
 <html lang="en">
 
@@ -37,8 +14,8 @@ The privacy of NBA athletes could be affected by our analysis. That is why we di
         crossorigin="anonymous"></script>
 </head>
 
-<body>
-    <nav class="navbar navbar-expand-sm navbar-dark bg-dark sticky-top">
+<body >
+    <nav class="navbar navbar-expand-lg navbar-dark bg-dark sticky-top">
         <div class="container-fluid">
             <a class="navbar-brand" href="index.html">
                 DraftBears Sportsbook
@@ -53,29 +30,24 @@ The privacy of NBA athletes could be affected by our analysis. That is why we di
                         <a class="nav-link" href="#overview">Overview</a>
                     </li>
                     <li class="nav-item">
-                        <a class="nav-link" href="#context">Context</a>
+                        <a class="nav-link" href="#process">Research Process</a>
                     </li>
                     <li class="nav-item">
-                        <a class="nav-link" href="#process">Design Process</a>
+                        <a class="nav-link" href="#findings">Findings</a>
                     </li>
                     <li class="nav-item">
-                        <a class="nav-link" href="#Conclusion">Conclusion</a>
+                        <a class="nav-link" href="#takeaways">Conclusion</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="#ethics">Ethics</a>
                     </li>
                 </ul>
             </div>
         </div>
     </nav>
 
-    <!--
-    Pay attention to the style of your writing and have a reasonable narrative. For example, items that can add to your narrative are:
-    Context/Problem - What problem does this solve? Why should we care?
-    Audience - Who is our audience? What do they want/think? What other options do they have?
-    Design Iterations (with justification) - What variations have you tried? What are the tradeoffs? Explain your design decisions.
-    Conclusion - What are your lessons learned, insights, takeaways, etc.?
-    -->
-
     <div class="container" id="overview">
-        <h1>DraftBears Sportsbook</h1>
+        <h1>DraftBears Sportsbook:</h1>
         <h2>
             A data analysis project on NBA player performance metrics.
         </h2>
@@ -83,7 +55,7 @@ The privacy of NBA athletes could be affected by our analysis. That is why we di
             This project was created by Allen Dufort, Melvin He,
             and José Guallpa as a final project for the course CS 1951A:
             Data Science at Brown University in Spring 2024.
-            For DraftBears Sportsbook, our goal was to improve sports analytics
+            The goal of DraftBears Sportsbook was to improve sports analytics
             and sports predictions for sports fans by exploring the dynamics of
             NBA player performances.
             We focused on analyzing player statistics across different times of
@@ -91,6 +63,85 @@ The privacy of NBA athletes could be affected by our analysis. That is why we di
             player performance metrics and their impact on the team's performance.
         </p>
     </div>
+    <div class="container" id="process">
+        <h2>Research Process</h2>
+        <p>
+            A major challenge was trying to find a dataset that included
+            both player performance metrics and team information.
+            My team and I spent a lot of time finding datasets that had one or
+            both of these features.
+            We ultimately collected 2 datasets from multiple APIs and
+            then combined them into one database that included all of the player
+            data we needed.
+            Our database includes various player performance indicators
+            such as points per game, field goal percentage (FGP), defensive rebounds,
+            and personal fouls.
+        </p>
+    </div>
+    <div class="container" id="findings">
+        <h2>Findings</h2>
+        <ol>
+            <li>
+                Players with higher plus-minus scores
+                tend to have a higher FGP.
+                <ul>
+                    <li>
+                        Plus-minus score is difference between
+                        points scored by team and points scored by
+                        opposing team while player is on court
+                    </li>
+                </ul>
+            </li>
+            <li>
+                There is no significant difference
+                in the FGP of players in
+                March compared to their season average.
+            </li>
+            <li>
+                There is a correlation between the number of defensive rebounds
+                and personal fouls committed by players.
+            </li>
+        </ol>
+        <div class="row">
+            <div class="col-md-6 mb-4">
+                <img src="img/plus-minus.png" class="img-fluid" alt="Plus-Minus vs FGP">
+                <p class="text-center">Plus-Minus vs FGP</p>
+            </div>
+            <div class="col-md-6 mb-4">
+                <img src="img/histogram.png" class="img-fluid" alt="Histogram of FGP difference">
+                <p class="text-center">Histogram of difference between March and Season FGP Average</p>
+            </div>
+        </div>
+    </div>
+    <div class="container" id="takeaways">
+        <h2>Takeaways</h2>
+        <p>
+            One takeaway from this project is that there are many factors that
+            affect player performance metrics.
+            For example, the correlation between plus-minus scores and field
+            goal percentage is lower than expected (0.179).
+            This indicates that there are other factors that affect player
+            performance metrics, such as steals and offensive rebounds.
+            Another takeaway is that even in the simplistic data analysis,
+            one should be careful about overgeneralizing the trends found
+            in the data.
+        </p>
+    </div>
+    <div class="container" id="ethics">
+        <h2>Ethical Considerations</h2>
+        <p>
+            The last takeaway is to always consider the ethical implications of
+            the data analysis.
+            For example, racial bias is a major issue in sports analytics.
+            Research from Foy and Roy (2023) showed that
+            lighter-skinned basketball players were more likely to be
+            described for their performance and mental abilities,
+            while darker-skinned players were more likely to be described
+            for their physical abilities.
+            Although the datasets we collected did not include qualitative descriptions,
+            we still tried to mitigate bias by ensuring that our analysis
+            did not focus on the relationship between physical attributes and race.
+        </p>
 </body>
 
 </html>

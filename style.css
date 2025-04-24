@@ -6,7 +6,6 @@
 }
 
 body {
-    margin: 10%;
     padding: 0;
     background-color: #333 !important;
     color: var(--off-white) !important;
@@ -54,4 +53,10 @@ h1 {
     --bs-navbar-active-color: #fff !important;
     --bs-navbar-brand-hover-color: #fff !important;
     --bs-navbar-toggler-border-color: none !important;
+}
+
+.container {
+    max-width: 1000px;
+    min-width: 310px;
+    width: 80% !important;
 }
