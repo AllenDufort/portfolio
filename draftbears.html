@@ -14,11 +14,11 @@
         crossorigin="anonymous"></script>
 </head>
 
-<body >
-    <nav class="navbar navbar-expand-lg navbar-dark bg-dark sticky-top">
+<body>
+    <nav class="navbar navbar-expand-sm navbar-dark bg-dark sticky-top">
         <div class="container-fluid">
             <a class="navbar-brand" href="index.html">
-                DraftBears Sportsbook
+                &larr; Allen Dufort
             </a>
             <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav"
                 aria-controls="navbarNav" aria-expanded="false" aria-label="Toggle navigation">
@@ -27,30 +27,23 @@
             <div class="collapse navbar-collapse" id="navbarNav">
                 <ul class="navbar-nav ms-auto">
                     <li class="nav-item">
-                        <a class="nav-link" href="#overview">Overview</a>
+                        <a class="nav-link" href="#about">About</a>
                     </li>
                     <li class="nav-item">
-                        <a class="nav-link" href="#process">Research Process</a>
+                        <a class="nav-link" href="#projects">Projects</a>
                     </li>
                     <li class="nav-item">
-                        <a class="nav-link" href="#findings">Findings</a>
+                        <a class="nav-link" href="#resume">Resume</a>
                     </li>
                     <li class="nav-item">
-                        <a class="nav-link" href="#takeaways">Conclusion</a>
-                    </li>
-                    <li class="nav-item">
-                        <a class="nav-link" href="#ethics">Ethics</a>
+                        <a class="nav-link" href="#contact">Contact</a>
                     </li>
                 </ul>
             </div>
         </div>
     </nav>
-
-    <div class="container" id="overview">
-        <h1>DraftBears Sportsbook:</h1>
-        <h2>
-            A data analysis project on NBA player performance metrics.
-        </h2>
+    <div class="container mb-4">
+        <h1>DraftBears Sportsbook</h1>
 
         <div class="row">
             <div class="col-md-6">
@@ -58,26 +51,25 @@
                 <p>
                     This project analyzed NBA player performance metrics
                     to uncover trends and correlations that can improve sports analytics.
-                    By examining data from different times of the season, we aim to
+                    By examining data from different times of the season, we
                     provide insights into how player performance impacts team success.
                 </p>
             </div>
             <div class="col-md-6">
                 <h3>Context</h3>
                 <p>
-                    This project was created by Allen Dufort, Melvin He,
-                    and José Guallpa as a final project for the course CS 1951A:
-                    Data Science at Brown University in Spring 2024.
-                    We were inspired because we are all fans of the NBA and
-                    wanted to explore the statistics behind the game.
-                    Additionally, we wanted to learn how to use data science in
+                    This project was created by Melvin He, José Guallpa, and I
+                    as a final project for the course <i>CSCI 1951A:
+                        Data Science</i> at Brown University in Spring 2024.
+                    We were inspired to do this project because we were all fans
+                    of the NBA and we wanted to learn how to use data science in
                     sports analytics.
                 </p>
             </div>
         </div>
-        
+
     </div>
-    <div class="container" id="process">
+    <div class="container mb-4">
         <h2>Research Process</h2>
         <p>
             A major challenge was trying to find a dataset that included
@@ -92,70 +84,84 @@
             and personal fouls.
         </p>
     </div>
-    <div class="container" id="findings">
+    <div class="container mb-4">
         <h2>Findings</h2>
-        <ol>
-            <li>
-                Players with higher plus-minus scores
-                tend to have a higher FGP.
+        <div class="row mb-4">
+            <div class="col-md-6">
+                <p>
+                    1. Players with higher plus-minus scores
+                    tend to have higher FGP
+                </p>
                 <ul>
                     <li>
-                        Plus-minus score is difference between
-                        points scored by team and points scored by
-                        opposing team while player is on court
+                        Plus-minus score: difference between
+                        points scored by player's team and opposing
+                        team while the player on court
                     </li>
                 </ul>
-            </li>
-            <li>
-                There is no significant difference
-                in the FGP of players in
-                March compared to their season average.
-            </li>
-            <li>
-                There is a correlation between the number of defensive rebounds
-                and personal fouls committed by players.
-            </li>
-        </ol>
-        <div class="row">
-            <div class="col-md-6 mb-4">
-                <img src="img/plus-minus.png" class="img-fluid" alt="Plus-Minus vs FGP">
-                <p class="text-center">Plus-Minus vs FGP</p>
             </div>
-            <div class="col-md-6 mb-4">
-                <img src="img/histogram.png" class="img-fluid" alt="Histogram of FGP difference">
-                <p class="text-center">Histogram of difference between March and Season FGP Average</p>
+            <div class="col-md-6">
+                <img src="img/plus-minus.png" class="img-fluid" alt="Plus-Minus vs FGP" style="max-height: 500px;">
+            </div>
+        </div>
+
+        <div class="row mb-4">
+            <div class="col-md-6">
+                <img src="img/box_plot_fgs.png" class="img-fluid" alt="Plus-Minus vs FGP" style="max-height: 500px;">
+            </div>
+            <div class="col-md-6">
+                <p>
+                    2. No significant difference in players' FGP in March vs entire season
+                </p>
+            </div>
+        </div>
+        <div class="row mb-4">
+            <div class="col-md-6">
+                <p>
+                    3. Players with higher defensive rebounds tend to have
+                    higher personal fouls
+                </p>
+                <ul>
+                    <li>
+                        Kareem Abdul-Jabbar, NBA record-holder for most
+                        personal fouls and 3rd in rebounds per game
+                    </li>
+                </ul>
+            </div>
+            <div class="col-md-6">
+                <img src="img/jabbar.webp" class="img-fluid" alt="Plus-Minus vs FGP">
             </div>
         </div>
     </div>
-    <div class="container" id="takeaways">
-        <h2>Takeaways</h2>
-        <p>
-            One takeaway from this project is that there are many factors that
-            affect player performance metrics.
-            For example, the correlation between plus-minus scores and field
-            goal percentage is lower than expected (0.179).
-            This indicates that there are other factors that affect player
-            performance metrics, such as steals and offensive rebounds.
-            Another takeaway is that even in the simplistic data analysis,
-            one should be careful about overgeneralizing the trends found
-            in the data.
-        </p>
+    <div class="container mb-4">
+        <div class="row">
+            <div class="col-md-6 mb-4">
+                <h2>Takeaways</h2>
+                <p>
+                    One takeaway from this project is that there are many factors that
+                    affect player performance metrics.
+                    For example, the correlation between plus-minus scores and field
+                    goal percentage is lower than expected.
+                    This indicates that there are other factors that affect player
+                    performance metrics, such as steals and offensive rebounds.
+                    Another takeaway is that even in the simplistic data analysis,
+                    one should be careful about overgeneralizing the trends found
+                    in the data.
+                </p>
+            </div>
+            <div class="col-md-6 mb-4">
+                <h2>Ethical Considerations</h2>
+                <p>
+                    My last takeaway from this is to consider the ethical implications of data analysis.
+                    For instance, racial bias is a significant issue in sports analytics.
+                    Research by Foy and Roy (2023) found lighter-skinned players were
+                    often described for performance and mental abilities, while
+                    darker-skinned players were described for physical abilities.
+                    Although our datasets lacked qualitative descriptions, we mitigated
+                    bias by avoiding analysis linking physical attributes to race.</p>
+            </div>
+        </div>
     </div>
-    <div class="container" id="ethics">
-        <h2>Ethical Considerations</h2>
-        <p>
-            The last takeaway is to always consider the ethical implications of
-            the data analysis.
-            For example, racial bias is a major issue in sports analytics.
-            Research from Foy and Roy (2023) showed that
-            lighter-skinned basketball players were more likely to be
-            described for their performance and mental abilities,
-            while darker-skinned players were more likely to be described
-            for their physical abilities.
-            Although the datasets we collected did not include qualitative descriptions,
-            we still tried to mitigate bias by ensuring that our analysis
-            did not focus on the relationship between physical attributes and race.
-        </p>
 </body>
 
 </html>
