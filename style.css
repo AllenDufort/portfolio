@@ -41,6 +41,14 @@ html {
     color: yellow !important;
 }
 
+.logo {
+    transition: transform 0.3s, box-shadow 0.3s;
+}
+.logo:hover {
+    box-shadow: 0 0 15px yellow;
+    transform: scale(1.03);
+}
+
 h1 {
     font-weight: bold !important;
     font-size: 200%;
