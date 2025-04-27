@@ -82,3 +82,13 @@ body.iterative img:hover {
     transform: scale(1.1);
     transition: transform 0.3s;
 }
+
+.blink {
+    animation: blinker 1s linear infinite;
+}
+
+@keyframes blinker {
+    50% {
+        opacity: 0;
+    }
+}

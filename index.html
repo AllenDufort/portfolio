@@ -44,24 +44,38 @@
     </nav>
 
     <div class="container mx-auto row" id="about">
-        <div class="col-lg-8 mb-4 mt-2">
-            <h1>Hi, I'm Allen! 👋</h1>
+        <div class="col-xl-8 mb-4 mt-2">
+            <!-- <h1>Hi, I'm Allen! 👋</h1> -->
+            <h1 id="animated-text"></h1>
+            <script>
+                const textElement = document.getElementById('animated-text');
+                const text = "Hi, I'm Allen!";
+                let index = 0;
+
+                function typeText() {
+                    if (index < text.length) {
+                        textElement.innerHTML = text.substring(0, index + 1) + '<span class="blink">|</span>';
+                        index++;
+                        setTimeout(typeText, 100); // Adjust typing speed here
+                    }
+                }
+
+                typeText();
+            </script>
             <h2>
-                I hope to augment and improve data analysis
-                using AI and ML.
+                I'm passionate about using AI and ML to transform data analysis
+                and about making AI technology accessible to everyone!
             </h2>
             <p>
-                My subjects of interest are data science, artificial intelligence,
-                visual design and web development.
+                My interests include data science, artificial intelligence, visual design, and web development.
             </p>
             <p>
-                I am a currently a masters Computer Science student at Brown University.<br>
-                I graduated from Brown University with a Sc.B. in CS in 2024
-                and will graduate with a Sc.M. in CS in 2025.
+                I'm currently pursuing my master's in Computer Science at Brown University, where I also earned my Sc.B.
+                in CS in 2024. I'll complete my Sc.M. in 2025.
             </p>
             <p>
-                I am an upcoming Data Scientist at IBM.<br>
-                I have previously interned with Marqeta, General Motors, Brown University, and NASA.
+                This summer, I'll join IBM as an upcoming Data Scientist. Previously, I've had the privilege of working
+                with Marqeta, General Motors, Brown University, and NASA.
             </p>
             <div class="d-flex justify-content-start gap-4">
                 <a href="https://linkedin.com/in/allen-dufort">
@@ -78,7 +92,7 @@
                 </a>
             </div>
         </div>
-        <div class="col-lg-4 mb-4 mt-2 d-flex align-items-stretch">
+        <div class="col-xl-4 mb-4 mt-2 d-flex align-items-stretch">
             <img src="assets/nsbe.jpg" class="img-fluid w-100 h-auto" alt="Allen Dufort" style="object-fit: cover;">
         </div>
     </div>
@@ -111,35 +125,35 @@
     </div>
 
     <div class="container mx-auto mb-4" id="resume">
-        <h1>Resume</h1>
-        <div class="container mx-auto">
-            <embed src="assets/resume.pdf" frameborder="0" type="application/pdf"
-                style="width: 90%; min-width: 300px" />
+        <h1>
+            <a href="assets/resume.pdf" class="text-decoration-none">
+            Resume↗
+            </a>
+        </h1>
+        <img src="assets/resume.jpg" class="img-fluid" alt="Resume Screenshot">
+    </div>
+    <footer class="bg-dark text-white py-4">
+        <div class="container text-center">
+            <p class="mb-2">
+                © 2025 Allen Dufort<br>
+                All rights reserved
+            </p>
+            <div class="d-flex justify-content-center gap-4">
+                <a href="https://linkedin.com/in/allen-dufort" class="text-white">
+                    <img src="/assets/linkedin.svg" alt="LinkedIn" class="logo img-fluid"
+                        style="width: 2rem; height: auto; border-radius: 50%;">
+                </a>
+                <a href="https://github.com/AllenDufort" class="text-white">
+                    <img src="/assets/github.svg" alt="GitHub" class="logo img-fluid"
+                        style="width: 2rem; height: auto; border-radius: 50%;">
+                </a>
+                <a href="mailto:allendufort2020@gmail.com" class="text-white">
+                    <img src="/assets/gmail.svg" alt="Email" class="logo img-fluid"
+                        style="width: 2rem; height: auto; border-radius: 25%;">
+                </a>
+            </div>
         </div>
-    </div>
-    <div class="container mx-auto mb-4" id="contact">
-        <h1>Contact</h1>
-        <p>
-            If you would like to get in touch, please reach out to me at:
-        <ul>
-            <li><b>Email:</b>
-                <a href="mailto: allendufort2020@gmail.com">
-                    allendufort2020@gmail.com
-                </a>
-            </li>
-            <li><b>LinkedIn:</b>
-                <a href="https://www.linkedin.com/in/allen-dufort/">
-                    LinkedIn
-                </a>
-            </li>
-            <li><b>Github:</b>
-                <a href="https://github.com/AllenDufort">
-                    GitHub
-                </a>
-            </li>
-        </ul>
-
-    </div>
+    </footer>
 </body>
 
 </html>
