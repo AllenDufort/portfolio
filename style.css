@@ -3,11 +3,12 @@
     --pink: #f4f;
     --light-blue: #4ff;
     --off-white: #f4f4f4;
+    --off-black: #333;
 }
 
 body {
     padding: 0;
-    background-color: #333 !important;
+    background-color: var(--off-black) !important;
     color: var(--off-white) !important;
     font-family: Courier, monospace, Arial, sans-serif !important;
     font-size: 16px;
@@ -67,4 +68,17 @@ h1 {
     max-width: 1000px;
     min-width: 310px;
     width: 70% !important;
+}
+
+body.iterative {
+    background-color: var(--off-white) !important;;
+    color: var(--off-black) !important;
+}
+
+body.iterative img {
+    border-radius: 0.375rem;
+}
+body.iterative img:hover {
+    transform: scale(1.1);
+    transition: transform 0.3s;
 }
