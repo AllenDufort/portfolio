@@ -44,116 +44,160 @@
         </div>
     </nav> -->
 
-    <div class="container mx-auto row" id="about">
-        <div class="col-xl-8 mb-4 mt-2">
-            <h1 id="animated-text"></h1>
-            <script>
-                const textElement = document.getElementById('animated-text');
-                const text = "Hi, I'm Allen!";
-                let index = 0;
+    <nav class="navbar navbar-dark bg-dark d-md-none sticky-top">
+        <div class="container-fluid">
+            <a class="navbar-brand" href="/"><i class="bi bi-house-door"></i> Home</a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#mobileNavbar"
+                aria-controls="mobileNavbar" aria-expanded="false" aria-label="Toggle navigation">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div class="collapse navbar-collapse" id="mobileNavbar">
+                <ul class="navbar-nav ms-auto">
+                    <li class="nav-item"><a class="nav-link" href="#about">About</a></li>
+                    <li class="nav-item"><a class="nav-link" href="#projects">Projects</a></li>
+                    <li class="nav-item"><a class="nav-link" href="#resume">Resume</a></li>
+                    <li class="nav-item"><a class="nav-link" href="#contact">Contact</a></li>
+                </ul>
+            </div>
+        </div>
+    </nav>
 
-                function typeText() {
-                    if (index < text.length) {
-                        textElement.innerHTML = text.substring(0, index + 1) + '<span class="blink">|</span>';
-                        index++;
-                        setTimeout(typeText, 100); // Adjust typing speed here
+    <div class="sidebar bg-dark text-white p-3 d-none d-md-block">
+        <a class="navbar-brand" href="/"><i class="bi bi-house-door"></i> Home</a>
+        <hr>
+        <ul class="nav flex-column">
+            <li class="nav-item"><a class="nav-link text-white" href="#about">About</a></li>
+            <li class="nav-item"><a class="nav-link text-white" href="#projects">Projects</a></li>
+            <li class="nav-item"><a class="nav-link text-white" href="#resume">Resume</a></li>
+            <li class="nav-item"><a class="nav-link text-white" href="#contact">Contact</a></li>
+        </ul>
+    </div>
+
+
+    <div class="content">
+        <div class="container mx-auto row" id="about">
+            <div class="col-xl-8 mb-4 mt-2">
+                <h1 id="animated-text"></h1>
+                <script>
+                    const textElement = document.getElementById('animated-text');
+                    const text = "Hi, I'm Allen!";
+                    let index = 0;
+
+                    function typeText() {
+                        if (index < text.length) {
+                            textElement.innerHTML = text.substring(0, index + 1) + '<span class="blink">|</span>';
+                            index++;
+                            setTimeout(typeText, 100); // Adjust typing speed here
+                        }
                     }
-                }
 
-                typeText();
-            </script>
-            <h2>
-                I'm passionate about using AI and ML to transform data analysis
-                and about making AI technology accessible to everyone!
-            </h2>
-            <p>
-                My interests include data science, artificial intelligence, visual design, and web development.
-            </p>
-            <p>
-                I'm currently pursuing my master's in Computer Science at Brown University, where I also earned my Sc.B.
-                in CS in 2024. I'll complete my Sc.M. in 2025.
-            </p>
-            <p>
-                This summer, I'll join IBM as an upcoming Data Scientist. Previously, I've had the privilege of working
-                with Marqeta, General Motors, Brown University, and NASA.
-            </p>
-            <div class="d-flex justify-content-start gap-4">
-                <a href="https://linkedin.com/in/allen-dufort">
-                    <img src="assets/logos/linkedin.svg" alt="linkedin" class="logo img-fluid"
-                        style="width: 3rem; height: auto; border-radius: 50%;">
-                </a>
-                <a href="https://github.com/AllenDufort">
-                    <img src="assets/logos/github.svg" alt="github" class="logo img-fluid"
-                        style="width: 3rem; height: auto; border-radius: 50%;">
-                </a>
-                <a href="mailto:allendufort2020@gmail.com">
-                    <img src="assets/logos/gmail.svg" alt="gmail" class="logo img-fluid"
-                        style="width: 3rem; height: auto; border-radius: 25%;">
-                </a>
+                    typeText();
+                </script>
+                <h2>
+                    I'm passionate about using AI and ML to transform data analysis
+                    and about making AI technology accessible to everyone!
+                </h2>
+                <p>
+                    My interests include data science, artificial intelligence, visual design, and web development.
+                </p>
+                <p>
+                    I'm currently pursuing my master's in Computer Science at Brown University, where I also earned my
+                    Sc.B.
+                    in CS in 2024. I'll complete my Sc.M. in 2025.
+                </p>
+                <p>
+                    This summer, I'll join IBM as an upcoming Data Scientist. Previously, I've had the privilege of
+                    working
+                    with Marqeta, General Motors, Brown University, and NASA.
+                </p>
+                <div class="d-flex justify-content-start gap-4">
+                    <a href="https://linkedin.com/in/allen-dufort">
+                        <img src="assets/logos/linkedin.svg" alt="linkedin" class="logo img-fluid"
+                            style="width: 3rem; height: auto; border-radius: 50%;">
+                    </a>
+                    <a href="https://github.com/AllenDufort">
+                        <img src="assets/logos/github.svg" alt="github" class="logo img-fluid"
+                            style="width: 3rem; height: auto; border-radius: 50%;">
+                    </a>
+                    <a href="mailto:allendufort2020@gmail.com">
+                        <img src="assets/logos/gmail.svg" alt="gmail" class="logo img-fluid"
+                            style="width: 3rem; height: auto; border-radius: 25%;">
+                    </a>
+                </div>
+            </div>
+            <div class="col-xl-4 mb-4 mt-2 d-flex align-items-stretch">
+                <img src="assets/nsbe.jpg" class="img-fluid w-100 h-auto" alt="Allen Dufort" style="object-fit: cover;">
             </div>
         </div>
-        <div class="col-xl-4 mb-4 mt-2 d-flex align-items-stretch">
-            <img src="assets/nsbe.jpg" class="img-fluid w-100 h-auto" alt="Allen Dufort" style="object-fit: cover;">
-        </div>
-    </div>
-    <div class="container mx-auto row" id="projects">
-        <h1>Projects</h1>
-        <div class="col-lg-6 col-xxl-3 text-center mb-4">
-            <a href="draftbears.html">
-                <img src="assets/logos/draftbears-logo.png" class="img-fluid img-thumbnail" alt="DraftBears Sportsbook">
-            </a>
-            <p class="text-center fw-light">DraftBears Sportsbook</p>
-        </div>
-        <div class="col-lg-6 col-xxl-3 text-center mb-4">
-            <a href="personas.html">
-                <img src="assets/logos/persona-logo.png" class="img-fluid img-thumbnail" alt="Personas">
-            </a>
-            <p class="text-center fw-light">Personas</p>
-        </div>
-        <div class="col-lg-6 col-xxl-3 text-center mb-4">
-            <a href="https://allendufort.github.io/redesign/">
-                <img src="assets/logos/responsive-logo.png" class="img-fluid img-thumbnail" alt="Responsive Redesign">
-            </a>
-            <p class="text-center fw-light">Responsive Redesign</p>
-        </div>
-        <div class="col-lg-6 col-xxl-3 text-center mb-4">
-            <a href="iterative.html">
-                <img src="assets/logos/sesame-1.png" class="img-fluid img-thumbnail" alt="Iterative Design">
-            </a>
-            <p class="text-center fw-light">Iterative Design</p>
-        </div>
-    </div>
-
-    <div class="container mx-auto mb-4" id="resume">
-        <h1>
-            <a href="assets/resume.pdf" class="text-decoration-none">
-                Resume↗
-            </a>
-        </h1>
-        <img src="assets/resume.jpg" class="img-fluid" alt="Resume Screenshot">
-    </div>
-    <footer class="bg-dark text-white py-4">
-        <div class="container text-center">
-            <p class="mb-2">
-                © 2025 Allen Dufort<br>
-                All rights reserved
-            </p>
-            <div class="d-flex justify-content-center gap-4">
-                <a href="https://linkedin.com/in/allen-dufort" class="text-white">
-                    <img src="assets/logos/linkedin.svg" alt="LinkedIn" class="logo img-fluid"
-                        style="width: 2rem; height: auto; border-radius: 50%;">
+        <div class="container mx-auto row" id="projects">
+            <h1>Projects</h1>
+            <div class="col-lg-6 col-xxl-3 text-center mb-4">
+                <a href="draftbears.html">
+                    <img src="assets/logos/draftbears-logo.png" class="img-fluid img-thumbnail"
+                        alt="DraftBears Sportsbook">
                 </a>
-                <a href="https://github.com/AllenDufort" class="text-white">
-                    <img src="assets/logos/github.svg" alt="GitHub" class="logo img-fluid"
-                        style="width: 2rem; height: auto; border-radius: 50%;">
+                <p class="text-center fw-light">DraftBears Sportsbook</p>
+            </div>
+            <div class="col-lg-6 col-xxl-3 text-center mb-4">
+                <a href="personas.html">
+                    <img src="assets/logos/persona-logo.png" class="img-fluid img-thumbnail" alt="Personas">
                 </a>
-                <a href="mailto:allendufort2020@gmail.com" class="text-white">
-                    <img src="assets/logos/gmail.svg" alt="Email" class="logo img-fluid"
-                        style="width: 2rem; height: auto; border-radius: 25%;">
+                <p class="text-center fw-light">Personas</p>
+            </div>
+            <div class="col-lg-6 col-xxl-3 text-center mb-4">
+                <a href="https://allendufort.github.io/redesign/">
+                    <img src="assets/logos/responsive-logo.png" class="img-fluid img-thumbnail"
+                        alt="Responsive Redesign">
                 </a>
+                <p class="text-center fw-light">Responsive Redesign</p>
+            </div>
+            <div class="col-lg-6 col-xxl-3 text-center mb-4">
+                <a href="iterative.html">
+                    <img src="assets/logos/sesame-1.png" class="img-fluid img-thumbnail" alt="Iterative Design">
+                </a>
+                <p class="text-center fw-light">Iterative Design</p>
             </div>
         </div>
-    </footer>
+
+        <div class="container mx-auto mb-4" id="resume">
+            <h1>
+                <a href="assets/resume.pdf" class="text-decoration-none">
+                    Resume↗
+                </a>
+            </h1>
+            <img src="assets/resume.jpg" class="img-fluid" alt="Resume Screenshot">
+        </div>
+        <footer class="bg-dark text-white py-4 text-center" id="contact">
+            <div class="container">
+                <p>
+                    <img src="assets/logos/linkedin.svg" alt="LinkedIn" class="img-fluid"
+                        style="width: 1.5em; height: auto;">
+                    <a href="https://linkedin/in/allen-dufort"
+                        class="text-decoration-none">
+                        linkedin.com/in/allen-dufort
+                    </a>
+                </p>
+                <p>
+                    <img src="assets/logos/github.svg" alt="Github" class="img-fluid"
+                        style="width: 1.5em; height: auto;">
+                    <a href="https://github.com/AllenDufort" class="text-decoration-none">
+                        github.com/AllenDufort
+                    </a>
+                </p>
+                <p>
+                    <img src="assets/logos/gmail.svg" alt="Gmail" class="img-fluid"
+                        style="width: 1.5em; height: auto;">
+                    <a href="mailto:allendufort2020@gmail.com" class="text-decoration-none">
+                        allendufort2020@gmail.com
+                    </a>
+                </p>
+                <p class="text-center">
+                    © 2025 Allen Dufort<br>
+                    All rights reserved
+                </p>
+            </div>
+        </footer>
+    </div>
 </body>
 
 </html>
