@@ -9,233 +9,240 @@
     <link rel="stylesheet" href="style.css" />
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet"
         integrity="sha384-9ndCyUaIbzAi2FUVXJi0CjmCapSmO7SnpJef0486qhLnuZ2cdeRhO02iuK6FUUVM" crossorigin="anonymous" />
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.5/font/bootstrap-icons.css">
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"
         integrity="sha384-geWF76RCwLtnZ8qwWowPQNguL3RmwHVBC9FhGdlKrxdiJJigb/j/68SIy3Te4Bkz"
         crossorigin="anonymous"></script>
 </head>
 
 <body class="bg-light iterative">
-    <nav class="navbar navbar-expand-sm navbar-dark bg-dark sticky-top">
+    <nav class="navbar navbar-dark bg-dark d-md-none sticky-top">
         <div class="container-fluid">
-            <a class="navbar-brand" href="index.html">
-                &larr; Allen Dufort
-            </a>
-            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav"
-                aria-controls="navbarNav" aria-expanded="false" aria-label="Toggle navigation">
+            <a class="navbar-brand" href="/"><i class="bi bi-house-door"></i> Home</a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#mobileNavbar"
+                aria-controls="mobileNavbar" aria-expanded="false" aria-label="Toggle navigation">
                 <span class="navbar-toggler-icon"></span>
             </button>
-            <div class="collapse navbar-collapse" id="navbarNav">
+            <div class="collapse navbar-collapse" id="mobileNavbar">
                 <ul class="navbar-nav ms-auto">
-                    <li class="nav-item">
-                        <a class="nav-link" href="#overview">Overview</a>
-                    </li>
-                    <li class="nav-item">
-                        <a class="nav-link" href="#sketches">Sketches</a>
-                    </li>
-                    <li class="nav-item">
-                        <a class="nav-link" href="#critiques">Critiques</a>
-                    </li>
-                    <li class="nav-item">
-                        <a class="nav-link" href="#prototype">Prototypes</a>
-                    </li>
-                    <li class="nav-item">
-                        <a class="nav-link" href="#conclusion">Conclusion</a>
-                    </li>
+                    <li class="nav-item"><a class="nav-link" href="#overview">Overview</a></li>
+                    <li class="nav-item"><a class="nav-link" href="#survey">Survey</a></li>
+                    <li class="nav-item"><a class="nav-link" href="#personas">Personas</a></li>
+                    <li class="nav-item"><a class="nav-link" href="#storyboard">Storyboard</a></li>
+                    <li class="nav-item"><a class="nav-link" href="#conclusion">Conclusion</a></li>
                 </ul>
             </div>
         </div>
     </nav>
 
-    <div class="container mx-auto" id="overview">
-        <h1 style="color:rgb(75, 0, 237) !important;">Sesame Care: Iterative Design</h1>
-        <h2>Part 1: Sketches and Wireframe</h2>
-        <div class="row">
-            <div class="col-lg-6">
-                <h3>Project Overview</h3>
-                <p>
-                    This project was a group project for the course <i>CSCI 1300: Interaction Design</i>.
-                    The goal of the project was to create a design website for a startup company using an
-                    iterative design process.
-                    I, together with Sofia Guarisma, Kaley Newlin, and Valentina Lin,
-                    created a new website design for the company <i>Sesame</i>.
-                    <i>Sesame</i> is a healthcare company that provides affordable and accessible healthcare to
-                    everyone.
-                </p>
-            </div>
-            <div class="col-lg-6" id="sketches">
-                <h3>Sketching our Ideas</h3>
-                <p>
-                    Our first step in working with <i>Sesame</i> was to understand what problems
-                    they wanted to tackle with our new design, as well as to brainstorm.
-                    The main points we had to tackle were:
-                </p>
-                <ul>
-                    <li>Creating personalized and engaging webpages</li>
-                    <li>Provide the user with enhanced understanding and personalized learning</li>
-                    <li>
-                        Accessibility and clarity, making sure information is easy to understand
-                        and the website is easy to navigate.
-                    </li>
-                </ul>
-                <p>We then each sketched out what we envisioned the product to be.</p>
-            </div>
-        </div>
-    </div>
-    <div class="container mx-auto row">
-        <div class="col-lg-6 mb-4">
-            <img src="assets/iterative/allen_sketch.png" class="img-fluid" alt="Allen's Sketch">
-            <p class="text-center fw-light">Allen's Sketch</p>
-        </div>
-        <div class="col-lg-6 mb-4">
-            <img src="assets/iterative/kaley_sketch.png" class="img-fluid" alt="Kaley's Sketch">
-            <p class="text-center fw-light">Kaley's Sketch</p>
-        </div>
-        <div class="col-lg-6 mb-4">
-            <img src="assets/iterative/valentina_sketch.png" class="img-fluid" alt="Valentina's Sketch">
-            <p class="text-center fw-light">Valentina's Sketch</p>
-        </div>
-        <div class="col-lg-6 mb-4">
-            <img src="assets/iterative/sofia_sketch.png" class="img-fluid" alt="Sofia's Sketch">
-            <p class="text-center fw-light">Sofia's Sketch</p>
-        </div>
-    </div>
-
-    <div class="container mx-auto" id="wireframe">
-        <h3>Balsamiq Wireframe</h3>
-        <p>
-            After sketching our ideas, we incorporated the different aspects of our designs
-            into a mockup using <i>Balsamiq</i>.
-            We ultimately decided to develop four different web pages:
-            a Welcome Page, a Personal Profile Page, a Symptoms Page, and a Health Tip page.
-            We wanted the users to be able to easily navigate and use the website,
-            while also being able to get specialized care.
-            Below are the four pages we designed with annotations of the design choices:
-        </p>
-    </div>
-    <div class="container mx-auto mb-4">
-        <div class="row">
-            <div class="col-lg-6 mb-4">
-                <img src="assets/iterative/balsamiq-welcome.png" class="img-fluid" alt="Sesame Mockup">
-            </div>
-            <div class="col-lg-6 mb-4">
-                <img src="assets/iterative/balsamiq-profile.png" class="img-fluid" alt="Sesame Mockup">
-            </div>
-            <div class="col-lg-6 mb-4">
-                <img src="assets/iterative/balsamiq-symptoms.png" class="img-fluid" alt="Sesame Mockup">
-            </div>
-            <div class="col-lg-6 mb-4">
-                <img src="assets/iterative/balsamiq-educational.png" class="img-fluid" alt="Sesame Mockup">
-            </div>
-        </div>
-    </div>
-
-    <div class="container mx-auto" id="critiques">
-        <h2>Part 2: Critiques and Changes</h2>
-        <h3>Design Choices</h3>
-        <p>
-            We then met with Vanessa Cho, the VP of Google Design Platforms.
-            She gave us several suggestions on what to focus on
-            and possible improvements to our design.
-            We also got plenty of feedback from Ravi Mehta, Sesame's CPO,
-            as well as their Lead Product Designer, Chris Chon.
-        </p>
-        <p>Some of the main feedback was:</p>
-        <ul>
-            <li>Order of website should be clear through visual hierarchy</li>
-            <li>Remove unnecessary components from screen</li>
-            <li>Clarify what questions each page is asking the user</li>
-            <li>Make less important components less prominent</li>
-            <li>Functionality of symptoms table unclear</li>
-            <li>Body diagram unclear</li>
+    <div class="sidebar bg-dark text-white p-3 d-none d-md-block">
+        <a class="navbar-brand" href="/"><i class="bi bi-house-door"></i> Home</a>
+        <hr>
+        <ul class="nav flex-column">
+            <li class="nav-item"><a class="nav-link text-white" href="#overview">Overview</a></li>
+            <li class="nav-item"><a class="nav-link text-white" href="#survey">Sketchs</a></li>
+            <li class="nav-item"><a class="nav-link text-white" href="#critiques">Critiques</a></li>
+            <li class="nav-item"><a class="nav-link text-white" href="#prototype">Prototype</a></li>
+            <li class="nav-item"><a class="nav-link text-white" href="#conclusion">Conclusion</a></li>
         </ul>
     </div>
-    <div class="container mx-auto mb-4" id="prototype">
-        <h2>Part 3: Hi-Fi Prototype</h2>
-        <h3>Visualizing the final product</h3>
-        <p>
-            We then made edits to our prototype, using the above feedback as a guide.
-            Here are diagrams of the changes we made:
-        </p>
-        <div class="row">
-            <div class="col-lg-12 text-center mb-4">
-                <img src="assets/iterative/welcome-changes.png " class="img-fluid" alt="Diagram of Welcome Page changes">
-            </div>
-            <div class="col-lg-12 text-center mb-4">
-                <img src="assets/iterative/profile-changes.png" class="img-fluid" alt="Diagram of Profile Page changes">
-            </div>
-            <div class="col-lg-12 text-center mb-4">
-                <img src="assets/iterative/symptoms-changes.png" class="img-fluid" alt="Diagram of Symptoms Page changes">
-            </div>
-            <div class="col-lg-12 text-center mb-4">
-                <img src="assets/iterative/educational-changes.png" class="img-fluid" alt="Diagram of Educational Page changes">
+
+    <div class="content">
+        <div class="container mx-auto" id="overview">
+            <h1 style="color:rgb(75, 0, 237) !important;">Sesame Care: Iterative Design</h1>
+            <h2>Part 1: Sketches and Wireframe</h2>
+            <div class="row">
+                <div class="col-lg-6">
+                    <h3>Project Overview</h3>
+                    <p>
+                        This project was a group project for the course <i>CSCI 1300: Interaction Design</i>.
+                        The goal of the project was to create a design website for a startup company using an
+                        iterative design process.
+                        I, together with Sofia Guarisma, Kaley Newlin, and Valentina Lin,
+                        created a new website design for the company <i>Sesame</i>.
+                        <i>Sesame</i> is a healthcare company that provides affordable and accessible healthcare to
+                        everyone.
+                    </p>
+                </div>
+                <div class="col-lg-6" id="sketches">
+                    <h3>Sketching our Ideas</h3>
+                    <p>
+                        Our first step in working with <i>Sesame</i> was to understand what problems
+                        they wanted to tackle with our new design, as well as to brainstorm.
+                        The main points we had to tackle were:
+                    </p>
+                    <ul>
+                        <li>Creating personalized and engaging webpages</li>
+                        <li>Provide the user with enhanced understanding and personalized learning</li>
+                        <li>
+                            Accessibility and clarity, making sure information is easy to understand
+                            and the website is easy to navigate.
+                        </li>
+                    </ul>
+                    <p>We then each sketched out what we envisioned the product to be.</p>
+                </div>
             </div>
         </div>
-    </div>
-    <div class="container mx-auto">
-        <p>
-            We proceeded to make a
-            <a
-                href="https://www.figma.com/proto/pmCoqHV0DlMLePvZ8nJowJ/Sesame-2---9-Hi-Fi-Prototype?page-id=0%3A1&node-id=2-3&viewport=-583%2C771%2C0.5&t=p8Gfasp8STvsJtHy-1&scaling=scale-down&content-scaling=fixed&starting-point-node-id=2%3A3">
-                High Fidelity Mockup</a>
+        <div class="container mx-auto row">
+            <div class="col-lg-6 mb-4">
+                <img src="assets/iterative/allen_sketch.png" class="img-fluid" alt="Allen's Sketch">
+                <p class="text-center fw-light">Allen's Sketch</p>
+            </div>
+            <div class="col-lg-6 mb-4">
+                <img src="assets/iterative/kaley_sketch.png" class="img-fluid" alt="Kaley's Sketch">
+                <p class="text-center fw-light">Kaley's Sketch</p>
+            </div>
+            <div class="col-lg-6 mb-4">
+                <img src="assets/iterative/valentina_sketch.png" class="img-fluid" alt="Valentina's Sketch">
+                <p class="text-center fw-light">Valentina's Sketch</p>
+            </div>
+            <div class="col-lg-6 mb-4">
+                <img src="assets/iterative/sofia_sketch.png" class="img-fluid" alt="Sofia's Sketch">
+                <p class="text-center fw-light">Sofia's Sketch</p>
+            </div>
+        </div>
+
+        <div class="container mx-auto" id="wireframe">
+            <h3>Balsamiq Wireframe</h3>
+            <p>
+                After sketching our ideas, we incorporated the different aspects of our designs
+                into a mockup using <i>Balsamiq</i>.
+                We ultimately decided to develop four different web pages:
+                a Welcome Page, a Personal Profile Page, a Symptoms Page, and a Health Tip page.
+                We wanted the users to be able to easily navigate and use the website,
+                while also being able to get specialized care.
+                Below are the four pages we designed with annotations of the design choices:
+            </p>
+        </div>
+        <div class="container mx-auto mb-4">
+            <div class="row">
+                <div class="col-lg-6 mb-4">
+                    <img src="assets/iterative/balsamiq-welcome.png" class="img-fluid" alt="Sesame Mockup">
+                </div>
+                <div class="col-lg-6 mb-4">
+                    <img src="assets/iterative/balsamiq-profile.png" class="img-fluid" alt="Sesame Mockup">
+                </div>
+                <div class="col-lg-6 mb-4">
+                    <img src="assets/iterative/balsamiq-symptoms.png" class="img-fluid" alt="Sesame Mockup">
+                </div>
+                <div class="col-lg-6 mb-4">
+                    <img src="assets/iterative/balsamiq-educational.png" class="img-fluid" alt="Sesame Mockup">
+                </div>
+            </div>
+        </div>
+
+        <div class="container mx-auto" id="critiques">
+            <h2>Part 2: Critiques and Changes</h2>
+            <h3>Design Choices</h3>
+            <p>
+                We then met with Vanessa Cho, the VP of Google Design Platforms.
+                She gave us several suggestions on what to focus on
+                and possible improvements to our design.
+                We also got plenty of feedback from Ravi Mehta, Sesame's CPO,
+                as well as their Lead Product Designer, Chris Chon.
+            </p>
+            <p>Some of the main feedback was:</p>
+            <ul>
+                <li>Order of website should be clear through visual hierarchy</li>
+                <li>Remove unnecessary components from screen</li>
+                <li>Clarify what questions each page is asking the user</li>
+                <li>Make less important components less prominent</li>
+                <li>Functionality of symptoms table unclear</li>
+                <li>Body diagram unclear</li>
+            </ul>
+        </div>
+        <div class="container mx-auto mb-4" id="prototype">
+            <h2>Part 3: Hi-Fi Prototype</h2>
+            <h3>Visualizing the final product</h3>
+            <p>
+                We then made edits to our prototype, using the above feedback as a guide.
+                Here are diagrams of the changes we made:
+            </p>
+            <div class="row">
+                <div class="col-lg-12 text-center mb-4">
+                    <img src="assets/iterative/welcome-changes.png " class="img-fluid"
+                        alt="Diagram of Welcome Page changes">
+                </div>
+                <div class="col-lg-12 text-center mb-4">
+                    <img src="assets/iterative/profile-changes.png" class="img-fluid"
+                        alt="Diagram of Profile Page changes">
+                </div>
+                <div class="col-lg-12 text-center mb-4">
+                    <img src="assets/iterative/symptoms-changes.png" class="img-fluid"
+                        alt="Diagram of Symptoms Page changes">
+                </div>
+                <div class="col-lg-12 text-center mb-4">
+                    <img src="assets/iterative/educational-changes.png" class="img-fluid"
+                        alt="Diagram of Educational Page changes">
+                </div>
+            </div>
+        </div>
+        <div class="container mx-auto">
+            <p>
+                We proceeded to make a
+                <a
+                    href="https://www.figma.com/proto/pmCoqHV0DlMLePvZ8nJowJ/Sesame-2---9-Hi-Fi-Prototype?page-id=0%3A1&node-id=2-3&viewport=-583%2C771%2C0.5&t=p8Gfasp8STvsJtHy-1&scaling=scale-down&content-scaling=fixed&starting-point-node-id=2%3A3">
+                    High Fidelity Mockup</a>
                 via Figma.
-            Afterwards we met with Ravi and Chris again to do a final critique of
-            our design. They were very impressed with the changes we made and
-            thought that the design was much more user-friendly and accessible.
-            Here is a video walkthrough of the high-fidelity mockup:
-        </p>
-    </div>
-    <div class="container mx-auto text-center mb-4">
-        <video controls
-            style="width: 50vw; min-width: 300px; max-width: 800px; border-width: 2px; border-color: black; border-style: solid;">
-            <source src="assets/iterative/sesame-screen-recording-small.mov" type="video/mp4">
-            Your browser does not support the video tag.
-        </video>
-    </div>
-    <div class="container mx-auto" id="conclusion">
-        <h2>Conclusion</h2>
-        <h3>Future Changes</h3>
-        <p>
-            In the future, some changes we would like to make include:
-        </p>
-        <ul>
-            <li>Make scale of web components more standard</li>
-            <li>Avoid unclear wording</li>
-            <li>Break the Symptoms Page into multiple single-question windows</li>
-            <li>Change the first page of the Symptoms Page to ask if the pain is localized</li>
-            </li>
-        </ul>
-    </div>
-    <div class="container mx-auto">
-        <h3>Takeaways</h3>
-        <p>
-            My main takeaway from this project is how to make websites,
-            especially those using AI features, more accessible and user-friendly.
-            Through the numerous critiques we received,
-            I learned how to take feedback and iterate on my designs.
-            I also learned to focus on call to action and visual hierarchy
-            to guide the users on how to use the application
-            and what information is most important.
-            Additionally, this group project taught me how
-            to incorporate different ideas into a single design.
+                Afterwards we met with Ravi and Chris again to do a final critique of
+                our design. They were very impressed with the changes we made and
+                thought that the design was much more user-friendly and accessible.
+                Here is a video walkthrough of the high-fidelity mockup:
+            </p>
+        </div>
+        <div class="container mx-auto text-center mb-4">
+            <video controls
+                style="width: 50vw; min-width: 300px; max-width: 800px; border-width: 2px; border-color: black; border-style: solid;">
+                <source src="assets/iterative/sesame-screen-recording-small.mov" type="video/mp4">
+                Your browser does not support the video tag.
+            </video>
+        </div>
+        <div class="container mx-auto" id="conclusion">
+            <h2>Conclusion</h2>
+            <h3>Future Changes</h3>
+            <p>
+                In the future, some changes we would like to make include:
+            </p>
+            <ul>
+                <li>Make scale of web components more standard</li>
+                <li>Avoid unclear wording</li>
+                <li>Break the Symptoms Page into multiple single-question windows</li>
+                <li>Change the first page of the Symptoms Page to ask if the pain is localized</li>
+                </li>
+            </ul>
+        </div>
+        <div class="container mx-auto">
+            <h3>Takeaways</h3>
+            <p>
+                My main takeaway from this project is how to make websites,
+                especially those using AI features, more accessible and user-friendly.
+                Through the numerous critiques we received,
+                I learned how to take feedback and iterate on my designs.
+                I also learned to focus on call to action and visual hierarchy
+                to guide the users on how to use the application
+                and what information is most important.
+                Additionally, this group project taught me how
+                to incorporate different ideas into a single design.
 
-            Through this project, I deepened my understanding of how to design
-            user-friendly, accessible websites, particularly
-            those integrating AI-driven features.
-            I learned how to iterate quickly based on feedback,
-            refine designs to highlight key actions and information,
-            and make applications easier for users to navigate and understand.
-            This experience also strengthened my ability to merge
-            diverse ideas into a cohesive design.
-            All these skills are important when designing
-            AI-based technology, because we must ensure that the
-            technology is accessible to everyone.
-        </p>
-        <p>
-            I would like to thank Ravi Mehta, Chris Chon, Vanessa Cho,
-            and Caroline Walters for their time and feedback.
-            I would also like to thank the CSCI 1300 staff for their
-            hard work and dedication.
-        </p>
+                Through this project, I deepened my understanding of how to design
+                user-friendly, accessible websites, particularly
+                those integrating AI-driven features.
+                I learned how to iterate quickly based on feedback,
+                refine designs to highlight key actions and information,
+                and make applications easier for users to navigate and understand.
+                This experience also strengthened my ability to merge
+                diverse ideas into a cohesive design.
+                All these skills are important when designing
+                AI-based technology, because we must ensure that the
+                technology is accessible to everyone.
+            </p>
+            <p>
+                I would like to thank Ravi Mehta, Chris Chon, Vanessa Cho,
+                and Caroline Walters for their time and feedback.
+                I would also like to thank the CSCI 1300 staff for their
+                hard work and dedication.
+            </p>
+        </div>
     </div>
 </body>
 

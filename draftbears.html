@@ -9,156 +9,148 @@
     <link rel="stylesheet" href="style.css" />
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet"
         integrity="sha384-9ndCyUaIbzAi2FUVXJi0CjmCapSmO7SnpJef0486qhLnuZ2cdeRhO02iuK6FUUVM" crossorigin="anonymous" />
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.5/font/bootstrap-icons.css">
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"
         integrity="sha384-geWF76RCwLtnZ8qwWowPQNguL3RmwHVBC9FhGdlKrxdiJJigb/j/68SIy3Te4Bkz"
         crossorigin="anonymous"></script>
 </head>
 
 <body>
-    <nav class="navbar navbar-expand-sm navbar-dark bg-dark sticky-top">
+    <nav class="navbar navbar-dark bg-dark d-md-none sticky-top">
         <div class="container-fluid">
-            <a class="navbar-brand" href="index.html">
-                &larr; Allen Dufort
-            </a>
-            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav"
-                aria-controls="navbarNav" aria-expanded="false" aria-label="Toggle navigation">
+            <a class="navbar-brand" href="/"><i class="bi bi-house-door"></i> Home</a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#mobileNavbar"
+                aria-controls="mobileNavbar" aria-expanded="false" aria-label="Toggle navigation">
                 <span class="navbar-toggler-icon"></span>
             </button>
-            <div class="collapse navbar-collapse" id="navbarNav">
+            <div class="collapse navbar-collapse" id="mobileNavbar">
                 <ul class="navbar-nav ms-auto">
-                    <li class="nav-item">
-                        <a class="nav-link" href="#about">About</a>
-                    </li>
-                    <li class="nav-item">
-                        <a class="nav-link" href="#projects">Projects</a>
-                    </li>
-                    <li class="nav-item">
-                        <a class="nav-link" href="#resume">Resume</a>
-                    </li>
-                    <li class="nav-item">
-                        <a class="nav-link" href="#contact">Contact</a>
-                    </li>
+                    <li class="nav-item"><a class="nav-link" href="#overview">Overview</a></li>
+                    <li class="nav-item"><a class="nav-link" href="#research">Research</a></li>
+                    <li class="nav-item"><a class="nav-link" href="#findings">Findings</a></li>
+                    <li class="nav-item"><a class="nav-link" href="#conclusion">Conclusion</a></li>
                 </ul>
             </div>
         </div>
     </nav>
-    <div class="container mb-4">
-        <h1>DraftBears Sportsbook</h1>
 
-        <div class="row">
-            <div class="col-md-6">
-                <h3>Overview</h3>
-                <p>
-                    This project analyzed NBA player performance metrics
-                    to uncover trends and correlations that can improve sports analytics.
-                    By examining data from different times of the season, we
-                    provide insights into how player performance impacts team success.
-                </p>
-            </div>
-            <div class="col-md-6">
-                <h3>Context</h3>
-                <p>
-                    This project was created by Melvin He, José Guallpa, and I
-                    as a final project for the course <i>CSCI 1951A: Data Science</i>
-                    at Brown University in Spring 2024.
-                    We were inspired to do this project because we were all fans
-                    of the NBA and we wanted to learn how to use data science in
-                    sports analytics.
-                </p>
-            </div>
-        </div>
-
+    <div class="sidebar bg-dark text-white p-3 d-none d-md-block">
+        <a class="navbar-brand" href="/"><i class="bi bi-house-door"></i> Home</a>
+        <hr>
+        <ul class="nav flex-column">
+            <li class="nav-item"><a class="nav-link text-white" href="#overview">Overview</a></li>
+            <li class="nav-item"><a class="nav-link text-white" href="#research">Research</a></li>
+            <li class="nav-item"><a class="nav-link text-white" href="#findings">Findings</a></li>
+            <li class="nav-item"><a class="nav-link text-white" href="#conclusion">Conclusion</a></li>
+        </ul>
     </div>
-    <div class="container mb-4">
-        <h2>Research Process</h2>
-        <p>
-            A major challenge was trying to find a dataset that included
-            both player performance metrics and team information.
-            My team and I spent a lot of time finding datasets that had one or
-            both of these features.
-            We ultimately collected 2 datasets from multiple APIs and
-            then combined them into one database that included all of the player
-            data we needed.
-            Our database includes various player performance indicators
-            such as points per game, field goal percentage (FGP), defensive rebounds,
-            and personal fouls.
-        </p>
-    </div>
-    <div class="container mb-4">
-        <h2>Findings</h2>
-        <div class="row mb-4">
-            <div class="col-md-6">
-                <p>
-                    1. Players with higher plus-minus scores
-                    tend to have higher FGP
-                </p>
-                <ul>
-                    <li>
-                        Plus-minus score: difference between
-                        points scored by player's team and opposing
-                        team while the player on court
-                    </li>
-                </ul>
-            </div>
-            <div class="col-md-6">
-                <img src="assets/draftbears/plus-minus.png" class="img-fluid" alt="Plus-Minus vs FGP" style="max-height: 500px;">
-            </div>
-        </div>
 
-        <div class="row mb-4">
-            <div class="col-md-6">
-                <img src="assets/draftbears/box_plot_fgs.png" class="img-fluid" alt="Plus-Minus vs FGP" style="max-height: 500px;">
+
+    <div class="content">
+        <div class="container" id="overview">
+            <h1>DraftBears Sportsbook</h1>
+
+            <div class="row">
+                <div class="col-lg-6">
+                    <h3>Overview</h3>
+                    <p>
+                        This project analyzed NBA player performance metrics
+                        to uncover trends and correlations that can improve sports analytics.
+                        By examining data from different times of the season, we
+                        provide insights into how player performance impacts team success.
+                    </p>
+                </div>
+                <div class="col-lg-6">
+                    <h3>Context</h3>
+                    <p>
+                        This project was created by Melvin He, José Guallpa, and I
+                        as a final project for the course <i>CSCI 1951A: Data Science</i>
+                        at Brown University in Spring 2024.
+                        We were inspired to do this project because we were all fans
+                        of the NBA and we wanted to learn how to use data science in
+                        sports analytics.
+                    </p>
+                </div>
             </div>
-            <div class="col-md-6">
-                <p>
-                    2. No significant difference in players' FGP in March vs entire season
-                </p>
-            </div>
+
         </div>
-        <div class="row mb-4">
-            <div class="col-md-6">
-                <p>
-                    3. Players with higher defensive rebounds tend to have
-                    higher personal fouls
-                </p>
-                <ul>
-                    <li>
+        <div class="container mb-4" id="research">
+            <h2>Research Process</h2>
+            <p>
+                A major challenge was trying to find a dataset that included
+                both player performance metrics and team information.
+                My team and I spent a lot of time finding datasets that had one or
+                both of these features.
+                We ultimately collected 2 datasets from multiple APIs and
+                then combined them into one database that included all of the player
+                data we needed.
+                Our database includes various player performance indicators
+                such as points per game, field goal percentage (FGP), defensive rebounds,
+                and personal fouls.
+            </p>
+        </div>
+        <div class="container mb-4" id="findings">
+            <h2>Findings</h2>
+            <p>
+                1. Players with higher plus-minus scores
+                tend to have higher FGP
+            </p>
+            <ul>
+                <li>
+                    Plus-minus score: difference between
+                    points scored by player's team and opposing
+                    team while the player on court
+                </li>
+            </ul>
+            <img src="assets/draftbears/plus-minus.png" class="img-fluid mb-4" alt="Plus-Minus vs FGP"
+                style="max-height: 500px;">
+
+            <p>
+                2. No significant difference in players' FGP in March vs entire season
+            </p>
+            <img src="assets/draftbears/box_plot_fgs.png" class="img-fluid mb-4" alt="Plus-Minus vs FGP"
+                style="max-height: 500px;">
+            <p>
+                3. Players with higher defensive rebounds tend to have
+                higher personal fouls
+            </p>
+            <figure>
+                <img src="assets/draftbears/jabbar.webp" class="img-fluid" alt="Kareem Abdul-Jabbar">
+                <figcaption class="text-center mt-2">
+                    <i>
                         Kareem Abdul-Jabbar, NBA record-holder for most
                         personal fouls and 3rd in rebounds per game
-                    </li>
-                </ul>
-            </div>
-            <div class="col-md-6">
-                <img src="assets/draftbears/jabbar.webp" class="img-fluid" alt="Plus-Minus vs FGP">
-            </div>
+                    </i>
+                </figcaption>
+            </figure>
         </div>
-    </div>
-    <div class="container mb-4">
-        <div class="row">
-            <div class="col-md-6 mb-4">
-                <h2>Takeaways</h2>
-                <p>
-                    One takeaway from this project is that there are many factors that
-                    affect player performance metrics.
-                    For example, the correlation between plus-minus scores and field
-                    goal percentage is lower than expected.
-                    This indicates that there are other factors that affect player
-                    performance metrics, such as steals and offensive rebounds.
-                    Another takeaway is that even in the simplistic data analysis,
-                    one should be careful about overgeneralizing the trends found
-                    in the data.
-                </p>
-            </div>
-            <div class="col-md-6 mb-4">
-                <h2>Ethical Considerations</h2>
-                <p>
-                    My last takeaway from this is to consider the ethical implications of data analysis.
-                    For instance, racial bias is a significant issue in sports analytics.
-                    Research by Foy and Roy (2023) found lighter-skinned players were
-                    often described for performance and mental abilities, while
-                    darker-skinned players were described for physical abilities.
-                    Although our datasets lacked qualitative descriptions, we mitigated
-                    bias by avoiding analysis linking physical attributes to race.</p>
+        <div class="container mb-4" id="conclusion">
+            <div class="row">
+                <div class="col-lg-6 mb-4">
+                    <h2>Takeaways</h2>
+                    <p>
+                        One takeaway from this project is that there are many factors that
+                        affect player performance metrics.
+                        For example, the correlation between plus-minus scores and field
+                        goal percentage is lower than expected.
+                        This indicates that there are other factors that affect player
+                        performance metrics, such as steals and offensive rebounds.
+                        Another takeaway is that even in the simplistic data analysis,
+                        one should be careful about overgeneralizing the trends found
+                        in the data.
+                    </p>
+                </div>
+                <div class="col-lg-6 mb-4">
+                    <h2>Ethical Considerations</h2>
+                    <p>
+                        My last takeaway from this is to consider the ethical implications of data analysis.
+                        For instance, racial bias is a significant issue in sports analytics.
+                        Research by Foy and Roy (2023) found lighter-skinned players were
+                        often described for performance and mental abilities, while
+                        darker-skinned players were described for physical abilities.
+                        Although our datasets lacked qualitative descriptions, we mitigated
+                        bias by avoiding analysis linking physical attributes to race.</p>
+                </div>
             </div>
         </div>
     </div>
