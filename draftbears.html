@@ -73,10 +73,59 @@
                     </p>
                 </div>
             </div>
+            <h3>Important Terms</h3>
+            <ul>
+                <li>
+                    <b>Plus-minus score:</b>
+                    difference between points scored by player's team
+                    and opposing team while player on court
+                </li>
+                <li>
+                    <b>Field goal (FG):</b> basket made from field
+                    (not a free throw)
+                </li>
+                <li>
+                    <b>Field goal percentage (FG%):</b> (FG made)/(FG attempted)
+                </li>
+                <li>
+                    <b>Defensive rebounds (DRB):</b> number of rebounds player
+                    gets while defending against opposing team
+                </li>
+                <li>
+                    <b>Personal fouls (PF):</b> number of fouls committed by player
+                </li>
+            </ul>
+
 
         </div>
         <div class="container mb-4" id="research">
             <h2>Research Process</h2>
+            <p>
+                First, my group and I had to decide what we wanted to analyze.
+                We wanted to find a dataset that included player performance metrics
+                and team information, so we could analyze how player performance
+                impacts team success.
+                Then, we had to develop the research question that would guide our
+                analysis.
+                We decided to focus on the following question:
+                "How do player performance metrics impact team success?"
+                We then broke this question down into 3 hypotheses that we could
+                test with our data:
+            <ol>
+                <li>
+                    The higher the plus-minus score, the better the player performs
+                    in terms of scoring efficiency (higher FG%)
+                </li>
+                <li>
+                    There is no significant difference in the FG% of players in March compared to their average
+                    FG% over the season
+                </li>
+                <li>
+                    There is no significant correlation between the number of
+                    DRBs and PFs committed by players.
+                </li>
+            </ol>
+            </p>
             <p>
                 A major challenge was trying to find a dataset that included
                 both player performance metrics and team information.
@@ -85,45 +134,67 @@
                 We ultimately collected 2 datasets from multiple APIs and
                 then combined them into one database that included all of the player
                 data we needed.
-                Our database includes various player performance indicators
-                such as points per game, field goal percentage (FGP), defensive rebounds,
-                and personal fouls.
+                Our database included various player performance metrics
+                such as points per game, FG%, DRBs, and PFs.
+            </p>
+            <p>
+                After collecting the data, we had to clean it up and
+                prepare it for analysis.
+                We removed any records of players with missing or null values
+                to ensure data integrity and completeness.
+                We then ran multiple statistical tests on our data
+                to assess our hypotheses.
             </p>
         </div>
         <div class="container mb-4" id="findings">
             <h2>Findings</h2>
             <p>
-                1. Players with higher plus-minus scores
-                tend to have higher FGP
+                <span style="color: lime;">Hypothesis 1: Accepted</span><br>
+                Strong positive correlation found between plus-minus scores
+                and FG%
             </p>
             <ul>
                 <li>
-                    Plus-minus score: difference between
-                    points scored by player's team and opposing
-                    team while the player on court
+                    <b>Interpretation</b>:
+                    We think that this is the case because if someone has a higher
+                    field goal percentage, they are likely to score more points
+                    which would make their plus-minus score higher
                 </li>
             </ul>
             <img src="assets/draftbears/plus-minus.png" class="img-fluid mb-4" alt="Plus-Minus vs FGP"
                 style="max-height: 500px;">
 
             <p>
-                2. No significant difference in players' FGP in March vs entire season
+                <span style="color: lime;">Hypothesis 2: Accepted</span><br>
+                No significant difference found in players' FG% in March vs entire season
             </p>
+            <ul>
+                <li>
+                    <b>Interpretation</b>:
+                    We theorize this may be the case due to continuous training,
+                    coaching consistency, and player experience
+                </li>
+            </ul>
             <img src="assets/draftbears/box_plot_fgs.png" class="img-fluid mb-4" alt="Plus-Minus vs FGP"
                 style="max-height: 500px;">
             <p>
-                3. Players with higher defensive rebounds tend to have
-                higher personal fouls
+                <span style="color: red;">Hypothesis 3: Rejected</span><br>
+                Positive correlation found between DRB and PF
             </p>
-            <figure>
+            <ul>
+                <li>
+                    <b>Interpretation</b>:
+                    We think this link exists because players who are more aggressive
+                    on defense are more likely to get rebounds and more likely to commit fouls
+                </li>
+                <li>
+                    <b>Picture below:</b> Kareem Abdul-Jabbar, NBA record-holder for most
+                    personal fouls and 3rd in rebounds per game
+                </li>
+            </ul>
+            <div class="text-center mb-4">
                 <img src="assets/draftbears/jabbar.webp" class="img-fluid" alt="Kareem Abdul-Jabbar">
-                <figcaption class="text-center mt-2">
-                    <i>
-                        Kareem Abdul-Jabbar, NBA record-holder for most
-                        personal fouls and 3rd in rebounds per game
-                    </i>
-                </figcaption>
-            </figure>
+            </div>
         </div>
         <div class="container mb-4" id="conclusion">
             <h2>Conclusion</h2>
@@ -132,7 +203,7 @@
                     <h3>Takeaways</h3>
                     <p>
                         This project deepened my understanding of how complex and nuanced data analysis can be. For
-                        example, the correlation between plus-minus scores and field goal percentage was lower than
+                        example, the correlation between plus-minus scores and fg% was lower than
                         expected, revealing that many other factors — such as steals and offensive rebounds — influence
                         player performance metrics. I also learned that even with straightforward datasets, it’s
                         important to avoid overgeneralizing trends.
@@ -142,13 +213,19 @@
                 </div>
                 <div class="col-lg-6 mb-4">
                     <h2>Ethical Considerations</h2>
-                    <p> Another key takeaway was the importance of considering ethical implications in data analysis. In
-                        sports analytics, racial bias remains a serious concern; for example, research by Foy and Roy
-                        (2023) highlighted how lighter-skinned players are often praised for cognitive abilities, while
-                        darker-skinned players are described more by physical traits. Although our dataset lacked
-                        qualitative descriptions, we took care to mitigate bias by avoiding analysis that linked
-                        physical attributes to race. As I continue working with AI and ML, maintaining ethical standards
-                        will be crucial to creating fair, inclusive, and trustworthy systems. </p>
+                    <p>
+                        Another key takeaway was the importance of considering
+                        ethical implications in data analysis.
+                        In sports analytics, racial bias remains a serious concern;
+                        for example, research by Foy and Roy (2023) highlighted how
+                        lighter-skinned players are often praised for cognitive abilities,
+                        while darker-skinned players are described more by physical traits.
+                        Although our dataset lacked qualitative descriptions,
+                        we took care to mitigate bias by avoiding analysis that
+                        linked physical attributes to race.
+                        As I continue working with AI and ML, maintaining ethical standards
+                        will be crucial to creating fair, inclusive, and trustworthy systems.
+                    </p>
                 </div>
             </div>
         </div>
