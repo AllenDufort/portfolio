@@ -1,7 +1,7 @@
 :root {
     --green: #4f4;
     --pink: #f4f;
-    --light-blue: #4ff;
+    --light-blue: rgb(72, 139, 254);
     --link-blue: #66f;
     --off-white: #f4f4f4;
     --off-black: #333;
@@ -19,6 +19,15 @@ body {
 html {
     scroll-padding-top: 76px;
     scroll-behavior: smooth;
+}
+.personas {
+    background-color: var(--off-white) !important;
+    color: var(--off-black) !important;
+}
+
+.personas h1 {
+    color: var(--light-blue) !important;
+    font-weight: 700 !important;
 }
 
 h1, h1 a {
@@ -45,13 +54,13 @@ h1 a:hover {
 }
 #projects div:hover {
     transform: scale(1.03);
-    color: var(--off-white) !important;
+    color: white !important;
 }
 #projects div:hover p {
     font-weight: 600 !important;
 }
 #projects div:hover img {
-    box-shadow: 0 0 15px var(--off-white);
+    box-shadow: 0 0 15px white;
 }
 
 .logo {
