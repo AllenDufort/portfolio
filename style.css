@@ -2,9 +2,11 @@
     --green: #4f4;
     --pink: #f4f;
     --light-blue: rgb(72, 139, 254);
-    --link-blue: #66f;
+    --link-blue: #0d6efd;
     --off-white: #f4f4f4;
     --off-black: #333;
+    --sidebar-width: 170px;
+    --orange: #f70;
 }
 
 body {
@@ -28,6 +30,11 @@ html {
 .personas h1 {
     color: var(--light-blue) !important;
 }
+
+.redesign h1 {
+    color: var(--orange) !important;
+}
+
 
 h1, h1 a {
     color: var(--green) !important;
@@ -81,7 +88,7 @@ h3 {
 
 /* Sidebar styles */
 .sidebar {
-    width: 250px;
+    width: var(--sidebar-width);
     min-height: 100vh;
     position: fixed;
     top: 0;
@@ -97,7 +104,7 @@ h3 {
         display: none;
     }
     .content {
-        margin-left: 250px !important;
+        margin-left: var(--sidebar-width) !important;
     }
 }
 @media (max-width: 768px) {
