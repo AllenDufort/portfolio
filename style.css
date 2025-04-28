@@ -2,6 +2,7 @@
     --green: #4f4;
     --pink: #f4f;
     --light-blue: #4ff;
+    --link-blue: #66f;
     --off-white: #f4f4f4;
     --off-black: #333;
 }
@@ -14,9 +15,20 @@ body {
     font-size: 16px;
     line-height: 1.5;
 }
+
 html {
     scroll-padding-top: 76px;
     scroll-behavior: smooth;
+}
+
+h1, h1 a {
+    color: var(--green) !important;
+    font-weight: 700 !important;
+}
+
+h1 a:hover {
+    color: var(--link-blue) !important;
+    text-decoration: underline !important;
 }
 
 .navbar-brand img {
@@ -24,36 +36,30 @@ html {
     height: 50px;
 }
 
-#projects div {
-    color: white !important;
-    transition: transform 0.3s;
-
-}
-
 #projects img {
     transition: transform 0.3s;
 }
 
-#projects div:hover img {
-    box-shadow: 0 0 15px yellow;
+#projects div {
+    transition: transform 0.3s;
 }
 #projects div:hover {
     transform: scale(1.03);
-    color: yellow !important;
+    color: var(--off-white) !important;
+}
+#projects div:hover p {
+    font-weight: 600 !important;
+}
+#projects div:hover img {
+    box-shadow: 0 0 15px var(--off-white);
 }
 
 .logo {
     transition: transform 0.3s, box-shadow 0.3s;
 }
 .logo:hover {
-    box-shadow: 0 0 15px yellow;
+    box-shadow: 0 0 15px var(--off-white);
     transform: scale(1.03);
-}
-
-h1 {
-    font-weight: bold !important;
-    font-size: 200%;
-    color: var(--green) !important;
 }
 
 .navbar-dark, .navbar[data-bs-theme=dark] {
