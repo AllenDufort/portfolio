@@ -56,6 +56,11 @@ h3 {
     font-size: 1.3rem !important;
 }
 
+h4 {
+    font-weight: 500 !important;
+    font-size: 1.1rem !important;
+}
+
 .navbar-brand img {
     width: auto;
     height: 50px;
