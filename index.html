@@ -10,6 +10,7 @@
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet"
         integrity="sha384-9ndCyUaIbzAi2FUVXJi0CjmCapSmO7SnpJef0486qhLnuZ2cdeRhO02iuK6FUUVM" crossorigin="anonymous" />
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.5/font/bootstrap-icons.css">
+    <script src="animate.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"
         integrity="sha384-geWF76RCwLtnZ8qwWowPQNguL3RmwHVBC9FhGdlKrxdiJJigb/j/68SIy3Te4Bkz"
         crossorigin="anonymous"></script>
@@ -49,27 +50,12 @@
     <div class="content">
         <div class="container mx-auto row" id="about">
             <div class="col-xl-8 mb-4 mt-2">
-                <h1 id="animated-text"></h1>
-                <script>
-                    const textElement = document.getElementById('animated-text');
-                    const text = "Hi, I'm Allen!";
-                    let index = 0;
-
-                    function typeText() {
-                        if (index < text.length) {
-                            textElement.innerHTML = text.substring(0, index + 1) + '<span class="blink">|</span>';
-                            index++;
-                            setTimeout(typeText, 100); // Adjust typing speed here
-                        }
-                    }
-
-                    typeText();
-                </script>
-                <h2>
+                <h1 id="animated-index"></h1>
+                <h2 class="mt-4">
                     I'm passionate about using AI and ML to transform data analysis
                     and about making AI technology accessible to everyone!
                 </h2>
-                <p>
+                <p class="mt-4">
                     My interests include data science, artificial intelligence, visual design, and web development.
                 </p>
                 <p>

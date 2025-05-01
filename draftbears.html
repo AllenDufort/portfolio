@@ -10,6 +10,7 @@
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet"
         integrity="sha384-9ndCyUaIbzAi2FUVXJi0CjmCapSmO7SnpJef0486qhLnuZ2cdeRhO02iuK6FUUVM" crossorigin="anonymous" />
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.5/font/bootstrap-icons.css">
+    <script src="animate.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"
         integrity="sha384-geWF76RCwLtnZ8qwWowPQNguL3RmwHVBC9FhGdlKrxdiJJigb/j/68SIy3Te4Bkz"
         crossorigin="anonymous"></script>
@@ -48,73 +49,36 @@
 
     <div class="content">
         <div class="container" id="overview">
-            <h1>DraftBears Sportsbook</h1>
+            <h1 id="animated-draftbears">DraftBears Sportsbook</h1>
             <h2>Overview</h2>
 
-            <div class="row">
-                <div class="col-lg-6">
-                    <h3>Project Description</h3>
-                    <p>
-                        This project analyzed NBA player performance metrics
-                        to uncover trends and correlations that can improve sports analytics.
-                        By examining data from different times of the season, we
-                        provide insights into how player performance impacts team success.
-                    </p>
-                </div>
-                <div class="col-lg-6">
-                    <h3>Context</h3>
-                    <p>
-                        This project was created by Melvin He, José Guallpa, and I
-                        as a final project for the course CSCI 1951A: Data Science
-                        at Brown University in Spring 2024.
-                        We were inspired to do this project because we were all fans
-                        of the NBA and we wanted to learn how to use data science in
-                        sports analytics.
-                    </p>
-                </div>
-            </div>
-            <h3>Important Terms</h3>
-            <ul>
-                <li>
-                    <b>Plus-minus score:</b>
-                    difference between points scored by player's team
-                    and opposing team while player on court
-                </li>
-                <li>
-                    <b>Field goal (FG):</b> basket made from field
-                    (not a free throw)
-                </li>
-                <li>
-                    <b>Field goal percentage (FG%):</b> (FG made)/(FG attempted)
-                </li>
-                <li>
-                    <b>Defensive rebounds (DRB):</b> number of rebounds player
-                    gets while defending against opposing team
-                </li>
-                <li>
-                    <b>Personal fouls (PF):</b> number of fouls committed by player
-                </li>
-            </ul>
 
+            <h3>Project Description</h3>
+            <p>
+                Draftbook Sportbooks is a project that analyzed NBA player
+                performance metrics.
+                This project, created by Melvin He, José Guallpa, and me, was a
+                final project for CSCI 1951A: Data Science at Brown University
+                in Spring 2024.
+                Motivated by our shared interests in the NBA and sports analytics,
+                we examined data from various points in the season to provide
+                insights into how individual player performance impacts their
+                teams' success.
+            </p>
 
         </div>
         <div class="container mb-4" id="research">
             <h2>Research Process</h2>
             <p>
-                First, my group and I had to decide what we wanted to analyze.
-                We wanted to find a dataset that included player performance metrics
-                and team information, so we could analyze how player performance
-                impacts team success.
-                Then, we had to develop the research question that would guide our
-                analysis.
-                We decided to focus on the following question:
+                Our research question was:
                 "How do player performance metrics impact team success?"
-                We then broke this question down into 3 hypotheses that we could
-                test with our data:
+                We then broke this question down into 3 hypotheses
+                that we could test:
+            </p>
             <ol>
                 <li>
                     The higher the plus-minus score, the better the player performs
-                    in terms of scoring efficiency (higher FG%)
+                    in terms of scoring efficiency (higher field goal (FG)%)
                 </li>
                 <li>
                     There is no significant difference in the FG% of players in March compared to their average
@@ -125,75 +89,81 @@
                     DRBs and PFs committed by players.
                 </li>
             </ol>
-            </p>
             <p>
-                A major challenge was trying to find a dataset that included
-                both player performance metrics and team information.
-                My team and I spent a lot of time finding datasets that had one or
-                both of these features.
-                We ultimately collected 2 datasets from multiple APIs and
-                then combined them into one database that included all of the player
-                data we needed.
+                One challenge during research was trying to find a dataset that
+                included both player performance metrics and team information.
+                To solve this issue, we collected data from two APIs and
+                then combined it into one database with multiple tables.
                 Our database included various player performance metrics
-                such as points per game, FG%, DRBs, and PFs.
+                such as FG%, defensive rebounds (DRB), and personal fouls (PFs).
             </p>
             <p>
-                After collecting the data, we had to clean it up and
-                prepare it for analysis.
-                We removed any records of players with missing or null values
-                to ensure data integrity and completeness.
-                We then ran multiple statistical tests on our data
-                to assess our hypotheses.
+                After collecting the data, we cleaned the data and ran multiple
+                statistical tests on our data to assess our hypotheses.
             </p>
         </div>
         <div class="container mb-4" id="findings">
-            <h2>Findings</h2>
-            <p>
-                <span style="color: lime;">Hypothesis 1: Accepted</span><br>
-                Strong positive correlation found between plus-minus scores
-                and FG%
-            </p>
-            <ul>
-                <li>
-                    <b>Interpretation</b>:
-                    We think that this is the case because if someone has a higher
-                    field goal percentage, they are likely to score more points
-                    which would make their plus-minus score higher
-                </li>
-            </ul>
-            <img src="assets/draftbears/plus-minus.png" class="img-fluid mb-4" alt="Plus-Minus vs FGP"
-                style="max-height: 500px;">
-
-            <p>
-                <span style="color: lime;">Hypothesis 2: Accepted</span><br>
-                No significant difference found in players' FG% in March vs entire season
-            </p>
-            <ul>
-                <li>
-                    <b>Interpretation</b>:
-                    We theorize this may be the case due to continuous training,
-                    coaching consistency, and player experience
-                </li>
-            </ul>
-            <img src="assets/draftbears/box_plot_fgs.png" class="img-fluid mb-4" alt="Plus-Minus vs FGP"
-                style="max-height: 500px;">
-            <p>
-                <span style="color: red;">Hypothesis 3: Rejected</span><br>
-                Positive correlation found between DRB and PF
-            </p>
-            <ul>
-                <li>
-                    <b>Interpretation</b>:
-                    We think this link exists because players who are more aggressive
-                    on defense are more likely to get rebounds and more likely to commit fouls
-                </li>
-                <li>
-                    <b>Picture below:</b> Kareem Abdul-Jabbar, NBA record-holder for most
-                    personal fouls and 3rd in rebounds per game
-                </li>
-            </ul>
-            <div class="text-center mb-4">
-                <img src="assets/draftbears/jabbar.webp" class="img-fluid" alt="Kareem Abdul-Jabbar">
+            <div class="row">
+                <div class="col-md-6">
+                    <h2>Findings</h2>
+                    <p>
+                        <span style="color: lime;">Hypothesis 1: Accepted</span><br>
+                        Strong positive correlation found between plus-minus scores
+                        and FG%
+                    </p>
+                    <ul>
+                        <li>
+                            <b>Interpretation</b>:
+                            We think that this is the case because if someone has a higher
+                            field goal percentage, they are likely to score more points
+                            which would make their plus-minus score higher
+                        </li>
+                    </ul>
+                </div>
+                <div class="col-md-6">
+                    <img src="assets/draftbears/plus-minus.png" class="img-fluid mb-4" alt="Plus-Minus vs FGP"
+                        style="max-height: 500px;">
+                </div>
+                <div class="col-md-6">
+                    <p>
+                        <span style="color: lime;">Hypothesis 2: Accepted</span><br>
+                        No significant difference found in players' FG% in March vs entire season
+                    </p>
+                    <ul>
+                        <li>
+                            <b>Interpretation</b>:
+                            We theorize this may be the case due to continuous training,
+                            coaching consistency, and player experience
+                        </li>
+                    </ul>
+                </div>
+                <div class="col-md-6">
+                    <img src="assets/draftbears/box_plot_fgs.png" class="img-fluid mb-4" alt="Plus-Minus vs FGP"
+                        style="max-height: 500px;">
+                </div>
+                <div class="col-md-6">
+                    <p>
+                        <span style="color: red;">Hypothesis 3: Rejected</span><br>
+                        Positive correlation found between DRB and PF
+                    </p>
+                    <ul>
+                        <li>
+                            <b>Interpretation</b>:
+                            We think this link exists because players who are more aggressive
+                            on defense are more likely to get rebounds and more likely to commit fouls
+                        </li>
+                        <li>
+                            <b>Picture:</b> Kareem Abdul-Jabbar, NBA record-holder for most
+                            personal fouls and 3rd in rebounds per game
+                        </li>
+                    </ul>
+                </div>
+                <div class="col-md-6">
+                    <div class="text-center mb-4">
+                        <img src="assets/draftbears/jabbar.webp" class="img-fluid" 
+                        alt="Kareem Abdul-Jabbar" style="max-height: 500px;">
+                    </div>
+                </div>
             </div>
         </div>
         <div class="container mb-4" id="conclusion">
