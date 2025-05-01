@@ -148,8 +148,9 @@ img, .image-container img {
 body.iterative .img-fluid:active,
 body.redesign .img-fluid:active {
     position: fixed;
-    top: 20px;
-    left: 20px;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
     width: 90%;
     height: 90%;
     object-fit: contain;
