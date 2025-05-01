@@ -67,21 +67,11 @@ h4 {
     height: 50px;
 }
 
-#projects img {
+#projects .card {
     transition: transform 0.3s;
 }
-
-#projects div {
-    transition: transform 0.3s;
-}
-#projects div:hover {
+#projects .card:hover {
     transform: scale(1.03);
-    color: white !important;
-}
-#projects div:hover p {
-    font-weight: 600 !important;
-}
-#projects div:hover img {
     box-shadow: 0 0 15px white;
 }
 
@@ -145,6 +135,11 @@ img, .image-container img {
     transition: transform 0.3s;
 }
 
+.nohover:hover {
+    transform: none !important;
+}
+
+
 body.iterative .img-fluid:active,
 body.redesign .img-fluid:active {
     position: fixed;
@@ -156,10 +151,6 @@ body.redesign .img-fluid:active {
     object-fit: contain;
     z-index: 9999;
     background-color: rgba(0, 0, 0, 0.8);
-}
-
-.screenshot:hover {
-    transform: none !important;
 }
 
 .blink {
