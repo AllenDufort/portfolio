@@ -9,6 +9,8 @@ document.addEventListener('DOMContentLoaded', () => {
     const redesignText = "Responsive Redesign";
     const personasTextElement = document.getElementById('animated-personas');
     const personasText = "Personas and Storyboards";
+    const reaiTextElement = document.getElementById('animated-reai');
+    const reaiText = "Reintegrating AI";
 
     function animateText(textElement, text) {
         // Check if the element exists before trying to animate it
@@ -36,4 +38,5 @@ document.addEventListener('DOMContentLoaded', () => {
     animateText(draftbearsTextElement, draftbearsText);
     animateText(redesignTextElement, redesignText);
     animateText(personasTextElement, personasText);
+    animateText(reaiTextElement, reaiText);
 });

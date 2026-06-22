@@ -1,0 +1,272 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="utf-8" name="viewport" content="width=device-width, initial-scale=1"
+        description="Reintegrating AI: LLM-Generated Reward Functions" />
+    <title>Reintegrating AI</title>
+    <link rel="icon" href="assets/logos/silhouette.png" type="image/x-icon" />
+    <link rel="stylesheet" href="style.css" />
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet"
+        integrity="sha384-9ndCyUaIbzAi2FUVXJi0CjmCapSmO7SnpJef0486qhLnuZ2cdeRhO02iuK6FUUVM" crossorigin="anonymous" />
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.5/font/bootstrap-icons.css">
+    <script src="animate.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"
+        integrity="sha384-geWF76RCwLtnZ8qwWowPQNguL3RmwHVBC9FhGdlKrxdiJJigb/j/68SIy3Te4Bkz"
+        crossorigin="anonymous"></script>
+</head>
+
+<body>
+    <nav class="navbar navbar-dark bg-dark d-md-none sticky-top">
+        <div class="container-fluid">
+            <a class="navbar-brand" href="index.html"><i class="bi bi-house-door"></i> Home</a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#mobileNavbar"
+                aria-controls="mobileNavbar" aria-expanded="false" aria-label="Toggle navigation">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div class="collapse navbar-collapse" id="mobileNavbar">
+                <ul class="navbar-nav ms-auto">
+                    <li class="nav-item"><a class="nav-link" href="#overview">Overview</a></li>
+                    <li class="nav-item"><a class="nav-link" href="#methods">Methods</a></li>
+                    <li class="nav-item"><a class="nav-link" href="#results">Results</a></li>
+                    <li class="nav-item"><a class="nav-link" href="#discussion">Discussion</a></li>
+                    <li class="nav-item"><a class="nav-link" href="#conclusion">Conclusion</a></li>
+                </ul>
+            </div>
+        </div>
+    </nav>
+
+    <div class="sidebar bg-dark text-white p-3 d-none d-md-block">
+        <a class="navbar-brand" href="index.html"><i class="bi bi-house-door"></i> Home</a>
+        <hr>
+        <ul class="nav flex-column">
+            <li class="nav-item"><a class="nav-link text-white" href="#overview">Overview</a></li>
+            <li class="nav-item"><a class="nav-link text-white" href="#methods">Methods</a></li>
+            <li class="nav-item"><a class="nav-link text-white" href="#results">Results</a></li>
+            <li class="nav-item"><a class="nav-link text-white" href="#discussion">Discussion</a></li>
+            <li class="nav-item"><a class="nav-link text-white" href="#conclusion">Conclusion</a></li>
+        </ul>
+    </div>
+
+
+    <div class="content">
+        <div class="container" id="overview">
+            <h1 id="animated-reai">Reintegrating AI: LLM-generated Reward Functions</h1>
+            <h2>Overview</h2>
+
+            <h3>Project Description</h3>
+            <p>
+                Reintegrating AI explores whether large language models (LLMs) can
+                <i>generate the reward functions</i> used to train reinforcement
+                learning (RL) agents. Traditional RL relies on hand-crafted
+                mathematical reward models that are tailored to one specific task,
+                making them difficult to reuse or scale toward Artificial General
+                Intelligence (AGI). Instead of writing those equations by hand,
+                we prompt an LLM with a description of the task and let it score
+                the agent's moves in natural language.
+            </p>
+            <p>
+                This project was completed for
+                <span style="color: palegreen;">CSCI 2951X: Reintegrating AI</span>,
+                taught by Professor George Konidaris at Brown University. The source
+                code is available on
+                <a href="https://github.com/lost-particles/echoLLM" class="text-decoration-none"
+                    target="_blank" rel="noopener noreferrer">GitHub</a>.
+            </p>
+
+            <h3>Research Questions</h3>
+            <ol>
+                <li>
+                    How can reward functions be generated or approximated by an LLM
+                    based on human-preference prompts?
+                </li>
+                <li>
+                    Can these language-based reward functions perform better than a
+                    traditional mathematical reward function?
+                </li>
+            </ol>
+
+            <h3>Contributions</h3>
+            <ul>
+                <li>A generalized way to provide reward functions for training RL agents</li>
+                <li>Integration of LLMs into the model training process, advancing toward AGI</li>
+                <li>Making AI more intuitive and accessible for people with lower technical backgrounds</li>
+            </ul>
+        </div>
+
+        <div class="container mb-4" id="methods">
+            <h2>Methods</h2>
+            <p>
+                We built on a Q-learning framework and replaced the standard reward
+                function with responses from an LLM. At each step, the LLM is given
+                the agent's current state, next state, and action, and returns a
+                numeric score. We tested this approach across two OpenAI Gymnasium
+                environments, each run over hundreds of episodes to ensure
+                statistically meaningful results.
+            </p>
+
+            <div class="row">
+                <div class="col-md-6">
+                    <h3>Experiment 1: Frozen Lake</h3>
+                    <p>
+                        A 4x4 grid where the agent must navigate from a start tile to
+                        a goal while avoiding holes. The LLM was given a textual map of
+                        the grid, the Manhattan distance to the goal, and few-shot
+                        examples rating moves from -5.0 (very bad) to 5.0 (excellent).
+                    </p>
+                    <ul>
+                        <li>
+                            <b>Spatial reasoning:</b> we encoded the grid layout
+                            (S = start, F = frozen, H = hole, G = goal) so the LLM
+                            could reason about the agent's position.
+                        </li>
+                        <li>
+                            <b>Loop avoidance:</b> a sliding window of recent moves let
+                            the LLM detect and penalize cyclic behavior.
+                        </li>
+                        <li>
+                            <b>Long-term memory:</b> conversational history (context
+                            length 4096) helped the agent avoid repeating mistakes.
+                        </li>
+                    </ul>
+                </div>
+                <div class="col-md-6">
+                    <img src="assets/reAI/final_frozen_lake_ep_loop.gif"
+                        class="img-fluid mb-4" alt="Frozen Lake environment diagram"
+                        style="max-width: 100%;">
+                </div>
+            </div>
+
+            <div class="row">
+                    <h3>Experiment 2: Blackjack</h3>
+                    <p>
+                        A card game where the agent decides whether to <code>hit</code>
+                        or <code>stick</code>, aiming for a hand value close to 21
+                        without going over. We compared the environment's native
+                        numeric reward against an LLM that scored each move from
+                        0.0 (bad) to 1.0 (excellent).
+                    </p>
+                    <p>We evaluated three memory modes for the LLM reward signal:</p>
+                    <ul>
+                        <li><b>Short-term memory</b> &mdash; a window of recent transitions</li>
+                        <li><b>Summary memory</b> &mdash; periodic natural-language summaries of play</li>
+                        <li><b>No memory</b> &mdash; only the current move, with no history</li>
+                    </ul>
+            </div>
+        </div>
+
+        <div class="container mb-4" id="results">
+            <h2>Results</h2>
+            <div class="row">
+                <div class="col-md-6">
+                    <p>
+                        <span style="color: lime;">Frozen Lake: Feasible</span><br>
+                        The LLM-based reward successfully trained an agent to complete
+                        the environment, though at a lower success rate than the
+                        traditional reward function.
+                    </p>
+                    <ul>
+                        <li>
+                            <b>Consistent gradient:</b> the LLM produced a graded,
+                            informative reward signal rather than binary success/failure.
+                        </li>
+                        <li>
+                            <b>Pattern recognition:</b> distinguishable reward clusters
+                            showed the LLM responded differently to looping, falling, or
+                            risk-taking behavior.
+                        </li>
+                    </ul>
+                </div>
+                <div class="col-md-6">
+                    <img src="assets/reAI/Reintegrating_AI_final_report/Figures/rewards_per_episode_og.png"
+                        class="img-fluid mb-4" alt="Frozen Lake success of reward functions"
+                        style="max-height: 500px;">
+                </div>
+                <div class="col-md-6">
+                    <p>
+                        <span style="color: lime;">Blackjack: Competitive &mdash; and sometimes superior</span><br>
+                        LLM-based reward shaping matched or beat the real-reward
+                        baseline. The <b>LLM-Summary</b> variant achieved the most wins
+                        (181), ahead of LLM-Short (174), LLM-None (167), and the real
+                        reward baseline (153).
+                    </p>
+                    <ul>
+                        <li>
+                            <b>Memory matters:</b> in post-training evaluation,
+                            LLM-Summary reached a 36% win rate vs. 33% for the real
+                            reward, while LLM-None lagged at 26%.
+                        </li>
+                    </ul>
+                </div>
+                <div class="col-md-6">
+                    <img src="assets/reAI/Reintegrating_AI_final_report/Figures/blackjack_result.png"
+                        class="img-fluid mb-4" alt="Blackjack win/draw/loss counts across reward methods"
+                        style="max-height: 500px;">
+                </div>
+            </div>
+        </div>
+
+        <div class="container mb-4" id="discussion">
+            <h2>Discussion</h2>
+            <p>
+                Working with LLM-generated rewards surfaced several practical
+                lessons about prompting, environment complexity, and resource
+                constraints:
+            </p>
+            <ul>
+                <li>
+                    <b>Prompt shaping is critical.</b> LLMs often ignored the requested
+                    response format until we supplied many few-shot examples covering
+                    very bad to excellent moves.
+                </li>
+                <li>
+                    <b>Rule complexity outweighs action-space size.</b> Lightweight
+                    models like TinyLlama did well on Frozen Lake (4 actions) but failed
+                    to differentiate rewards in Blackjack (2 actions) because they didn't
+                    fully understand the game's rules.
+                </li>
+                <li>
+                    <b>Overfitting.</b> When no holes appeared in the upper rows, the LLM
+                    over-rewarded the agent and discouraged it from moving toward the
+                    goal &mdash; fixed by explicitly penalizing backtracking.
+                </li>
+                <li>
+                    <b>Computational limits.</b> With access only to university VMs and
+                    laptops, we couldn't run the largest, most capable LLMs, which
+                    constrained the experiments.
+                </li>
+            </ul>
+        </div>
+
+        <div class="container mb-4" id="conclusion">
+            <h2>Conclusion</h2>
+            <p>
+                By showing that LLM-derived rewards can rival &mdash; and sometimes
+                surpass &mdash; traditional numeric reward functions, this work
+                supports integrating natural-language understanding into the core
+                mechanics of reinforcement learning. The approach lays groundwork for
+                more human-aligned reward shaping without extensive manual
+                engineering, especially when designing a reward function by hand is
+                impractical.
+            </p>
+            <p>
+                Most exciting is the accessibility angle: natural-language reward
+                functions could let people train and specialize RL agents without
+                ever learning the underlying math. In other words, generalizing RL
+                this way moves us toward developing AI and AGI just by
+                <i>saying</i> what we want done. With more compute and larger models,
+                future work could extend this to more sophisticated environments and
+                richer game rules.
+            </p>
+        </div>
+        <footer class="bg-dark text-white py-4 justify-content-center" id="contact">
+            <div class="container text-left">
+                <p class="text-left">
+                    © 2025 Allen Dufort. All rights reserved.
+                </p>
+            </div>
+        </footer>
+    </div>
+</body>
+
+</html>
