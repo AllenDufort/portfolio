@@ -51,16 +51,20 @@ h4 {
     font-size: 1.1rem !important;
 }
 
+.reAI h1 {
+    color: mediumturquoise !important;
+}
+
 .personas h1 {
-    color: var(--light-blue) !important;
+    color: lightblue !important;
 }
 
 .iterative h1 {
-    color: var(--purple) !important;
+    color: purple !important;
 }
 
 .redesign h1 {
-    color: var(--orange) !important;
+    color: orange !important;
 }
 
 /* Navbar */
