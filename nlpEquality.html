@@ -1,0 +1,314 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="utf-8" name="viewport" content="width=device-width, initial-scale=1"
+        description="L'Union Fait La Force: Participatory Approaches Key for NLP Equality" />
+    <title>NLP Equality</title>
+    <link rel="icon" href="assets/logos/silhouette.png" type="image/x-icon" />
+    <link rel="stylesheet" href="style.css" />
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet"
+        integrity="sha384-9ndCyUaIbzAi2FUVXJi0CjmCapSmO7SnpJef0486qhLnuZ2cdeRhO02iuK6FUUVM" crossorigin="anonymous" />
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.5/font/bootstrap-icons.css">
+    <script src="animate.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"
+        integrity="sha384-geWF76RCwLtnZ8qwWowPQNguL3RmwHVBC9FhGdlKrxdiJJigb/j/68SIy3Te4Bkz"
+        crossorigin="anonymous"></script>
+</head>
+
+<body class="nlpEquality">
+    <nav class="navbar navbar-dark bg-dark d-md-none sticky-top">
+        <div class="container-fluid">
+            <a class="navbar-brand" href="index.html"><i class="bi bi-house-door"></i> Home</a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#mobileNavbar"
+                aria-controls="mobileNavbar" aria-expanded="false" aria-label="Toggle navigation">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div class="collapse navbar-collapse" id="mobileNavbar">
+                <ul class="navbar-nav ms-auto">
+                    <li class="nav-item"><a class="nav-link" href="#overview">Overview</a></li>
+                    <li class="nav-item"><a class="nav-link" href="#literature">Literature</a></li>
+                    <li class="nav-item"><a class="nav-link" href="#methodology">Methodology</a></li>
+                    <li class="nav-item"><a class="nav-link" href="#analysis">Analysis</a></li>
+                    <li class="nav-item"><a class="nav-link" href="#discussion">Discussion</a></li>
+                    <li class="nav-item"><a class="nav-link" href="#recommendations">Recommendations</a></li>
+                </ul>
+            </div>
+        </div>
+    </nav>
+
+    <div class="sidebar bg-dark text-white p-3 d-none d-md-block">
+        <a class="navbar-brand" href="index.html"><i class="bi bi-house-door"></i> Home</a>
+        <hr>
+        <ul class="nav flex-column">
+            <li class="nav-item"><a class="nav-link text-white" href="#overview">Overview</a></li>
+            <li class="nav-item"><a class="nav-link text-white" href="#literature">Literature</a></li>
+            <li class="nav-item"><a class="nav-link text-white" href="#methodology">Methodology</a></li>
+            <li class="nav-item"><a class="nav-link text-white" href="#analysis">Analysis</a></li>
+            <li class="nav-item"><a class="nav-link text-white" href="#discussion">Discussion</a></li>
+            <li class="nav-item"><a class="nav-link text-white" href="#recommendations">Recommendations</a></li>
+        </ul>
+    </div>
+
+
+    <div class="content">
+        <div class="container" id="overview">
+            <h1 id="animated-nlp">L'Union Fait La Force</h1>
+            <h2>Overview</h2>
+
+            <h3>Project Description</h3>
+            <p>
+                This research argues that <i>participatory approaches</i> are key to
+                achieving equality in natural language processing (NLP). There is a
+                large disparity between languages in available NLP resources, and
+                low-resource languages &mdash; like Haitian Creole, my family's
+                native language &mdash; are consistently underserved. The central
+                claim: to close this gap, we must actively involve low-resource
+                language communities in developing NLP tools, extending their
+                involvement beyond the typical roles of human feedback and data
+                collection.
+            </p>
+            <p>
+                The title borrows Haiti's national motto, <i>"L'union fait la
+                force"</i> &mdash; "unity is strength," or colloquially "together we
+                are strong." It captures the paper's thesis: communities, not just
+                data, sustain a language. This work was advised by Professor Harini
+                Suresh, with sources from Brown University's SOLAR lab. The full
+                paper is available as a
+                <a href="assets/nlpEquality/nlp_project.pdf" class="text-decoration-none"
+                    target="_blank" rel="noopener noreferrer">PDF</a>.
+            </p>
+
+            <h3>Research Goal</h3>
+            <ul>
+                <li>Develop methods to improve linguistic diversity in NLP resources</li>
+                <li>Analyze how people create linguistic resources for low-resource languages</li>
+                <li>Demonstrate that participatory principles are necessary for NLP equality</li>
+            </ul>
+        </div>
+
+        <div class="container mb-4" id="literature">
+            <h2>Literature Review</h2>
+
+            <h3>Frameworks</h3>
+            <p>
+                The analysis builds on a lineage of participatory-research scholarship,
+                adapted to the NLP setting:
+            </p>
+            <ul>
+                <li>
+                    <b style="color: mediumturquoise;">A Ladder of Participation</b>
+                    [Arnstein 1969] &mdash; the foundational text of participatory
+                    research, arguing that marginalized groups must hold real
+                    decision-making power to achieve equality.
+                </li>
+                <li>
+                    <b style="color: mediumturquoise;">The State and Fate of Linguistic Diversity</b>
+                    [Joshi et al. 2020] &mdash; categorizes languages by NLP-resource
+                    availability and calls on researchers to address the disparity.
+                </li>
+                <li>
+                    <b style="color: mediumturquoise;">The Participatory Turn in AI Design</b>
+                    [Delgado et al. 2023] &mdash; the core framework, transforming the
+                    Ladder of Participation into the <i>Parameters of Participation</i>
+                    for AI/ML systems.
+                </li>
+                <li>
+                    <b style="color: mediumturquoise;">Data sovereignty</b> &mdash; drawn
+                    from Te Hiku Media [Hao 2022] and Masakhane [Masakhane 2024]: a
+                    community's right to decide how its data are collected and used.
+                </li>
+            </ul>
+
+            <h3>Case Studies</h3>
+            <p>
+                Sources range from projects that deeply involve native speakers at
+                every step &mdash; data collection, algorithm development, benchmark
+                design, and evaluation &mdash; to projects that rely on traditional
+                methods like fine-tuning with no community input.
+            </p>
+        </div>
+
+        <div class="container mb-4" id="methodology">
+            <h2>Methodology</h2>
+            <p>
+                I adapt Delgado et al.'s <i>Parameters of Participation</i> into
+                <b>The NLP Participatory Matrix</b>. Each project is assessed across
+                three dimensions &mdash; the <b>goal</b> (why is participation
+                needed?), the <b>scope</b> (who is involved?), and the <b>form</b>
+                (what shape does participation take?). Building on Suresh et al.
+                [2024], I score each along five modes of participation, adding a fifth
+                mode &mdash; <i>no participation</i> &mdash; for projects with little
+                to no community involvement.
+            </p>
+
+            <h3>Modes of Participation</h3>
+            <ol>
+                <li><b>No participation</b> &mdash; no community involvement</li>
+                <li><b>Consultation</b> &mdash; eliciting user preferences</li>
+                <li><b>Inclusion</b> &mdash; deliberation around specific design choices</li>
+                <li><b>Collaboration</b> &mdash; co-creation of design possibilities</li>
+                <li><b>Ownership</b> &mdash; stakeholders shape the entire design process</li>
+            </ol>
+
+            <h3>The NLP Participatory Matrix</h3>
+            <div class="table-responsive">
+                <!-- Legend Table -->
+                <table class="table table-bordered mb-3" style="width: auto;">
+                    <tbody>
+                        <tr>
+                            <td style="background-color: rgba(128, 128, 128, 0.75); text-align: center; padding: 8px;">No participation</td>
+                            <td style="background-color: rgba(144, 238, 144, 0.25); text-align: center; padding: 8px;">Consultation</td>
+                            <td style="background-color: rgba(144, 238, 144, 0.5); text-align: center; padding: 8px;">Inclusion</td>
+                            <td style="background-color: rgba(144, 238, 144, 0.75); text-align: center; padding: 8px;">Collaboration</td>
+                            <td style="background-color: rgba(144, 238, 144, 1); text-align: center; padding: 8px;">Ownership</td>
+                        </tr>
+                    </tbody>
+                </table>
+                
+                <!-- Main Matrix Table -->
+                <table class="table table-bordered">
+                    <thead class="table-dark">
+                        <tr>
+                            <th>Project Name</th>
+                            <th>Goal</th>
+                            <th>Scope</th>
+                            <th>Form</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td><b>Tweeties</b></td>
+                            <td style="background-color: rgba(128, 128, 128, 0.75);">Adapt LLMs for high-resource languages to low-resource languages</td>
+                            <td style="background-color: rgba(128, 128, 128, 0.75);">No involvement</td>
+                            <td style="background-color: rgba(128, 128, 128, 0.75);">No involvement</td>
+                        </tr>
+                        <tr>
+                            <td><b>LexC-Gen</b></td>
+                            <td style="background-color: rgba(128, 128, 128, 0.75);">Generate synthetic labeled data for low-resource languages</td>
+                            <td style="background-color: rgba(128, 128, 128, 0.75);">No involvement</td>
+                            <td style="background-color: rgba(128, 128, 128, 0.75);">No involvement</td>
+                        </tr>
+                        <tr>
+                            <td><b>Cendol</b></td>
+                            <td style="background-color: rgba(144, 238, 144, 0.25);">Align LLMs with human preferences</td>
+                            <td style="background-color: rgba(144, 238, 144, 0.25);">Native speakers of Indonesian languages</td>
+                            <td style="background-color: rgba(144, 238, 144, 0.25);">Giving feedback to researchers</td>
+                        </tr>
+                        <tr>
+                            <td><b>AfriCOMET</b></td>
+                            <td style="background-color: rgba(144, 238, 144, 0.5);">Improve MT resources for African languages</td>
+                            <td style="background-color: rgba(144, 238, 144, 0.5);">Native speakers of African languages</td>
+                            <td style="background-color: rgba(144, 238, 144, 0.5);">Collecting and evaluating MT data</td>
+                        </tr>
+                        <tr>
+                            <td><b>Masakhane</b></td>
+                            <td style="background-color: rgba(144, 238, 144, 0.75);">Improve MT for low-resource African languages</td>
+                            <td style="background-color: rgba(144, 238, 144, 0.75);">Native speakers of African languages</td>
+                            <td style="background-color: rgba(144, 238, 144, 0.75);">Translating, curating data, evaluating models</td>
+                        </tr>
+                        <tr>
+                            <td><b>Te Hiku</b></td>
+                            <td style="background-color: rgba(144, 238, 144, 1);">Revive the <i>te reo</i> language</td>
+                            <td style="background-color: rgba(144, 238, 144, 1);">Māori community</td>
+                            <td style="background-color: rgba(144, 238, 144, 1);">Determining project goals, designing project, controlling data access</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <div class="container mb-4" id="analysis">
+            <h2>Case Study Analysis</h2>
+            <ul>
+                <li>
+                    <b style="color: mediumturquoise;">No participation</b> (Tweeties,
+                    LexC-Gen) &mdash; neither project orients its goals toward local
+                    communities; they prioritize working with limited data over
+                    community involvement.
+                </li>
+                <li>
+                    <b style="color: mediumturquoise;">Consultation</b> (Cendol) &mdash;
+                    works with NLP experts and non-experts, but only to gather feedback
+                    and linguistic nuance.
+                </li>
+                <li>
+                    <b style="color: mediumturquoise;">Inclusion</b> (AfriCOMET) &mdash;
+                    native speakers help collect and evaluate data, but do not control
+                    project design such as the evaluation metrics.
+                </li>
+                <li>
+                    <b style="color: mediumturquoise;">Collaboration</b> (Masakhane)
+                    &mdash; local communities collect, translate, and evaluate data and
+                    share ownership of data and models with the organization.
+                </li>
+                <li>
+                    <b style="color: mediumturquoise;">Ownership</b> (Te Hiku) &mdash;
+                    the Māori community has the final say over the project's direction
+                    and data access.
+                </li>
+            </ul>
+        </div>
+
+        <div class="container mb-4" id="discussion">
+            <h2>Discussion</h2>
+            <p>
+                Projects with higher levels of involvement &mdash; collaboration and
+                ownership &mdash; tend to perform better than those with low
+                participation. Low-participation projects run into recurring problems:
+            </p>
+            <ul>
+                <li>
+                    <b>Cultural bias:</b> NLP models carry over cultural biases from
+                    high-resource languages [Cahyawijaya et al. 2024; Remy et al. 2024].
+                </li>
+                <li>
+                    <b>Mixed results:</b> some languages show no improvement in MT
+                    quality compared to other evaluation metrics [Wang et al. 2023].
+                </li>
+            </ul>
+            <p>
+                I theorize this is because (1) having native speakers create and
+                evaluate the data removes high-resource-language biases, and (2)
+                involving people from numerous disciplines introduces new perspectives
+                and ideas. Overall, <b style="color: mediumturquoise;">the higher the
+                mode of participation, the more robust the project.</b>
+            </p>
+        </div>
+
+        <div class="container mb-4" id="recommendations">
+            <h2>Recommendations</h2>
+            <p>
+                If you research low-resource languages, incorporate <b>collaboration</b>
+                or <b>ownership</b>. Without fully including the language's community,
+                you risk omitting essential linguistic and cultural aspects from your
+                NLP application. The two modes are executed similarly &mdash; the key
+                difference is that under ownership, the language communities hold more
+                decision-making power than the initial researchers. Apply participation
+                across every stage:
+            </p>
+            <ul>
+                <li><b>Goal setting</b> &mdash; communities help define goals, outcomes, and intended impact</li>
+                <li><b>Researcher selection</b> &mdash; communities have a central role in choosing the research team</li>
+                <li><b>Data collection</b> &mdash; communities determine what data is collected, how, and by whom</li>
+                <li><b>Model development</b> &mdash; communities decide which models are used and run training and testing</li>
+                <li><b>Evaluation</b> &mdash; communities design the metrics and judge result quality</li>
+                <li><b>Project deployment</b> &mdash; communities govern how and where the project is deployed</li>
+                <li><b>Data access</b> &mdash; shared ownership of datasets, models, and results</li>
+            </ul>
+            <p>
+                Language is so much more than just words; it is created and sustained
+                by communities, which must be accounted for.
+            </p>
+        </div>
+        <footer class="bg-dark text-white py-4 justify-content-center" id="contact">
+            <div class="container text-left">
+                <p class="text-left">
+                    © 2026 Allen Dufort. All rights reserved.
+                </p>
+            </div>
+        </footer>
+    </div>
+</body>
+
+</html>
