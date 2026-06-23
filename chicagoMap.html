@@ -1,0 +1,286 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="utf-8" name="viewport" content="width=device-width, initial-scale=1"
+        description="Chicago TODO Map: an interactive map of places to visit, eat, and explore in Chicago" />
+    <title>Chicago TODO Map</title>
+    <link rel="icon" href="assets/logos/silhouette.png" type="image/x-icon" />
+    <link rel="stylesheet" href="style.css" />
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet"
+        integrity="sha384-9ndCyUaIbzAi2FUVXJi0CjmCapSmO7SnpJef0486qhLnuZ2cdeRhO02iuK6FUUVM" crossorigin="anonymous" />
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.5/font/bootstrap-icons.css">
+
+    <!-- Leaflet -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+        integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="" />
+    <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css" />
+    <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css" />
+
+    <script src="animate.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"
+        integrity="sha384-geWF76RCwLtnZ8qwWowPQNguL3RmwHVBC9FhGdlKrxdiJJigb/j/68SIy3Te4Bkz"
+        crossorigin="anonymous"></script>
+
+    <style>
+        #map {
+            height: 70vh;
+            min-height: 480px;
+            width: 100%;
+            border-radius: 8px;
+            border: 1px solid #dee2e6;
+        }
+
+        .layer-toggles {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 1rem;
+            margin-bottom: 1rem;
+        }
+
+        .layer-toggle {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            padding: 0.5rem 0.9rem;
+            border: 1px solid #dee2e6;
+            border-radius: 999px;
+            cursor: pointer;
+            user-select: none;
+            transition: background 0.15s ease;
+        }
+
+        .layer-toggle:hover {
+            background: #f1f3f5;
+        }
+
+        .layer-toggle input {
+            cursor: pointer;
+        }
+
+        .layer-swatch {
+            width: 14px;
+            height: 14px;
+            border-radius: 50%;
+            display: inline-block;
+            border: 2px solid #fff;
+            box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.2);
+        }
+
+        .layer-count {
+            color: #6c757d;
+            font-size: 0.85rem;
+        }
+
+        .map-popup b {
+            display: block;
+            margin-bottom: 2px;
+        }
+
+        .map-popup .popup-meta {
+            color: #6c757d;
+            font-size: 0.85rem;
+        }
+
+        #map-status {
+            font-size: 0.9rem;
+            color: #6c757d;
+        }
+    </style>
+</head>
+
+<body class="chicago">
+    <nav class="navbar navbar-dark bg-dark d-md-none sticky-top">
+        <div class="container-fluid">
+            <a class="navbar-brand" href="index.html"><i class="bi bi-house-door"></i> Home</a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#mobileNavbar"
+                aria-controls="mobileNavbar" aria-expanded="false" aria-label="Toggle navigation">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div class="collapse navbar-collapse" id="mobileNavbar">
+                <ul class="navbar-nav ms-auto">
+                    <li class="nav-item"><a class="nav-link" href="#overview">Overview</a></li>
+                    <li class="nav-item"><a class="nav-link" href="#map-section">Map</a></li>
+                    <li class="nav-item"><a class="nav-link" href="#about">About</a></li>
+                </ul>
+            </div>
+        </div>
+    </nav>
+
+    <div class="sidebar bg-dark text-white p-3 d-none d-md-block">
+        <a class="navbar-brand" href="index.html"><i class="bi bi-house-door"></i> Home</a>
+        <hr>
+        <ul class="nav flex-column">
+            <li class="nav-item"><a class="nav-link text-white" href="#overview">Overview</a></li>
+            <li class="nav-item"><a class="nav-link text-white" href="#map-section">Map</a></li>
+            <li class="nav-item"><a class="nav-link text-white" href="#about">About</a></li>
+        </ul>
+    </div>
+
+    <div class="content">
+        <div class="container" id="overview">
+            <h1 id="animated-chicago">Chicago TODO Map</h1>
+            <h2>Overview</h2>
+            <p>
+                An interactive map of places to visit, eat, and explore around
+                Chicago, built from a personal Google My Maps collection. Use the
+                toggles below the map to turn each layer on or off and find exactly
+                the kind of spot you're looking for.
+            </p>
+        </div>
+
+        <div class="container mb-4" id="map-section">
+            <h2>Explore the Map</h2>
+            <p>Toggle the layers to show or hide each set of places:</p>
+
+            <div class="layer-toggles" id="layer-toggles">
+                <!-- toggles injected by JS -->
+            </div>
+
+            <div id="map"></div>
+            <p class="mt-2" id="map-status">Loading map data&hellip;</p>
+        </div>
+
+        <div class="container mb-4" id="about">
+            <h2>About This Map</h2>
+            <p>
+                The data comes from a Google My Maps project exported as KML. The
+                map organizes places into three layers &mdash; a general Chicago
+                to-do list, food spots, and activities. Each marker shows the place
+                name and any notes (type, neighborhood, address) captured when it was
+                saved.
+            </p>
+            <p>
+                The map tiles are served by
+                <a href="https://www.openstreetmap.org/copyright" class="text-decoration-none"
+                    target="_blank" rel="noopener noreferrer">OpenStreetMap</a>
+                and rendered with
+                <a href="https://leafletjs.com/" class="text-decoration-none"
+                    target="_blank" rel="noopener noreferrer">Leaflet</a>.
+                Address locations were geocoded with
+                <a href="https://nominatim.org/" class="text-decoration-none"
+                    target="_blank" rel="noopener noreferrer">Nominatim</a>.
+            </p>
+        </div>
+
+        <footer class="bg-dark text-white py-4 justify-content-center" id="contact">
+            <div class="container text-left">
+                <p class="text-left">
+                    © 2026 Allen Dufort. All rights reserved.
+                </p>
+            </div>
+        </footer>
+    </div>
+
+    <!-- Leaflet JS -->
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+        integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+    <script src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js"></script>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            const CHICAGO_CENTER = [41.8781, -87.6298];
+            const map = L.map('map').setView(CHICAGO_CENTER, 11);
+
+            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                maxZoom: 19,
+                attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+            }).addTo(map);
+
+            // Each layer gets a distinct color.
+            const LAYER_COLORS = {
+                'Chicago Todo List': '#1f78b4',
+                'Food Spots': '#e31a1c',
+                'Activities': '#33a02c'
+            };
+            const DEFAULT_COLOR = '#6a3d9a';
+
+            function coloredIcon(color) {
+                return L.divIcon({
+                    className: 'custom-pin',
+                    html: `<span style="background:${color};width:14px;height:14px;display:block;
+                        border-radius:50% 50% 50% 0;transform:rotate(-45deg);
+                        border:2px solid #fff;box-shadow:0 0 0 1px rgba(0,0,0,0.25);"></span>`,
+                    iconSize: [18, 18],
+                    iconAnchor: [9, 18],
+                    popupAnchor: [0, -16]
+                });
+            }
+
+            function escapeHtml(s) {
+                return (s || '').replace(/[&<>"']/g, c => (
+                    { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]
+                ));
+            }
+
+            function popupHtml(props) {
+                const name = escapeHtml(props.name) || 'Unnamed place';
+                const addr = props.address ? `<div class="popup-meta">${escapeHtml(props.address)}</div>` : '';
+                const desc = props.description ? `<div class="popup-meta">${escapeHtml(props.description)}</div>` : '';
+                return `<div class="map-popup"><b>${name}</b>${addr}${desc}</div>`;
+            }
+
+            const layerGroups = {};   // name -> markerClusterGroup
+            const toggleWrap = document.getElementById('layer-toggles');
+            const status = document.getElementById('map-status');
+
+            fetch('assets/chicago_list/chicago_layers.geojson')
+                .then(r => {
+                    if (!r.ok) throw new Error('HTTP ' + r.status);
+                    return r.json();
+                })
+                .then(data => {
+                    const bounds = [];
+                    let total = 0;
+
+                    Object.keys(data).forEach(layerName => {
+                        const color = LAYER_COLORS[layerName] || DEFAULT_COLOR;
+                        const cluster = L.markerClusterGroup({ chunkedLoading: true });
+                        const features = (data[layerName] && data[layerName].features) || [];
+
+                        features.forEach(f => {
+                            const c = f.geometry && f.geometry.coordinates;
+                            if (!c) return;
+                            const latlng = [c[1], c[0]];
+                            bounds.push(latlng);
+                            L.marker(latlng, { icon: coloredIcon(color) })
+                                .bindPopup(popupHtml(f.properties || {}))
+                                .addTo(cluster);
+                        });
+
+                        layerGroups[layerName] = cluster;
+                        cluster.addTo(map);   // visible by default
+                        total += features.length;
+
+                        // Build toggle control
+                        const id = 'toggle-' + layerName.replace(/\s+/g, '-').toLowerCase();
+                        const label = document.createElement('label');
+                        label.className = 'layer-toggle';
+                        label.setAttribute('for', id);
+                        label.innerHTML =
+                            `<input type="checkbox" id="${id}" checked>
+                             <span class="layer-swatch" style="background:${color}"></span>
+                             <span>${escapeHtml(layerName)}</span>
+                             <span class="layer-count">(${features.length})</span>`;
+                        toggleWrap.appendChild(label);
+
+                        label.querySelector('input').addEventListener('change', (e) => {
+                            if (e.target.checked) map.addLayer(cluster);
+                            else map.removeLayer(cluster);
+                        });
+                    });
+
+                    if (bounds.length) {
+                        map.fitBounds(bounds, { padding: [30, 30] });
+                    }
+                    status.textContent = `${total} places loaded across ${Object.keys(data).length} layers.`;
+                })
+                .catch(err => {
+                    status.textContent = 'Could not load map data: ' + err.message;
+                    status.style.color = '#e31a1c';
+                });
+        });
+    </script>
+</body>
+
+</html>

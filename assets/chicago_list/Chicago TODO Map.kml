@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<kml xmlns="http://www.opengis.net/kml/2.2">
+  <Document>
+    <name>Chicago TODO Map</name>
+    <description>Stuff I want to do in chicago</description>
+    <NetworkLink>
+      <name>Chicago TODO Map</name>
+      <Link>
+        <href><![CDATA[https://www.google.com/maps/d/kml?forcekml=1&mid=1NGC1j7IbHYH0yGikwPbCBJS6oAXp4RM]]></href>
+      </Link>
+    </NetworkLink>
+  </Document>
+</kml>

@@ -11,6 +11,10 @@ document.addEventListener('DOMContentLoaded', () => {
     const personasText = "Personas and Storyboards";
     const reaiTextElement = document.getElementById('animated-reai');
     const reaiText = "Reintegrating AI";
+    const nlpTextElement = document.getElementById('animated-nlp');
+    const nlpText = "L'Union Fait La Force";
+    const chicagoTextElement = document.getElementById('animated-chicago');
+    const chicagoText = "Chicago TODO Map";
 
     function animateText(textElement, text) {
         // Check if the element exists before trying to animate it
@@ -39,4 +43,6 @@ document.addEventListener('DOMContentLoaded', () => {
     animateText(redesignTextElement, redesignText);
     animateText(personasTextElement, personasText);
     animateText(reaiTextElement, reaiText);
+    animateText(nlpTextElement, nlpText);
+    animateText(chicagoTextElement, chicagoText);
 });

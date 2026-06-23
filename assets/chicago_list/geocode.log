@@ -1,0 +1,50 @@
+unique addresses to geocode: 1103
+  25/1103 done, 24 resolved
+  50/1103 done, 49 resolved
+  75/1103 done, 73 resolved
+  100/1103 done, 96 resolved
+  125/1103 done, 120 resolved
+  150/1103 done, 145 resolved
+  175/1103 done, 170 resolved
+  200/1103 done, 195 resolved
+  225/1103 done, 220 resolved
+  250/1103 done, 245 resolved
+  275/1103 done, 269 resolved
+  300/1103 done, 294 resolved
+  325/1103 done, 316 resolved
+  350/1103 done, 340 resolved
+  375/1103 done, 365 resolved
+  400/1103 done, 390 resolved
+  425/1103 done, 414 resolved
+  450/1103 done, 438 resolved
+  475/1103 done, 463 resolved
+  500/1103 done, 488 resolved
+  525/1103 done, 512 resolved
+  550/1103 done, 519 resolved
+  575/1103 done, 522 resolved
+  600/1103 done, 524 resolved
+  625/1103 done, 533 resolved
+  650/1103 done, 536 resolved
+  675/1103 done, 540 resolved
+  700/1103 done, 542 resolved
+  725/1103 done, 547 resolved
+  750/1103 done, 552 resolved
+  775/1103 done, 555 resolved
+  800/1103 done, 560 resolved
+  825/1103 done, 562 resolved
+  850/1103 done, 568 resolved
+  875/1103 done, 575 resolved
+  900/1103 done, 575 resolved
+  925/1103 done, 578 resolved
+  950/1103 done, 582 resolved
+  975/1103 done, 586 resolved
+  1000/1103 done, 587 resolved
+  1025/1103 done, 592 resolved
+  1050/1103 done, 598 resolved
+  1075/1103 done, 600 resolved
+  1100/1103 done, 602 resolved
+FINISHED geocoding: 602/1103 resolved
+  layer 'Chicago Todo List': 534/540 plotted
+  layer 'Food Spots': 13/450 plotted
+  layer 'Activities': 75/133 plotted
+WROTE chicago_layers.geojson
