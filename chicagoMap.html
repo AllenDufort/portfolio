@@ -10,7 +10,6 @@
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet"
         integrity="sha384-9ndCyUaIbzAi2FUVXJi0CjmCapSmO7SnpJef0486qhLnuZ2cdeRhO02iuK6FUUVM" crossorigin="anonymous" />
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.5/font/bootstrap-icons.css">
-
     <!-- Leaflet -->
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
         integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="" />
@@ -114,12 +113,77 @@
     <script>
         document.addEventListener('DOMContentLoaded', () => {
             const CHICAGO_CENTER = [41.8781, -87.6298];
-            const map = L.map('map').setView(CHICAGO_CENTER, 11);
+            const map = L.map('map', { zoomControl: false }).setView(CHICAGO_CENTER, 11);
+            let userLocationMarker = null;
 
             L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
                 maxZoom: 19,
                 attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
             }).addTo(map);
+
+            // Custom zoom control
+            const ZoomControl = L.Control.extend({
+                options: { position: 'topright' },
+                onAdd() {
+                    const wrap = L.DomUtil.create('div', 'zoom leaflet-control');
+                    wrap.innerHTML =
+                        `<a class="control-button control-button-first" href="#" aria-label="Zoom In" title="Zoom In">
+                            <i class="fs-5 bi bi-plus-lg"></i>
+                         </a>
+                         <a class="control-button control-button-last" href="#" aria-label="Zoom Out" title="Zoom Out">
+                            <i class="fs-5 bi bi-dash-lg"></i>
+                         </a>`;
+                    const [inBtn, outBtn] = wrap.querySelectorAll('a');
+                    L.DomEvent.on(inBtn,  'click', (e) => { L.DomEvent.preventDefault(e); map.zoomIn(); });
+                    L.DomEvent.on(outBtn, 'click', (e) => { L.DomEvent.preventDefault(e); map.zoomOut(); });
+                    return wrap;
+                }
+            });
+            new ZoomControl().addTo(map);
+
+            // Custom locate control
+            const LocateControl = L.Control.extend({
+                options: { position: 'topright' },
+                onAdd() {
+                    const wrap = L.DomUtil.create('div', 'control-locate leaflet-control');
+                    wrap.innerHTML =
+                        `<a class="control-button control-button-first control-button-last" href="#" role="button"
+                            aria-label="Show My Location" title="Show My Location">
+                            <i class="fs-5 bi bi-cursor-fill"></i>
+                         </a>`;
+                    const btn = wrap.querySelector('a');
+                    L.DomEvent.on(btn, 'click', (e) => {
+                        L.DomEvent.preventDefault(e);
+                        if (!navigator.geolocation) {
+                            alert('Geolocation is not supported by your browser.');
+                            return;
+                        }
+                        btn.style.opacity = '0.5';
+                        navigator.geolocation.getCurrentPosition(
+                            (pos) => {
+                                const latlng = [pos.coords.latitude, pos.coords.longitude];
+                                map.setView(latlng, 16);
+                                if (userLocationMarker) map.removeLayer(userLocationMarker);
+                                userLocationMarker = L.marker(latlng, {
+                                    icon: L.divIcon({
+                                        className: '',
+                                        html: '<span class="user-location-dot"></span>',
+                                        iconSize: [14, 14],
+                                        iconAnchor: [7, 7]
+                                    })
+                                }).bindPopup('You are here').addTo(map);
+                                btn.style.opacity = '1';
+                            },
+                            () => {
+                                alert('Unable to retrieve your location.');
+                                btn.style.opacity = '1';
+                            }
+                        );
+                    });
+                    return wrap;
+                }
+            });
+            new LocateControl().addTo(map);
 
             // Each layer gets a distinct color.
             const LAYER_COLORS = {
