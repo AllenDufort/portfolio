@@ -187,16 +187,16 @@
 
             // Each layer gets a distinct color.
             const LAYER_COLORS = {
-                'Chicago Todo List': '#0099ff', // blue
-                'Food Spots': '#e50000', // red
-                'Activities': '#ffcc11' // yellow
+                'Chicago Todo List': '#a0b',
+                'Food Spots': 'red',
+                'Activities': 'green'
             };
             const DEFAULT_COLOR = '#aa11ff';
 
             function coloredIcon(color) {
                 return L.divIcon({
                     className: 'custom-pin',
-                    html: `<span style="background:${color};width:14px;height:14px;display:block;
+                    html: `<span style="background:${color};width:16px;height:16px;display:block;
                         border-radius:50% 50% 50% 0;transform:rotate(-45deg);
                         border:2px solid #fff;box-shadow:0 0 0 1px rgba(0,0,0,0.25);"></span>`,
                     iconSize: [18, 18],
