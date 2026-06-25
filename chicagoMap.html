@@ -184,7 +184,10 @@
 
                         layerGroups[layerName] = cluster;
                         cluster.addTo(map);   // visible by default
-                        total += features.length;
+
+                        if (layerName == 'Chicago Todo List') {
+                            total += features.length;
+                        }
 
                         // Build toggle control
                         const id = 'toggle-' + layerName.replace(/\s+/g, '-').toLowerCase();
