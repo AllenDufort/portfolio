@@ -6,7 +6,7 @@
     <NetworkLink>
       <name>Chicago TODO Map</name>
       <Link>
-        <href><![CDATA[https://www.google.com/maps/d/kml?forcekml=1&mid=1NGC1j7IbHYH0yGikwPbCBJS6oAXp4RM]]></href>
+        <href><![CDATA[https://www.google.com/maps/d/u/0/kml?forcekml=1&mid=1NGC1j7IbHYH0yGikwPbCBJS6oAXp4RM]]></href>
       </Link>
     </NetworkLink>
   </Document>

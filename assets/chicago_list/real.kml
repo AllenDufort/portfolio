@@ -1478,26 +1478,6 @@
         </ExtendedData>
       </Placemark>
       <Placemark>
-        <name>St. Bess Jerk</name>
-        <address>4838 W 79th St, Burbank, IL 60459</address>
-        <description><![CDATA[Type: Restaurant<br>Neighborhood: Burbank<br>Reviews: <br>Address: 4838 W 79th St, Burbank, IL 60459]]></description>
-        <styleUrl>#icon-1899-BDBDBD</styleUrl>
-        <ExtendedData>
-          <Data name="Type">
-            <value>Restaurant</value>
-          </Data>
-          <Data name="Neighborhood">
-            <value>Burbank</value>
-          </Data>
-          <Data name="Reviews">
-            <value/>
-          </Data>
-          <Data name="Address">
-            <value>4838 W 79th St, Burbank, IL 60459</value>
-          </Data>
-        </ExtendedData>
-      </Placemark>
-      <Placemark>
         <name>Garifuna Flava</name>
         <address>2518 W 63rd St, Chicago, IL 60629</address>
         <description><![CDATA[Type: Restaurant<br>Neighborhood: Chicago Lawn<br>Reviews: best jerk chicken in Chicago<br>rec'd by multiple people<br>Address: 2518 W 63rd St, Chicago, IL 60629]]></description>
@@ -3103,7 +3083,6 @@ $5 games (min $10 food)</value>
       </Placemark>
       <Placemark>
         <name>Lakefront Trail</name>
-        <address>400 S DuSable Lake Shore Dr, Chicago, IL 60605</address>
         <description><![CDATA[Type: Landmark<br>Neighborhood: Lake<br>Reviews: All along chicago<br>Address: 400 S DuSable Lake Shore Dr, Chicago, IL 60605]]></description>
         <styleUrl>#icon-1899-BDBDBD</styleUrl>
         <ExtendedData>
@@ -3120,6 +3099,11 @@ $5 games (min $10 food)</value>
             <value>400 S DuSable Lake Shore Dr, Chicago, IL 60605</value>
           </Data>
         </ExtendedData>
+        <Point>
+          <coordinates>
+            -87.6175275,41.8770479,0
+          </coordinates>
+        </Point>
       </Placemark>
       <Placemark>
         <name>Cuddle Bunny</name>
@@ -4573,8 +4557,8 @@ Go to Zoolights in winter</value>
       </Placemark>
       <Placemark>
         <name>Chilangos</name>
-        <address>1437 W Taylor St Suite 1, Chicago, IL 60607</address>
-        <description><![CDATA[Type: Restaurant<br>Neighborhood: Little Italy<br>Reviews: best nachos<br>Address: 1437 W Taylor St Suite 1, Chicago, IL 60607]]></description>
+        <address>1437 W Taylor St, Chicago, IL 60607</address>
+        <description><![CDATA[Type: Restaurant<br>Neighborhood: Little Italy<br>Reviews: best nachos<br>Address: 1437 W Taylor St, Chicago, IL 60607]]></description>
         <styleUrl>#icon-1899-BDBDBD</styleUrl>
         <ExtendedData>
           <Data name="Type">
@@ -4587,7 +4571,7 @@ Go to Zoolights in winter</value>
             <value>best nachos</value>
           </Data>
           <Data name="Address">
-            <value>1437 W Taylor St Suite 1, Chicago, IL 60607</value>
+            <value>1437 W Taylor St, Chicago, IL 60607</value>
           </Data>
         </ExtendedData>
       </Placemark>
@@ -4815,8 +4799,8 @@ rec'd by multiple people]]></value>
       </Placemark>
       <Placemark>
         <name>Aire</name>
-        <address>100 W Monroe St Floor 24, Chicago, IL 60603</address>
-        <description><![CDATA[Type: Bar<br>Neighborhood: Loop<br>Reviews: Temp. closed<br>Address: 100 W Monroe St Floor 24, Chicago, IL 60603]]></description>
+        <address>100 W Monroe St, Chicago, IL 60603</address>
+        <description><![CDATA[Type: Bar<br>Neighborhood: Loop<br>Reviews: Temp. closed<br>Address: 100 W Monroe St, Chicago, IL 60603]]></description>
         <styleUrl>#icon-1899-0F9D58</styleUrl>
         <ExtendedData>
           <Data name="Type">
@@ -4829,7 +4813,7 @@ rec'd by multiple people]]></value>
             <value>Temp. closed</value>
           </Data>
           <Data name="Address">
-            <value>100 W Monroe St Floor 24, Chicago, IL 60603</value>
+            <value>100 W Monroe St, Chicago, IL 60603</value>
           </Data>
         </ExtendedData>
       </Placemark>
@@ -5336,8 +5320,8 @@ dj's on weekends]]></value>
       </Placemark>
       <Placemark>
         <name>Color Factory</name>
-        <address>233 S Wacker Dr Lower Level 2, Chicago, IL 60606</address>
-        <description><![CDATA[Type: Museum<br>Neighborhood: Loop<br>Reviews: Interactive museum, in LL2<br>Address: 233 S Wacker Dr Lower Level 2, Chicago, IL 60606]]></description>
+        <address>233 S Wacker Dr, Chicago, IL 60606</address>
+        <description><![CDATA[Type: Museum<br>Neighborhood: Loop<br>Reviews: Interactive museum, in LL2<br>Address: 233 S Wacker Dr, Chicago, IL 60606]]></description>
         <styleUrl>#icon-1899-0F9D58</styleUrl>
         <ExtendedData>
           <Data name="Type">
@@ -5350,7 +5334,7 @@ dj's on weekends]]></value>
             <value>Interactive museum, in LL2</value>
           </Data>
           <Data name="Address">
-            <value>233 S Wacker Dr Lower Level 2, Chicago, IL 60606</value>
+            <value>233 S Wacker Dr, Chicago, IL 60606</value>
           </Data>
         </ExtendedData>
       </Placemark>
@@ -5478,8 +5462,8 @@ Movies here in summer</value>
       </Placemark>
       <Placemark>
         <name>Beatnik on the River</name>
-        <address>180 N Lower Wacker Drive, Chicago, IL 60606</address>
-        <description><![CDATA[Type: Restaurant<br>Neighborhood: Loop<br>Reviews: I (Allen) didn't really like it<br>Address: 180 N Lower Wacker Drive, Chicago, IL 60606]]></description>
+        <address>180 N Wacker Dr, Chicago, IL 60606</address>
+        <description><![CDATA[Type: Restaurant<br>Neighborhood: Loop<br>Reviews: I (Allen) didn't really like it<br>Address: 180 N Wacker Dr, Chicago, IL 60606]]></description>
         <styleUrl>#icon-1899-0F9D58</styleUrl>
         <ExtendedData>
           <Data name="Type">
@@ -5492,7 +5476,7 @@ Movies here in summer</value>
             <value><![CDATA[I (Allen) didn't really like it]]></value>
           </Data>
           <Data name="Address">
-            <value>180 N Lower Wacker Drive, Chicago, IL 60606</value>
+            <value>180 N Wacker Dr, Chicago, IL 60606</value>
           </Data>
         </ExtendedData>
       </Placemark>
@@ -5758,8 +5742,8 @@ Movies here in summer</value>
       </Placemark>
       <Placemark>
         <name>Silk Road</name>
-        <address>312 W Adam St, Chicago, IL 60606</address>
-        <description><![CDATA[Type: Restaurant<br>Neighborhood: Loop<br>Reviews: <br>Address: 312 W Adam St, Chicago, IL 60606]]></description>
+        <address>312 W Adams St, Chicago, IL 60606</address>
+        <description><![CDATA[Type: Restaurant<br>Neighborhood: Loop<br>Reviews: <br>Address: 312 W Adams St, Chicago, IL 60606]]></description>
         <styleUrl>#icon-1899-0F9D58</styleUrl>
         <ExtendedData>
           <Data name="Type">
@@ -5772,7 +5756,7 @@ Movies here in summer</value>
             <value/>
           </Data>
           <Data name="Address">
-            <value>312 W Adam St, Chicago, IL 60606</value>
+            <value>312 W Adams St, Chicago, IL 60606</value>
           </Data>
         </ExtendedData>
       </Placemark>
@@ -10947,8 +10931,8 @@ rec'd by multiple people, Marissa too]]></value>
       </Placemark>
       <Placemark>
         <name>Kennedy Rooftop</name>
-        <address>1551 W North Ave Ashland, Chicago, IL 60622</address>
-        <description><![CDATA[Type: Bar<br>Neighborhood: Wicker Park<br>Reviews: <br>Address: 1551 W North Ave Ashland, Chicago, IL 60622]]></description>
+        <address>1551 W North Ave, Chicago, IL 60622</address>
+        <description><![CDATA[Type: Bar<br>Neighborhood: Wicker Park<br>Reviews: <br>Address: 1551 W North Ave, Chicago, IL 60622]]></description>
         <styleUrl>#icon-1899-9C27B0</styleUrl>
         <ExtendedData>
           <Data name="Type">
@@ -10961,7 +10945,7 @@ rec'd by multiple people, Marissa too]]></value>
             <value/>
           </Data>
           <Data name="Address">
-            <value>1551 W North Ave Ashland, Chicago, IL 60622</value>
+            <value>1551 W North Ave, Chicago, IL 60622</value>
           </Data>
         </ExtendedData>
       </Placemark>
@@ -12225,26 +12209,6 @@ rec'd by multiple people, Marissa too]]></value>
           </Data>
           <Data name="Address">
             <value>1958 N Damen Ave, Chicago, IL 60647</value>
-          </Data>
-        </ExtendedData>
-      </Placemark>
-      <Placemark>
-        <name>St. Bess Jerk</name>
-        <address>St. Bess Jerk Restaurant Burbank 4838 W 79th St, Burbank, IL 60459</address>
-        <description><![CDATA[Type: Restaurant<br>Neighborhood: Burbank<br>Reviews: <br>Address: 4838 W 79th St, Burbank, IL 60459]]></description>
-        <styleUrl>#icon-1899-BDBDBD</styleUrl>
-        <ExtendedData>
-          <Data name="Type">
-            <value>Restaurant</value>
-          </Data>
-          <Data name="Neighborhood">
-            <value>Burbank</value>
-          </Data>
-          <Data name="Reviews">
-            <value/>
-          </Data>
-          <Data name="Address">
-            <value>4838 W 79th St, Burbank, IL 60459</value>
           </Data>
         </ExtendedData>
       </Placemark>
@@ -13780,6 +13744,7 @@ rec'd by multiple people]]></value>
       </Placemark>
       <Placemark>
         <name>Sunset Pho</name>
+        <address>Sunset Pho Restaurant Lakeview viet food 2856 N Clark St, Chicago, IL 60657</address>
         <description><![CDATA[Type: Restaurant<br>Neighborhood: Lakeview<br>Reviews: viet food<br>Address: 2856 N Clark St, Chicago, IL 60657]]></description>
         <styleUrl>#icon-1899-FF5252</styleUrl>
         <ExtendedData>
@@ -13796,11 +13761,6 @@ rec'd by multiple people]]></value>
             <value>2856 N Clark St, Chicago, IL 60657</value>
           </Data>
         </ExtendedData>
-        <Point>
-          <coordinates>
-            -87.646367,41.934256,0
-          </coordinates>
-        </Point>
       </Placemark>
       <Placemark>
         <name><![CDATA[Tanuki Sushi & Grill]]></name>
@@ -13859,26 +13819,6 @@ rec'd by multiple people]]></value>
           </Data>
           <Data name="Address">
             <value>3358 N Southport Ave, Chicago, IL 60657</value>
-          </Data>
-        </ExtendedData>
-      </Placemark>
-      <Placemark>
-        <name>Tuk Tuk Thai Isan Street Food</name>
-        <address>Tuk Tuk Thai Isan Street Food Restaurant Lakeview Carb ragoons, green curry, pad see ew, pad kee mao 2852 N Clark St, Chicago, IL 60657</address>
-        <description><![CDATA[Type: Restaurant<br>Neighborhood: Lakeview<br>Reviews: Carb ragoons, green curry, pad see ew, pad kee mao<br>Address: 2852 N Clark St, Chicago, IL 60657]]></description>
-        <styleUrl>#icon-1899-FF5252</styleUrl>
-        <ExtendedData>
-          <Data name="Type">
-            <value>Restaurant</value>
-          </Data>
-          <Data name="Neighborhood">
-            <value>Lakeview</value>
-          </Data>
-          <Data name="Reviews">
-            <value>Carb ragoons, green curry, pad see ew, pad kee mao</value>
-          </Data>
-          <Data name="Address">
-            <value>2852 N Clark St, Chicago, IL 60657</value>
           </Data>
         </ExtendedData>
       </Placemark>
@@ -14758,8 +14698,8 @@ rec'd by multiple people, Marissa too]]></value>
       </Placemark>
       <Placemark>
         <name>Chilangos</name>
-        <address>Chilangos Restaurant Little Italy best nachos 1437 W Taylor St Suite 1, Chicago, IL 60607</address>
-        <description><![CDATA[Type: Restaurant<br>Neighborhood: Little Italy<br>Reviews: best nachos<br>Address: 1437 W Taylor St Suite 1, Chicago, IL 60607]]></description>
+        <address>Chilangos Restaurant Little Italy best nachos 1437 W Taylor St, Chicago, IL 60607</address>
+        <description><![CDATA[Type: Restaurant<br>Neighborhood: Little Italy<br>Reviews: best nachos<br>Address: 1437 W Taylor St, Chicago, IL 60607]]></description>
         <styleUrl>#icon-1899-BDBDBD</styleUrl>
         <ExtendedData>
           <Data name="Type">
@@ -14772,7 +14712,7 @@ rec'd by multiple people, Marissa too]]></value>
             <value>best nachos</value>
           </Data>
           <Data name="Address">
-            <value>1437 W Taylor St Suite 1, Chicago, IL 60607</value>
+            <value>1437 W Taylor St, Chicago, IL 60607</value>
           </Data>
         </ExtendedData>
       </Placemark>
@@ -14982,8 +14922,8 @@ rec'd by multiple people]]></value>
       </Placemark>
       <Placemark>
         <name>Aire</name>
-        <address>Aire Bar Loop Temp. closed 100 W Monroe St Floor 24, Chicago, IL 60603</address>
-        <description><![CDATA[Type: Bar<br>Neighborhood: Loop<br>Reviews: Temp. closed<br>Address: 100 W Monroe St Floor 24, Chicago, IL 60603]]></description>
+        <address>Aire Bar Loop Temp. closed 100 W Monroe St, Chicago, IL 60603</address>
+        <description><![CDATA[Type: Bar<br>Neighborhood: Loop<br>Reviews: Temp. closed<br>Address: 100 W Monroe St, Chicago, IL 60603]]></description>
         <styleUrl>#icon-1899-795548</styleUrl>
         <ExtendedData>
           <Data name="Type">
@@ -14996,7 +14936,7 @@ rec'd by multiple people]]></value>
             <value>Temp. closed</value>
           </Data>
           <Data name="Address">
-            <value>100 W Monroe St Floor 24, Chicago, IL 60603</value>
+            <value>100 W Monroe St, Chicago, IL 60603</value>
           </Data>
         </ExtendedData>
       </Placemark>
@@ -15344,8 +15284,8 @@ dj's on weekends]]></value>
       </Placemark>
       <Placemark>
         <name>Beatnik on the River</name>
-        <address><![CDATA[Beatnik on the River Restaurant Loop I (Allen) didn't really like it 180 N Lower Wacker Drive, Chicago, IL 60606]]></address>
-        <description><![CDATA[Type: Restaurant<br>Neighborhood: Loop<br>Reviews: I (Allen) didn't really like it<br>Address: 180 N Lower Wacker Drive, Chicago, IL 60606]]></description>
+        <address><![CDATA[Beatnik on the River Restaurant Loop I (Allen) didn't really like it 180 N Wacker Dr, Chicago, IL 60606]]></address>
+        <description><![CDATA[Type: Restaurant<br>Neighborhood: Loop<br>Reviews: I (Allen) didn't really like it<br>Address: 180 N Wacker Dr, Chicago, IL 60606]]></description>
         <styleUrl>#icon-1899-795548</styleUrl>
         <ExtendedData>
           <Data name="Type">
@@ -15358,7 +15298,7 @@ dj's on weekends]]></value>
             <value><![CDATA[I (Allen) didn't really like it]]></value>
           </Data>
           <Data name="Address">
-            <value>180 N Lower Wacker Drive, Chicago, IL 60606</value>
+            <value>180 N Wacker Dr, Chicago, IL 60606</value>
           </Data>
         </ExtendedData>
       </Placemark>
@@ -15624,8 +15564,8 @@ dj's on weekends]]></value>
       </Placemark>
       <Placemark>
         <name>Silk Road</name>
-        <address>Silk Road Restaurant Loop 312 W Adam St, Chicago, IL 60606</address>
-        <description><![CDATA[Type: Restaurant<br>Neighborhood: Loop<br>Reviews: <br>Address: 312 W Adam St, Chicago, IL 60606]]></description>
+        <address>Silk Road Restaurant Loop 312 W Adams St, Chicago, IL 60606</address>
+        <description><![CDATA[Type: Restaurant<br>Neighborhood: Loop<br>Reviews: <br>Address: 312 W Adams St, Chicago, IL 60606]]></description>
         <styleUrl>#icon-1899-795548</styleUrl>
         <ExtendedData>
           <Data name="Type">
@@ -15638,7 +15578,7 @@ dj's on weekends]]></value>
             <value/>
           </Data>
           <Data name="Address">
-            <value>312 W Adam St, Chicago, IL 60606</value>
+            <value>312 W Adams St, Chicago, IL 60606</value>
           </Data>
         </ExtendedData>
       </Placemark>
@@ -20242,8 +20182,8 @@ rec'd by multiple people, Marissa too]]></value>
       </Placemark>
       <Placemark>
         <name>Kennedy Rooftop</name>
-        <address>Kennedy Rooftop Bar Wicker Park 1551 W North Ave Ashland, Chicago, IL 60622</address>
-        <description><![CDATA[Type: Bar<br>Neighborhood: Wicker Park<br>Reviews: <br>Address: 1551 W North Ave Ashland, Chicago, IL 60622]]></description>
+        <address>Kennedy Rooftop Bar Wicker Park 1551 W North Ave, Chicago, IL 60622</address>
+        <description><![CDATA[Type: Bar<br>Neighborhood: Wicker Park<br>Reviews: <br>Address: 1551 W North Ave, Chicago, IL 60622]]></description>
         <styleUrl>#icon-1899-F9A825</styleUrl>
         <ExtendedData>
           <Data name="Type">
@@ -20256,7 +20196,7 @@ rec'd by multiple people, Marissa too]]></value>
             <value/>
           </Data>
           <Data name="Address">
-            <value>1551 W North Ave Ashland, Chicago, IL 60622</value>
+            <value>1551 W North Ave, Chicago, IL 60622</value>
           </Data>
         </ExtendedData>
       </Placemark>
@@ -20857,6 +20797,26 @@ rec'd by multiple people, Marissa too]]></value>
           </Data>
           <Data name="Address">
             <value>1027 W Addison St, Chicago, IL 60613</value>
+          </Data>
+        </ExtendedData>
+      </Placemark>
+      <Placemark>
+        <name>Tuk Tuk Thai Isan Street Food</name>
+        <address>Tuk Tuk Thai Isan Street Food Restaurant Lakeview Carb ragoons, green curry, pad see ew, pad kee mao 2852 N Clark St, Chicago, IL 60657</address>
+        <description><![CDATA[Type: Restaurant<br>Neighborhood: Lakeview<br>Reviews: Carb ragoons, green curry, pad see ew, pad kee mao<br>Address: 2852 N Clark St, Chicago, IL 60657]]></description>
+        <styleUrl>#icon-1899-FF5252</styleUrl>
+        <ExtendedData>
+          <Data name="Type">
+            <value>Restaurant</value>
+          </Data>
+          <Data name="Neighborhood">
+            <value>Lakeview</value>
+          </Data>
+          <Data name="Reviews">
+            <value>Carb ragoons, green curry, pad see ew, pad kee mao</value>
+          </Data>
+          <Data name="Address">
+            <value>2852 N Clark St, Chicago, IL 60657</value>
           </Data>
         </ExtendedData>
       </Placemark>
@@ -22013,8 +21973,8 @@ rec'd by multiple people]]></value>
       </Placemark>
       <Placemark>
         <name>Color Factory</name>
-        <address>Color Factory 233 S Wacker Dr Lower Level 2, Chicago, IL 60606</address>
-        <description><![CDATA[Type: Museum<br>Neighborhood: Loop<br>Reviews: Interactive museum, in LL2<br>Address: 233 S Wacker Dr Lower Level 2, Chicago, IL 60606]]></description>
+        <address>Color Factory 233 S Wacker Dr, Chicago, IL 60606</address>
+        <description><![CDATA[Type: Museum<br>Neighborhood: Loop<br>Reviews: Interactive museum, in LL2<br>Address: 233 S Wacker Dr, Chicago, IL 60606]]></description>
         <styleUrl>#icon-1899-0F9D58</styleUrl>
         <ExtendedData>
           <Data name="Type">
@@ -22027,7 +21987,7 @@ rec'd by multiple people]]></value>
             <value>Interactive museum, in LL2</value>
           </Data>
           <Data name="Address">
-            <value>233 S Wacker Dr Lower Level 2, Chicago, IL 60606</value>
+            <value>233 S Wacker Dr, Chicago, IL 60606</value>
           </Data>
         </ExtendedData>
       </Placemark>
