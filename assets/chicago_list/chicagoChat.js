@@ -2,6 +2,21 @@
 (function () {
     'use strict';
 
+    // Prevent puter.js from showing its sign-in popup.
+    // When env === "web" and no authToken exists, puter calls
+    // puter.ui.authenticateWithPuter() before every API request.
+    // Replacing it with a rejected promise makes the call fail silently
+    // (caught by the try/catch in ask()) instead of opening a popup.
+    const _suppressPuterPopup = () => {
+        if (typeof puter !== 'undefined' && puter.ui) {
+            puter.ui.authenticateWithPuter = () => Promise.reject(new Error('auth suppressed'));
+        }
+    };
+    // Run immediately (puter.js is already loaded above this script)
+    // and again after a tick in case puter re-assigns ui after init.
+    _suppressPuterPopup();
+    setTimeout(_suppressPuterPopup, 0);
+
     const toggle   = document.getElementById('chat-toggle');
     const panel    = document.getElementById('chat-panel');
     const closeBtn = document.getElementById('chat-close');
@@ -108,7 +123,7 @@ Rules:
                     { role: 'system',    content: systemPrompt },
                     { role: 'user',      content: userText }
                 ],
-                { model: 'gpt-4o-mini', stream: true }
+                { model: 'gpt-4o-mini', stream: true, driver_params: { silent: true } }
             );
 
             for await (const part of response) {
@@ -120,7 +135,11 @@ Rules:
                 }
             }
         } catch (err) {
-            fullText = `⚠️ Something went wrong: ${err.message || err}`;
+            if ((err.message || '').includes('auth suppressed')) {
+                fullText = '⚠️ AI is unavailable — this page is not running inside Puter.';
+            } else {
+                fullText = `⚠️ Something went wrong: ${err.message || err}`;
+            }
         }
 
         botDiv.innerHTML = renderMarkdown(fullText || '(no response)');
