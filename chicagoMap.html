@@ -202,8 +202,30 @@
                         toggleWrap.appendChild(label);
 
                         label.querySelector('input').addEventListener('change', (e) => {
-                            if (e.target.checked) map.addLayer(cluster);
-                            else map.removeLayer(cluster);
+                            if (e.target.checked) {
+                                map.addLayer(cluster);
+                                // If "Chicago Todo List" was just turned on, uncheck all others
+                                if (layerName === 'Chicago Todo List') {
+                                    Object.keys(layerGroups).forEach(name => {
+                                        if (name !== 'Chicago Todo List') {
+                                            map.removeLayer(layerGroups[name]);
+                                            const otherId = 'toggle-' + name.replace(/\s+/g, '-').toLowerCase();
+                                            const otherInput = document.getElementById(otherId);
+                                            if (otherInput) otherInput.checked = false;
+                                        }
+                                    });
+                                } else {
+                                    // If any other toggle is turned on, uncheck "Chicago Todo List"
+                                    const todoId = 'toggle-chicago-todo-list';
+                                    const todoInput = document.getElementById(todoId);
+                                    if (todoInput && todoInput.checked) {
+                                        todoInput.checked = false;
+                                        map.removeLayer(layerGroups['Chicago Todo List']);
+                                    }
+                                }
+                            } else {
+                                map.removeLayer(cluster);
+                            }
                         });
                     });
 
