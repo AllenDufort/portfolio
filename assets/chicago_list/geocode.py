@@ -20,11 +20,6 @@ Requirements: Python 3.8+, no third-party packages.
 import xml.etree.ElementTree as ET
 import json, os, time, urllib.parse, urllib.request
 
-# Base path is always the directory containing this script,
-# so the script works regardless of where it is invoked from.
-# BASE = '/external/portfolio/assets/chicago_list'
-
-# if running locally, change BASE
 BASE = os.path.dirname(os.path.abspath(__file__))
 
 # KML namespace prefix used for all element lookups
