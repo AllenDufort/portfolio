@@ -511,3 +511,57 @@ body.redesign .img-fluid:active {
 @keyframes blink-cursor {
     50% { opacity: 0; }
 }
+
+/* ── Chat widget — mobile overrides ──────────────────────────── */
+@media (max-width: 600px) {
+    #chat-widget {
+        bottom: 1rem;
+        right: 1rem;
+        left: 1rem;               /* allow panel to stretch full width */
+        align-items: flex-end;
+    }
+
+    #chat-panel {
+        width: 100%;              /* fill between left:1rem and right:1rem */
+        max-width: 100%;
+        /* stay above the toggle button (≈52px) + gap + bottom offset */
+        max-height: calc(100dvh - 52px - 1.5rem - 1rem);
+        border-radius: 10px;
+    }
+
+    #chat-messages {
+        min-height: 120px;
+        font-size: 0.9rem;        /* slightly larger for readability */
+    }
+
+    #chat-suggestions {
+        gap: 0.35rem;
+        padding: 0.4rem 0.6rem 0.25rem;
+    }
+
+    .chat-chip {
+        white-space: normal;      /* let chips wrap on very narrow screens */
+        font-size: 0.78rem;
+        padding: 0.3rem 0.6rem;
+    }
+
+    #chat-input-row {
+        min-height: 48px;         /* comfortable tap target */
+    }
+
+    #chat-input {
+        font-size: 1rem;          /* prevents iOS auto-zoom on focus */
+        padding: 0.65rem 0.75rem;
+    }
+
+    #chat-send {
+        min-width: 48px;          /* square tap target */
+        padding: 0 0.85rem;
+        font-size: 1rem;
+    }
+
+    #chat-close {
+        padding: 6px 8px;         /* larger tap target */
+        font-size: 1rem;
+    }
+}
