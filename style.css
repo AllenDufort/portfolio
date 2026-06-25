@@ -217,6 +217,7 @@ body.redesign .img-fluid:active {
 
 .layer-toggle:hover {
     background: #f1f3f5;
+    color: #555;
 }
 
 .layer-toggle input {
@@ -233,7 +234,7 @@ body.redesign .img-fluid:active {
 }
 
 .layer-count {
-    color: #6c757d;
+    color: #aaa;
     font-size: 0.85rem;
 }
 

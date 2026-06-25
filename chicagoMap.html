@@ -183,7 +183,7 @@
                         });
 
                         layerGroups[layerName] = cluster;
-                        cluster.addTo(map);   // visible by default
+                        if (layerName === 'Chicago Todo List') cluster.addTo(map);
 
                         if (layerName == 'Chicago Todo List') {
                             total += features.length;
@@ -194,10 +194,11 @@
                         const label = document.createElement('label');
                         label.className = 'layer-toggle';
                         label.setAttribute('for', id);
+                        const isDefault = layerName === 'Chicago Todo List';
                         label.innerHTML =
-                            `<input type="checkbox" id="${id}" checked>
+                            `<input type="checkbox" id="${id}" ${isDefault ? 'checked' : ''}>
                              <span class="layer-swatch" style="background:${color}"></span>
-                             <span>${escapeHtml(layerName)}</span>
+                             <span>${isDefault ? 'All' : escapeHtml(layerName)}</span>
                              <span class="layer-count">(${features.length})</span>`;
                         toggleWrap.appendChild(label);
 
