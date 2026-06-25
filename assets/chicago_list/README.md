@@ -4,14 +4,23 @@ Pipeline that converts a **Google My Maps export** into a GeoJSON file used by t
 
 ## Files
 
+### Pipeline
+
 | File | Description |
 |------|-------------|
 | `real.kml` | Full KML fetched directly from Google Maps (see [Updating](#updating)). Source of truth for all placemark data. |
 | `Chicago TODO Map.kml` | Stub exported from Google My Maps — contains only a `<NetworkLink>` pointing back to Google, no placemark data. |
 | `geocode.py` | Main pipeline script. Reads `real.kml`, geocodes addresses via Nominatim, writes `chicago_layers.geojson`. |
 | `geocode_cache.json` | Persistent cache mapping clean street addresses → `[lon, lat]`. Avoids redundant Nominatim API calls on reruns. |
-| `chicago_layers.geojson` | **Output file** loaded by `chicagoMap.html` at runtime. One GeoJSON FeatureCollection per layer. |
+| `chicago_layers.geojson` | **Output file** consumed by both front-end scripts at runtime. One GeoJSON FeatureCollection per layer. |
 | `inspect.py` | Audit script — prints folder/layer structure and placemark counts from `real.kml`. Run before `geocode.py` to sanity-check a new KML fetch. |
+
+### Front-end
+
+| File | Description |
+|------|-------------|
+| `chicagoMap.js` | Initialises the Leaflet map, registers custom zoom/locate/search controls, fetches `chicago_layers.geojson`, builds marker clusters, and wires up the layer-toggle UI. Loaded by `chicagoMap.html` after the Leaflet and MarkerCluster CDN scripts. |
+| `chicagoChat.js` | AI chat widget powered by [puter.js](https://js.puter.com/v2/) (GPT-4o mini, free, no API key). On load it fetches `chicago_layers.geojson`, deduplicates all places, and assembles a system prompt containing every place name, address, and notes field. User messages are sent to `puter.ai.chat()` with streaming; responses are rendered with a lightweight Markdown → HTML converter. |
 
 ## Layers
 
