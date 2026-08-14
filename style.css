@@ -501,6 +501,14 @@ body.redesign .img-fluid:active {
 }
 #chat-send:hover { background: #3a7bd5; }
 
+.chat-note {
+    display: block;
+    margin-top: 0.25rem;
+    font-size: 0.72rem;
+    color: #9a9ab8;
+    line-height: 1.35;
+}
+
 .chat-cursor {
     display: inline-block;
     animation: blink-cursor 0.7s step-start infinite;
