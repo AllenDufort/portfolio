@@ -29,9 +29,13 @@
        hand. Synonyms score low enough that a literal match always wins. */
     const BM25_K1 = 1.5;
     const BM25_B  = 0.75;
-    const FIELD_WEIGHTS  = { name: 3, notes: 2, address: 1, layer: 1 };
+    /* The sheet's own type and neighborhood columns are strong signals — "bar in
+       Andersonville" is answerable from them directly — so they rank above the address
+       but below the name and the free-text notes. */
+    const FIELD_WEIGHTS  = { name: 3, notes: 2, type: 2, neighborhood: 2, address: 1, layer: 1 };
     const SYNONYM_WEIGHT = 0.45;
     const MAX_SYNONYM_DF = 0.08;       // expansions in more than 8% of entries are too vague
+    const COORD_FLOOR    = 0.35;       // score kept by a place matching only one query word
     const FUZZY_NAME_MIN = 0.42;       // trigram Dice floor for "abba" -> "Aba"
     const FUZZY_TERM_MIN = 0.58;       // higher floor for spelling suggestions
     const INTENT_MARGIN  = 0.35;       // per-token log-odds gap before we trust the classifier
@@ -62,11 +66,10 @@
     let synonyms = new Map();
     let intentModel = null;
 
-    // Load the map data once so the assistant can answer from the Chicago places list.
-    fetch('assets/chicago_list/chicago_layers.geojson')
-        .then(r => r.json())
-        .then(data => {
-            places = buildPlaceIndex(data);
+    // Share the map's data load, so the sheet is fetched once for the whole page.
+    window.ChicagoData.load()
+        .then(({ layers }) => {
+            places = buildPlaceIndex(layers);
             layerCounts = places.reduce((counts, place) => {
                 place.layers.forEach(layer => { counts[layer] = (counts[layer] || 0) + 1; });
                 return counts;
@@ -238,8 +241,11 @@
     function buildSystemPrompt(userText) {
         const relevant = contextPlaces(userText);
         const lines = relevant.map(place => {
-            // "Chicago Todo List" holds every place, so naming it on each line is noise.
-            const tags = place.layers.filter(layer => !/todo/i.test(layer));
+            /* Prefer the sheet's own type and neighborhood; they are shorter and say more
+               than the layer names. "Chicago Todo List" holds every place, so naming it
+               on each line would be noise either way. */
+            const tags = [place.type, place.neighborhood].filter(Boolean);
+            if (!tags.length) tags.push(...place.layers.filter(layer => !/todo/i.test(layer)));
             const bits = [`- ${place.name}${tags.length ? ` [${tags.join(', ')}]` : ''}`];
             if (place.address) bits.push(place.address);
             if (place.notes) bits.push(place.notes.slice(0, NOTE_CHARS));
@@ -440,11 +446,12 @@
     function search(stems) {
         if (!corpus || !stems.length) return [];
         const terms = expandTerms(stems);
+        const literal = new Set(stems);
         const hits = [];
 
         places.forEach(place => {
             let score = 0;
-            const matched = [];
+            const matched = new Set();
             terms.forEach(term => {
                 const freq = place.tf.get(term.token);
                 if (!freq) return;
@@ -452,9 +459,19 @@
                 const idf = Math.log(1 + (corpus.count - docs + 0.5) / (docs + 0.5));
                 const norm = freq + BM25_K1 * (1 - BM25_B + BM25_B * place.len / corpus.avgLen);
                 score += term.weight * idf * (freq * (BM25_K1 + 1)) / norm;
-                matched.push(term.token);
+                if (literal.has(term.token)) matched.add(term.token);
             });
-            if (score > 0) hits.push({ place, score, matched });
+
+            /* Coordination factor. BM25 alone is a pure OR: for "bars in andersonville"
+               it ranked an Andersonville pizzeria above an Andersonville bar, because
+               "andersonville" is the rarer term and matching it once outscored matching
+               both. Scaling by the share of the question's own words a place matches
+               fixes the order without dropping the partial matches entirely. Synonyms
+               are excluded from the count so an expansion cannot dilute it. */
+            if (score > 0) {
+                score *= COORD_FLOOR + (1 - COORD_FLOOR) * (matched.size / literal.size);
+                hits.push({ place, score, matched: Array.from(matched) });
+            }
         });
 
         // Ties break toward shorter names, which are usually the place actually asked about.
@@ -748,6 +765,16 @@
     function resolveLocation(target) {
         const clean = normalize(target).replace(/[?.!,]+$/, '').trim();
 
+        /* The sheet's Neighborhood column is checked first: averaging the real
+           coordinates of the places filed under "Wicker Park" beats the hand-entered
+           centroid below, and it covers whatever neighborhoods the sheet uses rather
+           than the ones this file happens to know. */
+        const filed = neighborhoodMatches(clean);
+        if (filed.length) {
+            const point = centroid(filed);
+            if (point) return { kind: 'point', label: titleCase(clean), lon: point[0], lat: point[1] };
+        }
+
         const hood = matchNeighborhood(clean);
         if (hood) return { kind: 'point', label: hood.label, lon: hood.point[0], lat: hood.point[1] };
 
@@ -768,6 +795,24 @@
         if (onStreet.length) return { kind: 'street', label: titleCase(clean), matches: onStreet };
 
         return null;
+    }
+
+    // Places the sheet files under the neighbourhood named in the question.
+    function neighborhoodMatches(clean) {
+        if (clean.length < 4) return [];
+        return places.filter(place => {
+            const hood = normalize(place.neighborhood);
+            return hood.length > 3 && (hood === clean || clean.indexOf(hood) !== -1);
+        });
+    }
+
+    function centroid(list) {
+        const placed = list.filter(place => place.lon != null);
+        if (!placed.length) return null;
+        return [
+            placed.reduce((sum, place) => sum + place.lon, 0) / placed.length,
+            placed.reduce((sum, place) => sum + place.lat, 0) / placed.length
+        ];
     }
 
     // Longest neighbourhood name mentioned in the anchor wins, so "west loop" beats "loop".
@@ -958,6 +1003,9 @@
                 if (!name) return;
                 const address = (props.address || '').trim();
                 const notes = (props.reviews || props.notes || '').trim();
+                // Only the sheet supplies these two; the GeoJSON fallback leaves them blank.
+                const type = (props.type || '').trim();
+                const neighborhood = (props.neighborhood || '').trim();
                 const key = `${name.toLowerCase()}|${address.toLowerCase()}`;
                 const coords = (feature.geometry && feature.geometry.coordinates) || [];
                 const lon = typeof coords[0] === 'number' ? coords[0] : null;
@@ -967,10 +1015,12 @@
                 if (existing) {
                     if (existing.layers.indexOf(layer) === -1) existing.layers.push(layer);
                     if (!existing.notes) existing.notes = notes;
+                    if (!existing.type) existing.type = type;
+                    if (!existing.neighborhood) existing.neighborhood = neighborhood;
                     if (existing.lon == null && lon != null) { existing.lon = lon; existing.lat = lat; }
                     return;
                 }
-                byKey.set(key, { key, name, layers: [layer], address, notes, lon, lat });
+                byKey.set(key, { key, name, layers: [layer], address, notes, type, neighborhood, lon, lat });
             });
         });
 
@@ -983,12 +1033,13 @@
     /* ── Formatting ──────────────────────────────────────────────────────── */
 
     function describePlace(place) {
-        return [
-            `**${place.name}**`,
-            `Layer: ${place.layer}`,
-            `Address: ${place.address || 'Not listed'}`,
-            `Notes: ${place.notes || 'No notes provided'}`
-        ].join('\n');
+        const lines = [`**${place.name}**`];
+        // Type and neighborhood read better than the layer name, when the sheet has them.
+        const tags = [place.type, place.neighborhood].filter(Boolean).join(' · ');
+        lines.push(tags ? `${tags}` : `Layer: ${place.layer}`);
+        lines.push(`Address: ${place.address || 'Not listed'}`);
+        lines.push(`Notes: ${place.notes || 'No notes provided'}`);
+        return lines.join('\n');
     }
 
     /* Format a list of matching places. The label is a trailing phrase ("matching

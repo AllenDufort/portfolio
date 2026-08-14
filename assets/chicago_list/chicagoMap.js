@@ -184,52 +184,60 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function popupHtml(props) {
         const name = escapeHtml(props.name) || 'Unnamed place';
+        // Type and neighborhood only exist when the data came from the sheet.
+        const tags = [props.type, props.neighborhood].filter(Boolean).map(escapeHtml).join(' · ');
+        const meta = tags ? `<div class="popup-meta">${tags}</div>` : '';
         const addr = props.address ? `<div class="popup-meta">${escapeHtml(props.address)}</div>` : '';
         const desc = props.reviews ? `<br><div class="popup-meta"><i>${escapeHtml(props.reviews)}</i></div>` : '';
-        return `<div class="map-popup"><b>${name}</b>${addr}${desc}</div>`;
+        return `<div class="map-popup"><b>${name}</b>${meta}${addr}${desc}</div>`;
     }
 
-    const layerGroups = {};   // name -> markerClusterGroup
+    const ALL_LAYER = 'Chicago Todo List';
+
+    const layerGroups = {};   // layer name -> markerClusterGroup
+    const layerMarkers = {};  // layer name -> [{ type, marker }]
+    const activeTypes = new Set();
+    // False when there are no Type chips at all (the GeoJSON fallback carries no types),
+    // which is a different state from "chips exist and every one is unchecked".
+    let typeFilter = false;
     const toggleWrap = document.getElementById('layer-toggles');
+    const typeWrap = document.getElementById('type-toggles');
     const status = document.getElementById('map-status');
 
-    fetch('assets/chicago_list/chicago_layers.geojson')
-        .then(r => {
-            if (!r.ok) throw new Error('HTTP ' + r.status);
-            return r.json();
-        })
-        .then(data => {
+    // The sheet is the source of truth; chicagoData.js falls back to the committed
+    // GeoJSON on its own, so anything that reaches .catch here is a real failure.
+    window.ChicagoData.load()
+        .then(({ layers, meta }) => {
             const bounds = [];
-            let total = 0;
 
-            Object.keys(data).forEach(layerName => {
+            Object.keys(layers).forEach(layerName => {
                 const color = LAYER_COLORS[layerName] || DEFAULT_COLOR;
                 const cluster = L.markerClusterGroup({ chunkedLoading: true });
-                const features = (data[layerName] && data[layerName].features) || [];
+                const features = (layers[layerName] && layers[layerName].features) || [];
+                const markers = [];
 
                 features.forEach(f => {
                     const c = f.geometry && f.geometry.coordinates;
-                    if (!c) return;
+                    if (!c) return;   // waiting on coordinates — reported in the status line
                     const latlng = [c[1], c[0]];
-                    bounds.push(latlng);
-                    L.marker(latlng, { icon: coloredIcon(color) })
-                        .bindPopup(popupHtml(f.properties || {}))
-                        .addTo(cluster);
+                    if (layerName === ALL_LAYER) bounds.push(latlng);
+                    markers.push({
+                        type: (f.properties || {}).type || '',
+                        marker: L.marker(latlng, { icon: coloredIcon(color) })
+                            .bindPopup(popupHtml(f.properties || {}))
+                    });
                 });
 
                 layerGroups[layerName] = cluster;
-                if (layerName === 'Chicago Todo List') cluster.addTo(map);
+                layerMarkers[layerName] = markers;
+                if (layerName === ALL_LAYER) cluster.addTo(map);
 
-                if (layerName == 'Chicago Todo List') {
-                    total += features.length;
-                }
-
-                // Build toggle control
+                // Build layer toggle
                 const id = 'toggle-' + layerName.replace(/\s+/g, '-').toLowerCase();
                 const label = document.createElement('label');
                 label.className = 'layer-toggle';
                 label.setAttribute('for', id);
-                const isDefault = layerName === 'Chicago Todo List';
+                const isDefault = layerName === ALL_LAYER;
                 label.innerHTML =
                     `<input type="checkbox" id="${id}" ${isDefault ? 'checked' : ''}>
                      <span class="layer-swatch" style="background:${color}"></span>
@@ -239,39 +247,112 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 label.querySelector('input').addEventListener('change', (e) => {
                     if (e.target.checked) {
-                        map.addLayer(cluster);
-                        // If "Chicago Todo List" was just turned on, uncheck all others
-                        if (layerName === 'Chicago Todo List') {
+                        // "All" and the individual layers are mutually exclusive, as before.
+                        if (layerName === ALL_LAYER) {
                             Object.keys(layerGroups).forEach(name => {
-                                if (name !== 'Chicago Todo List') {
-                                    map.removeLayer(layerGroups[name]);
-                                    const otherId = 'toggle-' + name.replace(/\s+/g, '-').toLowerCase();
-                                    const otherInput = document.getElementById(otherId);
-                                    if (otherInput) otherInput.checked = false;
-                                }
+                                if (name === ALL_LAYER) return;
+                                const otherId = 'toggle-' + name.replace(/\s+/g, '-').toLowerCase();
+                                const otherInput = document.getElementById(otherId);
+                                if (otherInput) otherInput.checked = false;
                             });
                         } else {
-                            // If any other toggle is turned on, uncheck "Chicago Todo List"
-                            const todoId = 'toggle-chicago-todo-list';
-                            const todoInput = document.getElementById(todoId);
-                            if (todoInput && todoInput.checked) {
-                                todoInput.checked = false;
-                                map.removeLayer(layerGroups['Chicago Todo List']);
-                            }
+                            const todoInput = document.getElementById('toggle-chicago-todo-list');
+                            if (todoInput) todoInput.checked = false;
                         }
-                    } else {
-                        map.removeLayer(cluster);
                     }
+                    refresh();
                 });
             });
 
-            if (bounds.length) {
-                map.fitBounds(bounds, { padding: [30, 30] });
-            }
-            status.textContent = `${total} places loaded across ${Object.keys(data).length} layers.`;
+            buildTypeToggles(meta.types);
+            refresh();
+
+            if (bounds.length) map.fitBounds(bounds, { padding: [30, 30] });
+            status.innerHTML = statusHtml(meta);
         })
         .catch(err => {
             status.textContent = 'Could not load map data: ' + err.message;
             status.style.color = '#e31a1c';
         });
+
+    /* A second row of chips filtering by the sheet's Type column, within whichever
+       layers are switched on. "All types" clears the filter; unchecking any single type
+       clears "All types", and re-checking the last one turns it back on — the same
+       relationship the layer row already has between "All" and the named layers. */
+    function buildTypeToggles(types) {
+        const names = Object.keys(types).sort((a, b) => types[b] - types[a] || a.localeCompare(b));
+        if (!typeWrap || names.length < 2) return;   // nothing to filter on
+        names.forEach(name => activeTypes.add(name));
+        typeFilter = true;
+
+        typeWrap.appendChild(typeChip('all-types', 'All types', null, true));
+        names.forEach(name => typeWrap.appendChild(typeChip(
+            'type-' + name.replace(/\s+/g, '-').toLowerCase(), name, types[name], true)));
+
+        typeWrap.addEventListener('change', e => {
+            const input = e.target;
+            if (input.id === 'toggle-all-types') {
+                // Checking "All types" re-selects everything; unchecking it is a no-op.
+                if (!input.checked) { input.checked = true; return; }
+                activeTypes.clear();
+                names.forEach(name => activeTypes.add(name));
+                typeWrap.querySelectorAll('input').forEach(box => { box.checked = true; });
+            } else {
+                const name = input.getAttribute('data-type');
+                if (input.checked) activeTypes.add(name);
+                else activeTypes.delete(name);
+                const allBox = document.getElementById('toggle-all-types');
+                if (allBox) allBox.checked = activeTypes.size === names.length;
+            }
+            refresh();
+        });
+    }
+
+    function typeChip(id, label, count, checked) {
+        const el = document.createElement('label');
+        el.className = 'layer-toggle type-toggle';
+        el.setAttribute('for', 'toggle-' + id);
+        el.innerHTML =
+            `<input type="checkbox" id="toggle-${id}" data-type="${escapeHtml(label)}" ${checked ? 'checked' : ''}>
+             <span>${escapeHtml(label)}</span>` +
+            (count == null ? '' : `<span class="layer-count">(${count})</span>`);
+        return el;
+    }
+
+    /* Re-apply both filters. Clusters are rebuilt rather than mutated per marker
+       because markerClusterGroup's bulk addLayers is much cheaper than hundreds of
+       individual adds, and a rebuild keeps the two filters from drifting out of sync. */
+    function refresh() {
+        Object.keys(layerGroups).forEach(layerName => {
+            const cluster = layerGroups[layerName];
+            const id = 'toggle-' + layerName.replace(/\s+/g, '-').toLowerCase();
+            const input = document.getElementById(id);
+            const on = input ? input.checked : false;
+
+            cluster.clearLayers();
+            if (!on) {
+                map.removeLayer(cluster);
+                return;
+            }
+            const visible = (layerMarkers[layerName] || [])
+                .filter(entry => !typeFilter || !entry.type || activeTypes.has(entry.type))
+                .map(entry => entry.marker);
+            cluster.addLayers(visible);
+            if (!map.hasLayer(cluster)) map.addLayer(cluster);
+        });
+    }
+
+    // Say where the data came from and whether anything is still missing a pin.
+    function statusHtml(meta) {
+        const layerCount = Object.keys(meta.layerCounts || {}).length;
+        const source = meta.source === 'sheet'
+            ? 'live from the Google Sheet'
+            : 'from the committed snapshot (the sheet was unreachable)';
+        let text = `${meta.rows} places loaded across ${layerCount} layers, ${source}.`;
+        if (meta.unplaced && meta.unplaced.length) {
+            text += ` ${meta.unplaced.length} await coordinates — run the sheet's ` +
+                '“Geocode missing rows” script; they are searchable in the chat meanwhile.';
+        }
+        return escapeHtml(text).replace(/“|”/g, '"');
+    }
 });

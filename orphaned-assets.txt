@@ -1,0 +1,54 @@
+Unreferenced files under assets/
+========================================================================
+
+Not referenced by any .html, .js, .css, .py, .md, .gs or .json in the repo.
+Basenames were checked raw and URL-encoded, so names with spaces are handled.
+Markdown files are excluded from this list (they are docs, not page assets).
+
+26 files, 26.8 MB total.
+
+Every file here is tracked in git, so a deletion is recoverable with:
+    git checkout HEAD -- <path>
+
+Worth a second look before deleting:
+  assets/reAI/Reintegrating_AI_final_report.pdf
+      reAI.html names the report five times but never links the PDF.
+      This looks like a missing link rather than a dead file.
+
+./assets/draftbears/  (1 files, 0.03 MB)
+        0.03 MB  histogram.png
+
+./assets/iterative/  (5 files, 1.05 MB)
+        0.49 MB  Personal Profile Page 1.png
+        0.35 MB  Educational Module Page New.png
+        0.14 MB  Welcome Page.png
+        0.04 MB  sesame-xicon.png
+        0.02 MB  sesame-logo.png
+
+./assets/logos/  (1 files, 0.22 MB)
+        0.22 MB  sesame-original.png
+
+./assets/personas/  (6 files, 0.20 MB)
+        0.06 MB  outstretched-hand.png
+        0.05 MB  head-woman.png
+        0.03 MB  zoom.png
+        0.03 MB  microwave-icon.png
+        0.02 MB  pointing-hand.webp
+        0.01 MB  head-man.webp
+
+./assets/reAI/  (2 files, 2.23 MB)
+        2.21 MB  Reintegrating_AI_final_report.pdf
+        0.02 MB  final_frozen_lake_ep_video.gif
+
+./assets/redesign/  (11 files, 23.11 MB)
+       14.20 MB  mockups.png
+        4.85 MB  street-food-5.jpg
+        1.96 MB  street-food-1.jpg
+        0.78 MB  heng-web-2.jpg
+        0.76 MB  map.png
+        0.19 MB  street-food-2.avif
+        0.14 MB  street-food-3.avif
+        0.13 MB  street-food-6.jpg
+        0.10 MB  street-food-4.jpg
+        0.01 MB  heng-logo.jpg
+        0.00 MB  doordash.png

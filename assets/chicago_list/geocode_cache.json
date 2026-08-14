@@ -2064,5 +2064,77 @@
     "Chicago, IL 60601": [
         -87.6244212,
         41.8755616
+    ],
+    "100 W Monroe St, Chicago, IL 60603": [
+        -87.6311731,
+        41.8809261
+    ],
+    "1437 W Taylor St, Chicago, IL 60607": [
+        -87.6631179,
+        41.8691396
+    ],
+    "1551 W North Ave, Chicago, IL 60622": [
+        -87.6673079,
+        41.9103919
+    ],
+    "1552 N Kedzie Ave, Chicago, IL 60651": [
+        -87.707114,
+        41.9095256
+    ],
+    "180 N Wacker Dr, Chicago, IL 60606": [
+        -87.6372648,
+        41.8853216
+    ],
+    "1811 W North Ave, Chicago, IL 60622": [
+        -87.6732163,
+        41.9101639
+    ],
+    "1927 W North Ave, Chicago, IL 60622": [
+        -87.6760621,
+        41.9102937
+    ],
+    "1966 N Halsted St, Chicago, IL 60614": [
+        -87.6488241,
+        41.9179177
+    ],
+    "222 W Adams St, Chicago, IL 60606": [
+        -87.6345319,
+        41.8795245
+    ],
+    "2265 N Lincoln Ave, Chicago, IL 60614": [
+        -87.6455687,
+        41.9233231
+    ],
+    "312 W Adams St, Chicago, IL 60606": [
+        -87.6358831,
+        41.8794701
+    ],
+    "332 E Illinois St, Chicago, IL 60611": [
+        -87.6187447,
+        41.8912044
+    ],
+    "3450 W Foster Ave, Chicago, IL 60625": [
+        -87.7156049,
+        41.9759117
+    ],
+    "4091 N Broadway, Chicago, IL 60613": [
+        -87.6518177,
+        41.9568479
+    ],
+    "494 N Milwaukee Ave, Chicago, IL 60654": [
+        -87.6475019,
+        41.8909955
+    ],
+    "50 East Ida B. Wells Drive, Chicago, IL 60605": [
+        -87.6271602,
+        41.8755752
+    ],
+    "888 S Michigan Ave, Chicago, IL 60605": [
+        -87.6247139,
+        41.8707557
+    ],
+    "942 W Randolph St, Chicago, IL 60607": [
+        -87.651275,
+        41.8842582
     ]
 }

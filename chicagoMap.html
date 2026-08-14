@@ -57,18 +57,22 @@
             <h2>Overview</h2>
             <p>
                 An interactive map of places to visit, eat, and explore around
-                Chicago, built from a personal Google My Maps collection. Use the
-                toggles below the map to turn each layer on or off and find exactly
-                the kind of spot you're looking for.
+                Chicago, built live from a personal Google Sheet of saved spots. Use
+                the toggles below the map to turn each layer on or off, then narrow
+                by type to find exactly the kind of spot you're looking for.
             </p>
         </div>
 
         <div class="container mb-4" id="map-section">
             <h2>Explore the Map</h2>
-            <p>Toggle the layers to show or hide each set of places:</p>
+            <p>Toggle the layers to show or hide each set of places, then narrow them down by type:</p>
 
             <div class="layer-toggles" id="layer-toggles">
-                <!-- toggles injected by JS -->
+                <!-- layer toggles injected by JS -->
+            </div>
+
+            <div class="layer-toggles type-toggles" id="type-toggles">
+                <!-- type toggles injected by JS, from the sheet's Type column -->
             </div>
 
             <div id="map"></div>
@@ -78,11 +82,11 @@
         <div class="container mb-4" id="about">
             <h2>About This Map</h2>
             <p>
-                The data comes from a Google My Maps project exported as KML. The
-                map organizes places into three layers: a general Chicago
-                to-do list, food spots, and activities. Each marker shows the place
-                name and any notes (type, neighborhood, address) captured when it was
-                saved.
+                The data is read from a Google Sheet each time the page loads, so
+                adding a place to the sheet puts it on the map — no rebuild. The map
+                organizes places into three layers: a general Chicago to-do list, food
+                spots, and activities. Each marker shows the place name and any notes
+                (type, neighborhood, address) captured when it was saved.
             </p>
             <p>
                 The map tiles are served by
@@ -130,6 +134,8 @@
         integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
     <script src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js"></script>
 
+    <!-- Builds the place data from the Google Sheet; must load before its two consumers -->
+    <script src="assets/chicago_list/chicagoData.js"></script>
     <script src="assets/chicago_list/chicagoMap.js"></script>
     <script src="assets/chicago_list/chicagoChat.js"></script>
 </body>

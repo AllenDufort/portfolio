@@ -1,92 +1,123 @@
 """
-geocode.py — Convert real.kml into chicago_layers.geojson.
+geocode.py — Refresh chicago_layers.geojson from the Google Sheet.
+
+The site no longer needs this script to run in order to show current data: the map page
+reads the sheet directly on every load (see chicagoData.js). What this script maintains
+is the *fallback* snapshot the page uses when the sheet is unreachable or unshared, plus
+the address -> [lon, lat] cache that covers rows whose Lat/Lon columns are still empty.
 
 Pipeline:
-  1. Parse real.kml and extract every Folder (layer) with its Placemarks.
-  2. For placemarks that already carry inline <coordinates>, use those directly.
-  3. For placemarks that only have a text <address>, geocode via Nominatim
-     (OpenStreetMap's free geocoding API), caching results in geocode_cache.json
-     so reruns skip already-resolved addresses.
-  4. Emit a single JSON file (chicago_layers.geojson) shaped as:
+  1. Fetch the sheet as CSV from Google's gviz endpoint (no API key, no auth).
+  2. Take coordinates from the sheet's own Lat/Lon columns when present — those are
+     filled by geocodeSheet.gs, and are the preferred source.
+  3. For rows that still lack coordinates, geocode the address via Nominatim
+     (OpenStreetMap's free API), caching results in geocode_cache.json so reruns skip
+     anything already resolved.
+  4. Emit chicago_layers.geojson shaped as:
        { "<LayerName>": { "type": "FeatureCollection", "features": [...] }, ... }
-     This is the file loaded by chicagoMap.html at runtime.
 
 Usage:
-    python geocode.py
+    python3 geocode.py            # refresh the snapshot
+    python3 geocode.py --no-api   # snapshot only, never call Nominatim
 
 Requirements: Python 3.8+, no third-party packages.
+
+History: this script used to parse a Google My Maps KML export (real.kml). The Google
+Sheet replaced that export as the source of truth, and the KML files were deleted once
+nothing read them.
 """
 
-import xml.etree.ElementTree as ET
-import json, os, time, urllib.parse, urllib.request
+import csv, io, json, os, sys, time, urllib.parse, urllib.request
 
-BASE = os.path.dirname(os.path.abspath(__file__))
-
-# KML namespace prefix used for all element lookups
-ns = {'k':'http://www.opengis.net/kml/2.2'}
-
-# Persistent geocoding cache so we never re-hit Nominatim for known addresses
+BASE  = os.path.dirname(os.path.abspath(__file__))
 CACHE = os.path.join(BASE, 'geocode_cache.json')
+OUT   = os.path.join(BASE, 'chicago_layers.geojson')
 
-# Parse real.kml and jump straight to the <Document> root element
-doc = ET.parse(os.path.join(BASE, 'real.kml')).getroot().find('k:Document', ns)
+SHEET_ID  = '18rG-azfyKrziKuDm3WBHD2UyMeeD5T8BMugFG7j5fw4'
+SHEET_GID = '337826956'
+SHEET_URL = (f'https://docs.google.com/spreadsheets/d/{SHEET_ID}/gviz/tq'
+             f'?tqx=out:csv&gid={SHEET_GID}')
+
+ALL_LAYER = 'Chicago Todo List'
+
+# Keep this table in sync with TYPE_LAYERS in chicagoData.js — the runtime loader and
+# this snapshot must agree on which layers a Type belongs to. A Type may name more than
+# one: the KML filed every club under both Food Spots and Activities.
+TYPE_LAYERS = {
+    'restaurant': ['Food Spots'], 'bar': ['Food Spots'], 'cafe': ['Food Spots'],
+    'brunch': ['Food Spots'], 'snack': ['Food Spots'], 'market': ['Food Spots'],
+    'club': ['Food Spots', 'Activities'],
+    'museum': ['Activities'], 'landmark': ['Activities'], 'books': ['Activities'],
+    'park': ['Activities'], 'retail': ['Activities'], 'activity': ['Activities'],
+    'beach': ['Activities'],
+}
+LAYER_ORDER = [ALL_LAYER, 'Food Spots', 'Activities']
+
+# Header aliases, matched case-insensitively, mirroring COLUMNS in chicagoData.js.
+COLUMNS = {
+    'name':         ['place', 'name'],
+    'type':         ['type', 'category'],
+    'neighborhood': ['neighborhood', 'neighbourhood', 'area'],
+    'reviews':      ['reviews', 'notes', 'review'],
+    'address':      ['address'],
+    'lat':          ['lat', 'latitude'],
+    'lon':          ['lon', 'lng', 'long', 'longitude'],
+}
+
+USE_API = '--no-api' not in sys.argv
 
 
-# ── Phase 1: Parse KML into plain Python dicts ─────────────────────────────────
+# ── Phase 1: Fetch and parse the sheet ─────────────────────────────────────────
 
-layers = {}   # { layerName: [ {name, address, description, inline}, ... ] }
-addrs  = set()  # addresses that have no inline coords and must be geocoded
+def fetch_sheet(url):
+    req = urllib.request.Request(url, headers={'User-Agent': 'chicago-todo-map/2.0'})
+    with urllib.request.urlopen(req, timeout=30) as r:
+        return r.read().decode('utf-8')
 
-for f in doc.findall('k:Folder', ns):
-    fname = f.find('k:name', ns).text   # folder name becomes the layer key
-    items = []
 
-    for pm in f.findall('k:Placemark', ns):
-        nm = pm.find('k:name', ns)
+def column_index(header):
+    normalized = [h.strip().lower() for h in header]
+    at = {}
+    for field, aliases in COLUMNS.items():
+        at[field] = next((normalized.index(a) for a in aliases if a in normalized), None)
+    return at
 
-        # Some placemarks embed coordinates directly in a <Point><coordinates> element;
-        # use those when available to avoid an unnecessary geocoding round-trip.
-        co = pm.find('.//k:coordinates', ns)
-        inline = None
-        if co is not None and co.text and co.text.strip():
-            # KML coordinate order is lon,lat,alt — we only need lon and lat
-            lon, lat, *_ = co.text.strip().split()[0].split(',')
-            inline = [float(lon), float(lat)]
 
-        # Read all relevant fields from ExtendedData, which holds clean structured values.
-        # Google My Maps generates this block from the spreadsheet columns.
-        address = None
-        reviews = None
-        ed = pm.find('k:ExtendedData', ns)
-        if ed is not None:
-            for d in ed.findall('k:Data', ns):
-                n = d.get('name')
-                v = d.find('k:value', ns)
-                val = v.text.strip() if (v is not None and v.text) else None
-                if n == 'Address':
-                    address = val
-                elif n == 'Reviews':
-                    reviews = val
-        # Fall back to <address> if ExtendedData.Address is absent
-        if address is None:
-            ad = pm.find('k:address', ns)
-            address = ad.text.strip() if (ad is not None and ad.text) else None
+def cell(row, i):
+    return row[i].strip() if (i is not None and i < len(row) and row[i]) else ''
 
-        items.append({
-            "name":    nm.text if nm is not None else "",
-            "address": address,
-            "reviews": reviews or "",
-            "inline":  inline,
-        })
 
-        # Queue address for geocoding only when there are no inline coordinates
-        if address and inline is None:
-            addrs.add(address)
+def as_float(text):
+    try:
+        return float(text)
+    except (TypeError, ValueError):
+        return None
 
-    layers[fname] = items
 
-addrs = sorted(addrs)   # sorted for deterministic progress output
-print(f"unique addresses to geocode: {len(addrs)}")
+print(f"fetching sheet {SHEET_GID}…")
+table = list(csv.reader(io.StringIO(fetch_sheet(SHEET_URL))))
+header, table = table[0], table[1:]
+at = column_index(header)
+if at['name'] is None:
+    raise SystemExit('no Place column in the sheet')
+
+rows = []
+for row in table:
+    name = cell(row, at['name'])
+    if not name:
+        continue
+    lon, lat = as_float(cell(row, at['lon'])), as_float(cell(row, at['lat']))
+    rows.append({
+        'name':         name,
+        'type':         cell(row, at['type']),
+        'neighborhood': cell(row, at['neighborhood']),
+        'reviews':      cell(row, at['reviews']),
+        'address':      cell(row, at['address']),
+        'coord':        [lon, lat] if (lon is not None and lat is not None) else None,
+    })
+
+from_sheet = sum(1 for r in rows if r['coord'])
+print(f"{len(rows)} rows, {from_sheet} with Lat/Lon in the sheet")
 
 
 # ── Phase 2: Load the geocoding cache ──────────────────────────────────────────
@@ -96,6 +127,12 @@ if os.path.exists(CACHE):
     cache = json.load(open(CACHE))
     print(f"cache has {len(cache)} entries")
 
+needed = sorted({r['address'] for r in rows if not r['coord'] and r['address']})
+missing = [a for a in needed if not cache.get(a)]
+print(f"{len(needed)} rows need the cache; {len(missing)} of those are unresolved")
+
+
+# ── Phase 3: Geocode whatever is left ──────────────────────────────────────────
 
 def geocode(addr):
     """
@@ -110,7 +147,7 @@ def geocode(addr):
     url = "https://nominatim.openstreetmap.org/search?" + q
     req = urllib.request.Request(
         url,
-        headers={"User-Agent": "chicago-todo-map/1.0 (portfolio demo)"}
+        headers={"User-Agent": "chicago-todo-map/2.0 (portfolio demo)"}
     )
     try:
         with urllib.request.urlopen(req, timeout=20) as r:
@@ -122,55 +159,69 @@ def geocode(addr):
     return None
 
 
-# ── Phase 3: Geocode any addresses not already in the cache ────────────────────
+if missing and not USE_API:
+    print(f"--no-api: leaving {len(missing)} addresses unresolved")
+elif missing:
+    print(f"geocoding {len(missing)} addresses at 1/sec…")
+    for i, a in enumerate(missing):
+        cache[a] = geocode(a)
 
-for i, a in enumerate(addrs):
-    if a in cache:
-        continue   # already resolved — skip to avoid redundant API calls
+        # Flush cache to disk every 25 requests so partial progress isn't lost
+        if (i + 1) % 25 == 0:
+            json.dump(cache, open(CACHE, 'w'), indent=4)
+            ok = sum(1 for v in cache.values() if v)
+            print(f"  {i+1}/{len(missing)} done, {ok} resolved in cache")
 
-    cache[a] = geocode(a)
+        time.sleep(1.05)   # Nominatim rate limit: ≥1 request/second
 
-    # Flush cache to disk every 25 requests so partial progress isn't lost
-    if (i + 1) % 25 == 0:
-        json.dump(cache, open(CACHE, 'w'))
-        ok = sum(1 for v in cache.values() if v)
-        print(f"  {i+1}/{len(addrs)} done, {ok} resolved")
-
-    time.sleep(1.05)   # Nominatim rate limit: ≥1 request/second
-
-# Final flush after the loop completes
-json.dump(cache, open(CACHE, 'w'))
-ok = sum(1 for v in cache.values() if v)
-print(f"FINISHED geocoding: {ok}/{len(addrs)} resolved")
+    json.dump(cache, open(CACHE, 'w'))
+    ok = sum(1 for v in cache.values() if v)
+    print(f"FINISHED geocoding: {ok}/{len(cache)} entries resolved")
 
 
-# ── Phase 4: Build per-layer GeoJSON and write the output file ─────────────────
+# ── Phase 4: Build per-layer GeoJSON and write the snapshot ────────────────────
 
-out = {}
-for fname, items in layers.items():
-    feats = []
-    for it in items:
-        # Prefer inline coordinates; fall back to the geocoding cache
-        coord = it["inline"] or (cache.get(it["address"]) if it["address"] else None)
-        if not coord:
-            continue   # skip placemarks we couldn't resolve
+out = {name: {"type": "FeatureCollection", "features": []} for name in LAYER_ORDER}
+unplaced, unknown_types = [], set()
 
-        feats.append({
-            "type": "Feature",
-            "geometry": {
-                "type":        "Point",
-                "coordinates": coord   # [lon, lat] — GeoJSON standard order
-            },
-            "properties": {
-                "name":    it["name"],
-                "address": it["address"] or "",
-                "reviews": it["reviews"],
-            }
-        })
+for r in rows:
+    coord = r['coord'] or (cache.get(r['address']) if r['address'] else None)
+    if not coord:
+        unplaced.append(r['name'])
+        continue   # the snapshot only carries places that can be drawn
 
-    # Each layer becomes a GeoJSON FeatureCollection keyed by its folder name
-    out[fname] = {"type": "FeatureCollection", "features": feats}
-    print(f"  layer {fname!r}: {len(feats)}/{len(items)} plotted")
+    feature = {
+        "type": "Feature",
+        "geometry": {
+            "type":        "Point",
+            "coordinates": coord   # [lon, lat] — GeoJSON standard order
+        },
+        "properties": {
+            "name":         r['name'],
+            "address":      r['address'],
+            "reviews":      r['reviews'],
+            "type":         r['type'],
+            "neighborhood": r['neighborhood'],
+        }
+    }
 
-json.dump(out, open(os.path.join(BASE, 'chicago_layers.geojson'), 'w'))
+    out[ALL_LAYER]['features'].append(feature)
+    named = TYPE_LAYERS.get(r['type'].lower())
+    if named:
+        for layer in named:
+            out[layer]['features'].append(feature)
+    elif r['type']:
+        unknown_types.add(r['type'])
+
+for name in LAYER_ORDER:
+    print(f"  layer {name!r}: {len(out[name]['features'])}")
+if unplaced:
+    print(f"  {len(unplaced)} without coordinates (omitted): {', '.join(unplaced[:5])}"
+          f"{'…' if len(unplaced) > 5 else ''}")
+if unknown_types:
+    print(f"  Types with no layer mapping: {', '.join(sorted(unknown_types))}")
+
+# Indented to match the committed formatting, so a regenerated snapshot produces a
+# reviewable diff rather than one 500KB line.
+json.dump(out, open(OUT, 'w'), indent=4)
 print("WROTE chicago_layers.geojson")

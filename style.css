@@ -238,6 +238,19 @@ body.redesign .img-fluid:active {
     font-size: 0.85rem;
 }
 
+/* Second filter row: the sheet's Type column. Smaller and quieter than the layer
+   chips above it, since it narrows the layers rather than choosing them. */
+.type-toggles {
+    gap: 0.5rem;
+    margin-top: -0.5rem;
+}
+
+.type-toggles .type-toggle {
+    padding: 0.3rem 0.7rem;
+    font-size: 0.85rem;
+    color: #6c757d;
+}
+
 .map-popup b {
     display: block;
     margin-bottom: 2px;
