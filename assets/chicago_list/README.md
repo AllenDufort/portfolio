@@ -134,9 +134,10 @@ and fails on the pack file — `Asset too large … 112 MiB`. From the worker di
 
 ```sh
 cd assets/chicago_list/worker
-npx wrangler login                           # free Cloudflare account is enough
-npx wrangler secret put OPENROUTER_API_KEY   # paste the key; it never touches the repo
-npx wrangler deploy                          # prints https://chicago-chat.<subdomain>.workers.dev
+npx wrangler login                                                      # free Cloudflare account is enough
+set -a; source ../../../.env; set +a                                    # set up env
+npx wrangler secret put OPENROUTER_API_KEY --name $WRANGLER_WORKER_NAME # paste the key; it never touches the repo
+npx wrangler deploy --config wrangler.toml --name $WRANGLER_WORKER_NAME # prints https://chicago-chat.chicagochat.workers.dev
 ```
 
 To stay at the repo root instead, pass `--config assets/chicago_list/worker/wrangler.toml` — paths
@@ -149,7 +150,7 @@ widget says it is not connected instead of failing with a network error.
 Check it answered:
 
 ```sh
-curl https://chicago-chat.<subdomain>.workers.dev
+curl https://chicago-chat.chicagochat.workers.dev
 ```
 
 Look for `"ok":true`, `"source":"sheet"`, and `"keyConfigured":true`. `keyConfigured: false` means the

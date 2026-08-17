@@ -19,7 +19,7 @@
 
     /* Set this to your deployed Worker: `npx wrangler deploy` in ./worker prints the URL.
        Until it is set the widget says so instead of failing with a network error. */
-    const WORKER_URL = 'https://chicago-chat.YOUR-SUBDOMAIN.workers.dev';
+    const WORKER_URL = 'https://chicago-chat.chicagochat.workers.dev';
     const DEV_WORKER_URL = 'http://127.0.0.1:8787';       // npx wrangler dev
 
     const REQUEST_TIMEOUT_MS = 90000;   // a 550B model on a free endpoint can be slow
@@ -158,7 +158,7 @@
 
     function endpoint() {
         if (/^(localhost|127\.0\.0\.1)$/.test(window.location.hostname)) return DEV_WORKER_URL;
-        return WORKER_URL.indexOf('YOUR-SUBDOMAIN') === -1 ? WORKER_URL : '';
+        return WORKER_URL.indexOf('chicagochat') === -1 ? WORKER_URL : '';
     }
 
     /* Read the Worker's event stream. It normalises whatever OpenRouter sends into one
