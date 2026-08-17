@@ -101,26 +101,63 @@ Privacy: coordinates are rounded to 4 decimal places (~11 m) before they leave t
 on questions that ask about nearby places, held in memory for 5 minutes so follow-ups stay anchored,
 and never stored — not in the Worker, not in `localStorage`.
 
-### Deploying the Worker
+### Running the map locally
+
+Serve the repo over HTTP rather than opening the file directly — `file://` has no origin for the
+sheet's CORS check, and geolocation needs a secure context, which `localhost` counts as:
+
+```sh
+cd <repo root>
+python3 -m http.server 8000     # then open http://localhost:8000/chicagoMap.html
+```
+
+That is enough for the map, layers, type filters, search, and the locate control. The chat needs the
+Worker running alongside it, in a second terminal:
 
 ```sh
 cd assets/chicago_list/worker
-npx wrangler secret put OPENROUTER_API_KEY   # paste the key; it never touches the repo
-npx wrangler deploy                          # prints https://chicago-chat.<subdomain>.workers.dev
-```
-
-Then put that URL in `WORKER_URL` at the top of `chicagoChat.js` and commit. Until it is set, the
-widget says it is not connected instead of failing with a network error.
-
-Locally:
-
-```sh
 cp .dev.vars.example .dev.vars   # gitignored; paste the key here
 npx wrangler dev                 # http://127.0.0.1:8787
 ```
 
-`chicagoChat.js` uses the dev URL automatically when the page is served from `localhost`, so no edit
-is needed to test. Add the port you serve the site on to `ALLOWED_ORIGINS` if it is not 8000 or 5500.
+`chicagoChat.js` switches to the dev URL by itself when the page's hostname is `localhost` or
+`127.0.0.1`, so nothing needs editing to test. Port 8000 matters: it is in `ALLOWED_ORIGINS` along
+with 5500 (VS Code Live Server), and any other port gets a `403` from the Worker until it is added
+there. Skipping the Worker leaves the map fully working and the chat saying it is not connected.
+
+### Deploying the Worker
+
+**Run these from `assets/chicago_list/worker`, not the repo root.** With no config file in sight,
+wrangler assumes the current directory is a static-assets Worker, scans everything including `.git`,
+and fails on the pack file — `Asset too large … 112 MiB`. From the worker directory it reads
+`wrangler.toml`, sees `main = "worker.js"`, and uploads one script with no asset scan.
+
+```sh
+cd assets/chicago_list/worker
+npx wrangler login                           # free Cloudflare account is enough
+npx wrangler secret put OPENROUTER_API_KEY   # paste the key; it never touches the repo
+npx wrangler deploy                          # prints https://chicago-chat.<subdomain>.workers.dev
+```
+
+To stay at the repo root instead, pass `--config assets/chicago_list/worker/wrangler.toml` — paths
+inside the config resolve relative to the config file, so `worker.js` still resolves.
+
+Then put the printed URL in `WORKER_URL` at the top of `chicagoChat.js` and commit, along with
+`worker/`. Nothing there holds the key, so all of it is safe to commit. Until `WORKER_URL` is set the
+widget says it is not connected instead of failing with a network error.
+
+Check it answered:
+
+```sh
+curl https://chicago-chat.<subdomain>.workers.dev
+```
+
+Look for `"ok":true`, `"source":"sheet"`, and `"keyConfigured":true`. `keyConfigured: false` means the
+`secret put` did not land; `"source":"snapshot"` means the sheet fetch failed and answers are coming
+from the committed GeoJSON instead.
+
+Changing the model later is an edit to `MODEL` in `wrangler.toml` plus another `deploy`. Rotating the
+key is another `wrangler secret put` with no redeploy.
 
 ## Data flow
 
