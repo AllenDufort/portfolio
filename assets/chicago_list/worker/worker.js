@@ -57,7 +57,7 @@ const RATE_LIMIT_WINDOW_MS = 60 * 1000;
 
 const NEAR_RADII_MI = [0.5, 1, 2];        // widen until at least NEAR_MIN places match
 const NEAR_MIN      = 5;
-const NEAR_MAX      = 30;                 // most "near you" lines to put in the prompt
+const NEAR_MAX      = 50;                 // most "near you" lines to put in the prompt
 const FAR_AWAY_MI   = 25;                 // past this, tell the model the visitor is out of town
 
 const MODEL_MAX_TOKENS = 700;
