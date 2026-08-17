@@ -17,8 +17,8 @@
 (function () {
     'use strict';
 
-    /* Set this to your deployed Worker: `npx wrangler deploy` in ./worker prints the URL.
-       Until it is set the widget says so instead of failing with a network error. */
+    /* The deployed Worker in ./worker. Re-deploying keeps this URL; it only changes if the
+       Worker's `name` in wrangler.toml does. */
     const WORKER_URL = 'https://chicago-chat.chicagochat.workers.dev';
     const DEV_WORKER_URL = 'http://127.0.0.1:8787';       // npx wrangler dev
 
@@ -105,10 +105,6 @@
         }, SLOW_HINT_MS);
 
         try {
-            if (!endpoint()) throw new ChatError(
-                'The assistant isn’t connected yet: deploy the Worker in ' +
-                'assets/chicago_list/worker and put its URL in WORKER_URL.');
-
             const coords = await coordsFor(question, bubble);
             const reply = await stream(question, coords, text => {
                 bubble.dataset.streaming = '1';
@@ -156,9 +152,10 @@
 
     /* ── Talking to the Worker ───────────────────────────────────────────── */
 
+    // Served from localhost? talk to `wrangler dev`. Otherwise the deployed Worker.
     function endpoint() {
         if (/^(localhost|127\.0\.0\.1)$/.test(window.location.hostname)) return DEV_WORKER_URL;
-        return WORKER_URL.indexOf('chicagochat') === -1 ? WORKER_URL : '';
+        return WORKER_URL;
     }
 
     /* Read the Worker's event stream. It normalises whatever OpenRouter sends into one
