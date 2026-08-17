@@ -2,3 +2,8 @@
 *.DS_Store
 __pycache__/
 .env
+
+# Worker secrets and build cruft (assets/chicago_list/worker)
+.dev.vars
+.wrangler/
+node_modules/

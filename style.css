@@ -459,6 +459,13 @@ body.redesign .img-fluid:active {
     align-self: flex-end;
     border-bottom-right-radius: 4px;
 }
+/* Reaching the assistant failed — there is no local answer behind it, so the message
+   says so plainly rather than looking like a normal reply. */
+.chat-msg.bot.chat-msg-error {
+    background: #3a2a33;
+    color: #ffd9d9;
+    border-left: 2px solid #d9534f;
+}
 .chat-msg.bot ul {
     margin: 0.3rem 0 0 1.1rem;
     padding: 0;

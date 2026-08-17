@@ -1,0 +1,3 @@
+# Copy to .dev.vars (gitignored) for `npx wrangler dev`. In production the same value
+# is set as a Worker secret instead: npx wrangler secret put OPENROUTER_API_KEY
+OPENROUTER_API_KEY=<apikey from openrouter>
