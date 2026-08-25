@@ -461,6 +461,29 @@
                 "geometry": {
                     "type": "Point",
                     "coordinates": [
+                        -87.6228545,
+                        41.82361
+                    ]
+                },
+                "properties": {
+                    "name": "Pearl's Place",
+                    "address": "3901 S Michigan Ave, Chicago, IL 60653",
+                    "reviews": "",
+                    "type": "Restaurant",
+                    "neighborhood": "Bronzeville",
+                    "phone": "(773) 285-1700",
+                    "website": "https://www.pearlsplacerestaurant.com/",
+                    "plusCode": "R9FG+CV Chicago, Illinois",
+                    "googleUrl": "https://maps.google.com/maps?q=+%4041.82361,-87.6228545",
+                    "originalUrl": "https://www.google.com/maps/place/Pearl's+Place/@41.82361,-87.6228545,17z",
+                    "description": "Soul food restaurant: White-tablecloth restaurant serving Southern/soul food classics such as fried chicken & catfish."
+                }
+            },
+            {
+                "type": "Feature",
+                "geometry": {
+                    "type": "Point",
+                    "coordinates": [
                         -87.6798057,
                         41.9176082
                     ]
@@ -13634,6 +13657,29 @@
                     "googleUrl": "https://maps.google.com/maps?q=+%4041.8093318,-87.6097455",
                     "originalUrl": "https://www.google.com/maps/place/Two+Fish+Crab+Shack/data=!4m2!3m1!1s0x880e2950be038b41:0x51dd365310451bb",
                     "description": "Seafood restaurant: Custom seafood boils & fried fish served in an airy, industrial space with a beach-scene mural."
+                }
+            },
+            {
+                "type": "Feature",
+                "geometry": {
+                    "type": "Point",
+                    "coordinates": [
+                        -87.6228545,
+                        41.82361
+                    ]
+                },
+                "properties": {
+                    "name": "Pearl's Place",
+                    "address": "3901 S Michigan Ave, Chicago, IL 60653",
+                    "reviews": "",
+                    "type": "Restaurant",
+                    "neighborhood": "Bronzeville",
+                    "phone": "(773) 285-1700",
+                    "website": "https://www.pearlsplacerestaurant.com/",
+                    "plusCode": "R9FG+CV Chicago, Illinois",
+                    "googleUrl": "https://maps.google.com/maps?q=+%4041.82361,-87.6228545",
+                    "originalUrl": "https://www.google.com/maps/place/Pearl's+Place/@41.82361,-87.6228545,17z",
+                    "description": "Soul food restaurant: White-tablecloth restaurant serving Southern/soul food classics such as fried chicken & catfish."
                 }
             },
             {
