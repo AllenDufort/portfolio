@@ -41,7 +41,7 @@ const DEFAULTS = {
 
 // Same sheet chicagoData.js reads, so the chat and the map never disagree.
 const SHEET_ID  = '18rG-azfyKrziKuDm3WBHD2UyMeeD5T8BMugFG7j5fw4';
-const SHEET_GID = '337826956';
+const SHEET_GID = '2011978534';
 const SHEET_URL = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq` +
     `?tqx=out:csv&gid=${SHEET_GID}`;
 

@@ -34,7 +34,7 @@ CACHE = os.path.join(BASE, 'geocode_cache.json')
 OUT   = os.path.join(BASE, 'chicago_layers.geojson')
 
 SHEET_ID  = '18rG-azfyKrziKuDm3WBHD2UyMeeD5T8BMugFG7j5fw4'
-SHEET_GID = '337826956'
+SHEET_GID = '2011978534'
 SHEET_URL = (f'https://docs.google.com/spreadsheets/d/{SHEET_ID}/gviz/tq'
              f'?tqx=out:csv&gid={SHEET_GID}')
 

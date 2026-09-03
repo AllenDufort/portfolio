@@ -4,7 +4,7 @@ Data and front end for the Chicago map on the portfolio site. **A Google Sheet i
 truth** — the map page reads it on every page load, so editing the sheet updates the site with no
 commit, no build, and no pipeline run.
 
-[Chicago TODO sheet](https://docs.google.com/spreadsheets/d/18rG-azfyKrziKuDm3WBHD2UyMeeD5T8BMugFG7j5fw4/edit?gid=337826956#gid=337826956)
+[Chicago TODO sheet](https://docs.google.com/spreadsheets/d/18rG-azfyKrziKuDm3WBHD2UyMeeD5T8BMugFG7j5fw4/edit?gid=2011978534#gid=2011978534)
 · columns: `Place`, `Type`, `Neighborhood`, `Reviews`, `Address`, `Lat`, `Lon`
 
 ## Files
