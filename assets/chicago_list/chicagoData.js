@@ -24,9 +24,6 @@
     const COORDS_URL   = 'assets/chicago_list/geocode_cache.json';
     const TIMEOUT_MS   = 8000;   // a slow sheet must not hold the map hostage
 
-    const ALL_LAYER = 'Chicago Todo List';
-    const LAYER_ORDER = [ALL_LAYER];
-
     // Sheet headers are matched by name, so columns can be reordered or added freely.
     const COLUMNS = {
         name:           ['place', 'name'],
@@ -64,7 +61,7 @@
         }
     }
 
-    /* ── Sheet -> GeoJSON ────────────────────────────────────────────────── */
+    /* ── Sheet -> features ───────────────────────────────────────────────── */
 
     async function fromSheet(csv) {
         const table = parseCsv(csv);
@@ -100,24 +97,21 @@
             if (hit && hit.length === 2) { row.lon = hit[0]; row.lat = hit[1]; }
         });
 
-        const layers = emptyLayers();
+        const features = [];
         const meta = {
             source: 'sheet', rows: rows.length, placed: 0, unplaced: [],
-            types: {}, unknownTypes: [], layerCounts: {}, coordsFrom: needCoords ? 'cache' : 'sheet'
+            types: {}, coordsFrom: needCoords ? 'cache' : 'sheet'
         };
 
         rows.forEach(row => {
             const feature = toFeature(row);
             if (feature.geometry) meta.placed++;
             else meta.unplaced.push(row.name);
-
             if (row.type) meta.types[row.type] = (meta.types[row.type] || 0) + 1;
-
-            layers[ALL_LAYER].features.push(feature);
+            features.push(feature);
         });
 
-        LAYER_ORDER.forEach(name => { meta.layerCounts[name] = layers[name].features.length; });
-        return { layers, meta };
+        return { features, meta };
     }
 
     /* A row without coordinates gets a null geometry rather than being dropped —
@@ -144,12 +138,6 @@
                 originalUrl:    row.originalUrl
             }
         };
-    }
-
-    function emptyLayers() {
-        const layers = {};
-        LAYER_ORDER.forEach(name => { layers[name] = { type: 'FeatureCollection', features: [] }; });
-        return layers;
     }
 
     // Map each known column name to its position in this sheet's header row.
@@ -191,19 +179,18 @@
     async function fromFallback(reason) {
         const message = reason && reason.message ? reason.message : String(reason);
         console.warn('Chicago map: falling back to the committed GeoJSON —', message);
-        const layers = JSON.parse(await fetchText(FALLBACK_URL));
-        const all = (layers[ALL_LAYER] && layers[ALL_LAYER].features) || [];
+        const fc = JSON.parse(await fetchText(FALLBACK_URL));
+        const features = fc.features || [];
         const meta = {
-            source: 'geojson', reason: message, rows: all.length,
-            placed: all.filter(f => f.geometry).length, unplaced: [],
-            types: {}, unknownTypes: [], layerCounts: {}, coordsFrom: 'geojson'
+            source: 'geojson', reason: message, rows: features.length,
+            placed: features.filter(f => f.geometry).length, unplaced: [],
+            types: {}, coordsFrom: 'geojson'
         };
-        meta.layerCounts[ALL_LAYER] = all.length;
-        all.forEach(f => {
+        features.forEach(f => {
             const type = (f.properties || {}).type;
             if (type) meta.types[type] = (meta.types[type] || 0) + 1;
         });
-        return { layers, meta };
+        return { features, meta };
     }
 
     /* ── Plumbing ────────────────────────────────────────────────────────── */
@@ -220,9 +207,8 @@
         }
     }
 
-    /* A real CSV scan rather than a line split: 26 of the sheet's Reviews cells contain
-       a newline and three contain an escaped quote, so splitting on "\n" would shear
-       rows apart. */
+    /* A real CSV scan rather than a line split: some Reviews cells contain newlines and
+       escaped quotes, so splitting on "\n" would shear rows apart. */
     function parseCsv(text) {
         const rows = [];
         let row = [];
@@ -253,5 +239,5 @@
         return rows;
     }
 
-    window.ChicagoData = { load, SHEET_URL, ALL_LAYER, LAYER_ORDER };
+    window.ChicagoData = { load, SHEET_URL };
 })();

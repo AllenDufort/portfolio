@@ -156,16 +156,12 @@ document.addEventListener('DOMContentLoaded', () => {
     });
     new SearchControl().addTo(map);
 
-    // Each layer gets a distinct color.
-    const LAYER_COLORS = {
-        'Chicago Todo List': '#a0b'
-    };
-    const DEFAULT_COLOR = '#aa11ff';
+    const MARKER_COLOR = '#0088ff';
 
-    function coloredIcon(color) {
+    function coloredIcon() {
         return L.divIcon({
             className: 'custom-pin',
-            html: `<span style="background:${color};width:16px;height:16px;display:block;
+            html: `<span style="background:${MARKER_COLOR};width:16px;height:16px;display:block;
                 border-radius:50% 50% 50% 0;transform:rotate(-45deg);
                 border:2px solid #fff;box-shadow:0 0 0 1px rgba(0,0,0,0.25);"></span>`,
             iconSize: [18, 18],
@@ -190,10 +186,10 @@ document.addEventListener('DOMContentLoaded', () => {
         return `<div class="map-popup"><b>${name}</b>${meta}${addr}${desc}</div>`;
     }
 
-    const ALL_LAYER = 'Chicago Todo List';
+    const cluster = L.markerClusterGroup({ chunkedLoading: true });
+    cluster.addTo(map);
 
-    const layerGroups = {};   // layer name -> markerClusterGroup
-    const layerMarkers = {};  // layer name -> [{ type, marker }]
+    let allMarkers = [];   // [{ type, marker }] — rebuilt on each load
     const activeTypes = new Set();
     // False when there are no Type chips at all (the GeoJSON fallback carries no types),
     // which is a different state from "chips exist and every one is unchecked".
@@ -205,62 +201,34 @@ document.addEventListener('DOMContentLoaded', () => {
     // The sheet is the source of truth; chicagoData.js falls back to the committed
     // GeoJSON on its own, so anything that reaches .catch here is a real failure.
     window.ChicagoData.load()
-        .then(({ layers, meta }) => {
+        .then(({ features, meta }) => {
             const bounds = [];
 
-            Object.keys(layers).forEach(layerName => {
-                const color = LAYER_COLORS[layerName] || DEFAULT_COLOR;
-                const cluster = L.markerClusterGroup({ chunkedLoading: true });
-                const features = (layers[layerName] && layers[layerName].features) || [];
-                const markers = [];
-
-                features.forEach(f => {
-                    const c = f.geometry && f.geometry.coordinates;
-                    if (!c) return;   // waiting on coordinates — reported in the status line
-                    const latlng = [c[1], c[0]];
-                    if (layerName === ALL_LAYER) bounds.push(latlng);
-                    markers.push({
-                        type: (f.properties || {}).type || '',
-                        marker: L.marker(latlng, { icon: coloredIcon(color) })
-                            .bindPopup(popupHtml(f.properties || {}))
-                    });
-                });
-
-                layerGroups[layerName] = cluster;
-                layerMarkers[layerName] = markers;
-                if (layerName === ALL_LAYER) cluster.addTo(map);
-
-                // Build layer toggle
-                const id = 'toggle-' + layerName.replace(/\s+/g, '-').toLowerCase();
-                const label = document.createElement('label');
-                label.className = 'layer-toggle';
-                label.setAttribute('for', id);
-                const isDefault = layerName === ALL_LAYER;
-                label.innerHTML =
-                    `<input type="checkbox" id="${id}" ${isDefault ? 'checked' : ''}>
-                     <span class="layer-swatch" style="background:${color}"></span>
-                     <span>${isDefault ? 'All' : escapeHtml(layerName)}</span>
-                     <span class="layer-count">(${features.length})</span>`;
-                toggleWrap.appendChild(label);
-
-                label.querySelector('input').addEventListener('change', (e) => {
-                    if (e.target.checked) {
-                        // "All" and the individual layers are mutually exclusive, as before.
-                        if (layerName === ALL_LAYER) {
-                            Object.keys(layerGroups).forEach(name => {
-                                if (name === ALL_LAYER) return;
-                                const otherId = 'toggle-' + name.replace(/\s+/g, '-').toLowerCase();
-                                const otherInput = document.getElementById(otherId);
-                                if (otherInput) otherInput.checked = false;
-                            });
-                        } else {
-                            const todoInput = document.getElementById('toggle-chicago-todo-list');
-                            if (todoInput) todoInput.checked = false;
-                        }
-                    }
-                    refresh();
+            features.forEach(f => {
+                const c = f.geometry && f.geometry.coordinates;
+                if (!c) return;   // waiting on coordinates — reported in the status line
+                const latlng = [c[1], c[0]];
+                bounds.push(latlng);
+                allMarkers.push({
+                    type: (f.properties || {}).type || '',
+                    marker: L.marker(latlng, { icon: coloredIcon() })
+                        .bindPopup(popupHtml(f.properties || {}))
                 });
             });
+
+            // Build the single layer toggle
+            if (toggleWrap) {
+                const label = document.createElement('label');
+                label.className = 'layer-toggle';
+                label.setAttribute('for', 'toggle-all');
+                label.innerHTML =
+                    `<input type="checkbox" id="toggle-all" checked>
+                     <span class="layer-swatch" style="background:${MARKER_COLOR}"></span>
+                     <span>All</span>
+                     <span class="layer-count">(${features.length})</span>`;
+                toggleWrap.appendChild(label);
+                label.querySelector('input').addEventListener('change', refresh);
+            }
 
             buildTypeToggles(meta.types);
             refresh();
@@ -273,10 +241,9 @@ document.addEventListener('DOMContentLoaded', () => {
             status.style.color = '#e31a1c';
         });
 
-    /* A second row of chips filtering by the sheet's Type column, within whichever
-       layers are switched on. "All types" clears the filter; unchecking any single type
-       clears "All types", and re-checking the last one turns it back on — the same
-       relationship the layer row already has between "All" and the named layers. */
+    /* A second row of chips filtering by the sheet's Type column. "All types" clears
+       the filter; unchecking any single type clears "All types", and re-checking the
+       last one turns it back on. */
     function buildTypeToggles(types) {
         const names = Object.keys(types).sort((a, b) => types[b] - types[a] || a.localeCompare(b));
         if (!typeWrap || names.length < 2) return;   // nothing to filter on
@@ -317,40 +284,29 @@ document.addEventListener('DOMContentLoaded', () => {
         return el;
     }
 
-    /* Re-apply both filters. Clusters are rebuilt rather than mutated per marker
-       because markerClusterGroup's bulk addLayers is much cheaper than hundreds of
-       individual adds, and a rebuild keeps the two filters from drifting out of sync. */
+    /* Rebuild the cluster from the current type filter and the master toggle. */
     function refresh() {
-        Object.keys(layerGroups).forEach(layerName => {
-            const cluster = layerGroups[layerName];
-            const id = 'toggle-' + layerName.replace(/\s+/g, '-').toLowerCase();
-            const input = document.getElementById(id);
-            const on = input ? input.checked : false;
-
-            cluster.clearLayers();
-            if (!on) {
-                map.removeLayer(cluster);
-                return;
-            }
-            const visible = (layerMarkers[layerName] || [])
-                .filter(entry => !typeFilter || !entry.type || activeTypes.has(entry.type))
-                .map(entry => entry.marker);
-            cluster.addLayers(visible);
-            if (!map.hasLayer(cluster)) map.addLayer(cluster);
-        });
+        const masterOn = document.getElementById('toggle-all');
+        const on = !masterOn || masterOn.checked;
+        cluster.clearLayers();
+        if (!on) { map.removeLayer(cluster); return; }
+        const visible = allMarkers
+            .filter(entry => !typeFilter || !entry.type || activeTypes.has(entry.type))
+            .map(entry => entry.marker);
+        cluster.addLayers(visible);
+        if (!map.hasLayer(cluster)) map.addLayer(cluster);
     }
 
     // Say where the data came from and whether anything is still missing a pin.
     function statusHtml(meta) {
-        const layerCount = Object.keys(meta.layerCounts || {}).length;
         const source = meta.source === 'sheet'
             ? 'live from the Google Sheet'
             : 'from the committed snapshot (the sheet was unreachable)';
-        let text = `${meta.rows} places loaded across ${layerCount} layers, ${source}.`;
+        let text = `${meta.rows} places loaded, ${source}.`;
         if (meta.unplaced && meta.unplaced.length) {
             text += ` ${meta.unplaced.length} await coordinates — run the sheet's ` +
-                '“Geocode missing rows” script; they are searchable in the chat meanwhile.';
+                '"Geocode missing rows" script; they are searchable in the chat meanwhile.';
         }
-        return escapeHtml(text).replace(/“|”/g, '"');
+        return escapeHtml(text).replace(/"|"/g, '"');
     }
 });

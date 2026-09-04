@@ -519,8 +519,8 @@ function fromSheet(csv) {
 }
 
 function fromSnapshot(json) {
-    const layers = JSON.parse(json);
-    const features = (layers['Chicago Todo List'] && layers['Chicago Todo List'].features) || [];
+    const fc = JSON.parse(json);
+    const features = fc.features || [];
     return features.map(feature => {
         const props = feature.properties || {};
         const coords = (feature.geometry && feature.geometry.coordinates) || [];
