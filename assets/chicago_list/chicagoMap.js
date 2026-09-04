@@ -156,17 +156,40 @@ document.addEventListener('DOMContentLoaded', () => {
     });
     new SearchControl().addTo(map);
 
-    const MARKER_COLOR = '#0088ff';
+    // Icon and color for each place type
+    const TYPE_META = {
+        'Restaurant':  { icon: 'bi-egg-fried',       color: '#e67e22' },
+        'Bar':         { icon: 'bi-cup-straw',        color: '#9b59b6' },
+        'Brunch':      { icon: 'bi-cup-hot-fill',     color: '#e91e8c' },
+        'Cafe':        { icon: 'bi-cup-hot',          color: '#795548' },
+        'Club':        { icon: 'bi-music-note-beamed',color: '#3f51b5' },
+        'Sports bar':  { icon: 'bi-trophy-fill',      color: '#1abc9c' },
+        'Park':        { icon: 'bi-tree-fill',        color: '#27ae60' },
+        'Beach':       { icon: 'bi-water',            color: '#00bcd4' },
+        'Museum':      { icon: 'bi-bank2',            color: '#607d8b' },
+        'Landmark':    { icon: 'bi-geo-alt-fill',     color: '#e74c3c' },
+        'Activity':    { icon: 'bi-bicycle',          color: '#ff9800' },
+        'Market':      { icon: 'bi-bag-fill',         color: '#009688' },
+        'Retail':      { icon: 'bi-shop-window',      color: '#8bc34a' },
+        'Books':       { icon: 'bi-book-fill',        color: '#5c6bc0' },
+        'Snack':       { icon: 'bi-cookie',           color: '#ff7043' },
+        'Caribbean':   { icon: 'bi-sun-fill',         color: '#ffc107' },
+    };
+    const DEFAULT_META = { icon: 'bi-pin-map-fill', color: '#0088ff' };
 
-    function coloredIcon() {
+    function typeMeta(type) {
+        return TYPE_META[type] || DEFAULT_META;
+    }
+
+    function coloredIcon(type) {
+        const { icon, color } = typeMeta(type);
         return L.divIcon({
             className: 'custom-pin',
-            html: `<span style="background:${MARKER_COLOR};width:16px;height:16px;display:block;
-                border-radius:50% 50% 50% 0;transform:rotate(-45deg);
-                border:2px solid #fff;box-shadow:0 0 0 1px rgba(0,0,0,0.25);"></span>`,
-            iconSize: [18, 18],
-            iconAnchor: [9, 18],
-            popupAnchor: [0, -16]
+            html: `<span class="map-pin-wrap" style="background:${color}">` +
+                  `<i class="bi ${icon} map-pin-icon"></i></span>`,
+            iconSize: [28, 28],
+            iconAnchor: [14, 28],
+            popupAnchor: [0, -28]
         });
     }
 
@@ -194,7 +217,6 @@ document.addEventListener('DOMContentLoaded', () => {
     // False when there are no Type chips at all (the GeoJSON fallback carries no types),
     // which is a different state from "chips exist and every one is unchecked".
     let typeFilter = false;
-    const toggleWrap = document.getElementById('layer-toggles');
     const typeWrap = document.getElementById('type-toggles');
     const status = document.getElementById('map-status');
 
@@ -209,28 +231,15 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (!c) return;   // waiting on coordinates — reported in the status line
                 const latlng = [c[1], c[0]];
                 bounds.push(latlng);
+                const type = (f.properties || {}).type || '';
                 allMarkers.push({
-                    type: (f.properties || {}).type || '',
-                    marker: L.marker(latlng, { icon: coloredIcon() })
+                    type,
+                    marker: L.marker(latlng, { icon: coloredIcon(type) })
                         .bindPopup(popupHtml(f.properties || {}))
                 });
             });
 
-            // Build the single layer toggle
-            if (toggleWrap) {
-                const label = document.createElement('label');
-                label.className = 'layer-toggle';
-                label.setAttribute('for', 'toggle-all');
-                label.innerHTML =
-                    `<input type="checkbox" id="toggle-all" checked>
-                     <span class="layer-swatch" style="background:${MARKER_COLOR}"></span>
-                     <span>All</span>
-                     <span class="layer-count">(${features.length})</span>`;
-                toggleWrap.appendChild(label);
-                label.querySelector('input').addEventListener('change', refresh);
-            }
-
-            buildTypeToggles(meta.types);
+            buildTypeToggles(meta.types, features.length);
             refresh();
 
             if (bounds.length) map.fitBounds(bounds, { padding: [30, 30] });
@@ -241,55 +250,58 @@ document.addEventListener('DOMContentLoaded', () => {
             status.style.color = '#e31a1c';
         });
 
-    /* A second row of chips filtering by the sheet's Type column. "All types" clears
-       the filter; unchecking any single type clears "All types", and re-checking the
-       last one turns it back on. */
-    function buildTypeToggles(types) {
+    /* Single filter bar: "All" chip + one chip per type. Clicking a chip that is already
+       the only active one has no effect; clicking "All" resets everything. */
+    function buildTypeToggles(types, totalCount) {
         const names = Object.keys(types).sort((a, b) => types[b] - types[a] || a.localeCompare(b));
         if (!typeWrap || names.length < 2) return;   // nothing to filter on
         names.forEach(name => activeTypes.add(name));
         typeFilter = true;
 
-        typeWrap.appendChild(typeChip('all-types', 'All types', null, true));
+        typeWrap.appendChild(typeChip('all-types', 'All', null, true, true));
         names.forEach(name => typeWrap.appendChild(typeChip(
-            'type-' + name.replace(/\s+/g, '-').toLowerCase(), name, types[name], true)));
+            'type-' + name.replace(/\s+/g, '-').toLowerCase(), name, types[name], true, false)));
 
         typeWrap.addEventListener('change', e => {
             const input = e.target;
             if (input.id === 'toggle-all-types') {
-                // Checking "All types" re-selects everything; unchecking it is a no-op.
                 if (!input.checked) { input.checked = true; return; }
                 activeTypes.clear();
                 names.forEach(name => activeTypes.add(name));
                 typeWrap.querySelectorAll('input').forEach(box => { box.checked = true; });
+                typeWrap.querySelectorAll('.type-chip').forEach(chip => chip.classList.add('active'));
             } else {
                 const name = input.getAttribute('data-type');
                 if (input.checked) activeTypes.add(name);
                 else activeTypes.delete(name);
-                const allBox = document.getElementById('toggle-all-types');
-                if (allBox) allBox.checked = activeTypes.size === names.length;
+                input.closest('.type-chip').classList.toggle('active', input.checked);
+                const allOn = activeTypes.size === names.length;
+                const allInput = document.getElementById('toggle-all-types');
+                const allChip  = allInput && allInput.closest('.type-chip');
+                if (allInput) allInput.checked = allOn;
+                if (allChip)  allChip.classList.toggle('active', allOn);
             }
             refresh();
         });
     }
 
-    function typeChip(id, label, count, checked) {
+    function typeChip(id, label, count, checked, isAll) {
+        const { icon, color } = isAll ? DEFAULT_META : typeMeta(label);
         const el = document.createElement('label');
-        el.className = 'layer-toggle type-toggle';
+        el.className = 'type-chip' + (checked ? ' active' : '');
         el.setAttribute('for', 'toggle-' + id);
+        const countHtml = count != null ? `<span class="chip-count">${count}</span>` : '';
         el.innerHTML =
-            `<input type="checkbox" id="toggle-${id}" data-type="${escapeHtml(label)}" ${checked ? 'checked' : ''}>
-             <span>${escapeHtml(label)}</span>` +
-            (count == null ? '' : `<span class="layer-count">(${count})</span>`);
+            `<input type="checkbox" id="toggle-${id}" data-type="${escapeHtml(label)}" ${checked ? 'checked' : ''}>` +
+            `<i class="bi ${icon} chip-icon" style="color:${isAll ? '#555' : color}"></i>` +
+            `<span class="chip-label">${escapeHtml(label)}</span>` +
+            countHtml;
         return el;
     }
 
-    /* Rebuild the cluster from the current type filter and the master toggle. */
+    /* Rebuild the cluster from the current type filter. */
     function refresh() {
-        const masterOn = document.getElementById('toggle-all');
-        const on = !masterOn || masterOn.checked;
         cluster.clearLayers();
-        if (!on) { map.removeLayer(cluster); return; }
         const visible = allMarkers
             .filter(entry => !typeFilter || !entry.type || activeTypes.has(entry.type))
             .map(entry => entry.marker);
