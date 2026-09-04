@@ -2,8 +2,9 @@
 <html lang="en">
 
 <head>
-    <meta charset="utf-8" name="viewport" content="width=device-width, initial-scale=1"
-        description="DraftBears Sportsbook" />
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="description" content="DraftBears Sportsbook — analyzing NBA player performance metrics with data science and ML." />
     <title>DraftBears Sportsbook</title>
     <link rel="icon" href="assets/logos/silhouette.png" type="image/x-icon" />
     <link rel="stylesheet" href="style.css" />
@@ -52,10 +53,9 @@
             <h1 id="animated-draftbears">DraftBears Sportsbook</h1>
             <h2>Overview</h2>
 
-
-            <h3>Project Description</h3>
+            <h3>Project description</h3>
             <p>
-                Draftbook Sportbooks is a project that analyzed NBA player
+                DraftBears Sportsbook is a project that analyzed NBA player
                 performance metrics.
                 This project, created by Melvin He, José Guallpa, and me, was a
                 final project for CSCI 1951A: Data Science at Brown University
@@ -68,7 +68,7 @@
 
         </div>
         <div class="container mb-4" id="research">
-            <h2>Research Process</h2>
+            <h2>Research process</h2>
             <p>
                 Our research question was:
                 "How do player performance metrics impact team success?"
@@ -107,13 +107,13 @@
             <div class="row">
                 <div class="col-md-6">
                     <p>
-                        <span style="color: lime;">Hypothesis 1: Accepted</span><br>
+                        <span class="result-accepted">Hypothesis 1: Accepted</span><br>
                         Strong positive correlation found between plus-minus scores
                         and FG%
                     </p>
                     <ul>
                         <li>
-                            <b>Interpretation</b>:
+                            <b>Interpretation:</b>
                             We think that this is the case because if someone has a higher
                             field goal percentage, they are likely to score more points
                             which would make their plus-minus score higher
@@ -121,34 +121,34 @@
                     </ul>
                 </div>
                 <div class="col-md-6">
-                    <img src="assets/draftbears/plus-minus.png" class="img-fluid mb-4" alt="Plus-Minus vs FGP"
+                    <img src="assets/draftbears/plus-minus.png" class="img-fluid mb-4" alt="Plus-minus vs field goal percentage scatter plot"
                         style="max-height: 500px;">
                 </div>
                 <div class="col-md-6">
                     <p>
-                        <span style="color: lime;">Hypothesis 2: Accepted</span><br>
+                        <span class="result-accepted">Hypothesis 2: Accepted</span><br>
                         No significant difference found in players' FG% in March vs entire season
                     </p>
                     <ul>
                         <li>
-                            <b>Interpretation</b>:
+                            <b>Interpretation:</b>
                             We theorize this may be the case due to continuous training,
                             coaching consistency, and player experience
                         </li>
                     </ul>
                 </div>
                 <div class="col-md-6">
-                    <img src="assets/draftbears/box_plot_fgs.png" class="img-fluid mb-4" alt="Plus-Minus vs FGP"
+                    <img src="assets/draftbears/box_plot_fgs.png" class="img-fluid mb-4" alt="Box plot of field goal percentages"
                         style="max-height: 500px;">
                 </div>
                 <div class="col-md-6">
                     <p>
-                        <span style="color: red;">Hypothesis 3: Rejected</span><br>
+                        <span class="result-rejected">Hypothesis 3: Rejected</span><br>
                         Positive correlation found between DRB and PF
                     </p>
                     <ul>
                         <li>
-                            <b>Interpretation</b>:
+                            <b>Interpretation:</b>
                             We think this link exists because players who are more aggressive
                             on defense are more likely to get rebounds and more likely to commit fouls
                         </li>
@@ -183,8 +183,8 @@
             </p>
         </div>
         <footer class="bg-dark text-white py-4 justify-content-center" id="contact">
-            <div class="container text-left">
-                <p class="text-left">
+            <div class="container text-start">
+                <p style="color: rgba(255,255,255,0.4); font-size: 0.85rem;">
                     © 2026 Allen Dufort. All rights reserved.
                 </p>
             </div>

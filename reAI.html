@@ -2,8 +2,9 @@
 <html lang="en">
 
 <head>
-    <meta charset="utf-8" name="viewport" content="width=device-width, initial-scale=1"
-        description="Reintegrating AI: LLM-Generated Reward Functions" />
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="description" content="Reintegrating AI: exploring LLM-generated reward functions for reinforcement learning agents." />
     <title>Reintegrating AI</title>
     <link rel="icon" href="assets/logos/silhouette.png" type="image/x-icon" />
     <link rel="stylesheet" href="style.css" />
@@ -51,10 +52,10 @@
 
     <div class="content">
         <div class="container" id="overview">
-            <h1 id="animated-reai">Reintegrating AI: LLM-generated Reward Functions</h1>
+            <h1 id="animated-reai">Reintegrating AI: LLM-generated reward functions</h1>
             <h2>Overview</h2>
 
-            <h3>Project Description</h3>
+            <h3>Project description</h3>
             <p>
                 Reintegrating AI explores whether large language models (LLMs) can
                 <i>generate the reward functions</i> used to train reinforcement
@@ -67,14 +68,14 @@
             </p>
             <p>
                 This project was completed for
-                <span style="color: mediumturquoise;">CSCI 2951X: Reintegrating AI</span>,
+                <span class="accent-text">CSCI 2951X: Reintegrating AI</span>,
                 taught by Professor George Konidaris at Brown University. The source
                 code is available on
                 <a href="https://github.com/lost-particles/echoLLM" class="text-decoration-none"
                     target="_blank" rel="noopener noreferrer">GitHub</a>.
             </p>
 
-            <h3>Research Questions</h3>
+            <h3>Research questions</h3>
             <ol>
                 <li>
                     How can reward functions be generated or approximated by an LLM
@@ -132,7 +133,7 @@
                 </div>
                 <div class="col-md-6">
                     <img src="assets/reAI/final_frozen_lake_ep_loop.gif"
-                        class="img-fluid mb-4" alt="Frozen Lake environment diagram"
+                        class="img-fluid mb-4" alt="Frozen Lake environment animation"
                         style="max-width: 100%;">
                 </div>
             </div>
@@ -160,7 +161,7 @@
             <div class="row">
                 <div class="col-md-6">
                     <p>
-                        <b style="color: mediumturquoise;">Frozen Lake: Underperformed</b><br>
+                        <b class="accent-text">Frozen Lake: underperformed</b><br>
                         The LLM-based reward successfully trained an agent to complete
                         the environment, though at a lower success rate than the
                         traditional reward function.
@@ -179,12 +180,12 @@
                 </div>
                 <div class="col-md-6">
                     <img src="assets/reAI/rewards_per_episode_og.png"
-                        class="img-fluid mb-4" alt="Frozen Lake success of reward functions"
+                        class="img-fluid mb-4" alt="Frozen Lake reward per episode chart"
                         style="max-height: 500px;">
                 </div>
                 <div class="col-md-6">
                     <p>
-                        <b style="color: mediumturquoise;">Blackjack: Competitive</b><br>
+                        <b class="accent-text">Blackjack: competitive</b><br>
                         LLM-based reward shaping matched or beat the real-reward
                         baseline. The <b>LLM-Summary</b> variant achieved the most wins
                         (181), ahead of LLM-Short (174), LLM-None (167), and the real
@@ -215,23 +216,23 @@
             </p>
             <ul>
                 <li>
-                    <b style="color: mediumturquoise;">Prompt shaping is critical:</b> LLMs often ignored the requested
+                    <b class="accent-text">Prompt shaping is critical:</b> LLMs often ignored the requested
                     response format until we supplied many few-shot examples covering
                     very bad to excellent moves.
                 </li>
                 <li>
-                    <b style="color: mediumturquoise;">Rule complexity outweighs action-space size:</b> Lightweight
+                    <b class="accent-text">Rule complexity outweighs action-space size:</b> Lightweight
                     models like TinyLlama did well on Frozen Lake (4 actions) but failed
                     to differentiate rewards in Blackjack (2 actions) because they didn't
                     fully understand the game's rules.
                 </li>
                 <li>
-                    <b style="color: mediumturquoise;">Overfitting:</b> When no holes appeared in the upper rows, the LLM
+                    <b class="accent-text">Overfitting:</b> When no holes appeared in the upper rows, the LLM
                     over-rewarded the agent and discouraged it from moving toward the
                     goal &mdash; fixed by explicitly penalizing backtracking.
                 </li>
                 <li>
-                    <b style="color: mediumturquoise;">Computational limits:</b> With access only to university VMs and
+                    <b class="accent-text">Computational limits:</b> With access only to university VMs and
                     laptops, we couldn't run the largest, most capable LLMs, which
                     constrained the experiments.
                 </li>
@@ -260,8 +261,8 @@
             </p>
         </div>
         <footer class="bg-dark text-white py-4 justify-content-center" id="contact">
-            <div class="container text-left">
-                <p class="text-left">
+            <div class="container text-start">
+                <p style="color: rgba(255,255,255,0.4); font-size: 0.85rem;">
                     © 2026 Allen Dufort. All rights reserved.
                 </p>
             </div>
