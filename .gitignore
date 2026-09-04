@@ -7,3 +7,5 @@ __pycache__/
 .dev.vars
 .wrangler/
 node_modules/
+.agent*
+skills-lock.json
