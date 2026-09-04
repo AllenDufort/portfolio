@@ -158,9 +158,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Each layer gets a distinct color.
     const LAYER_COLORS = {
-        'Chicago Todo List': '#a0b',
-        'Food Spots': 'red',
-        'Activities': 'green'
+        'Chicago Todo List': '#a0b'
     };
     const DEFAULT_COLOR = '#aa11ff';
 

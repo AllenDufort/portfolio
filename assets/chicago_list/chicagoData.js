@@ -24,32 +24,25 @@
     const COORDS_URL   = 'assets/chicago_list/geocode_cache.json';
     const TIMEOUT_MS   = 8000;   // a slow sheet must not hold the map hostage
 
-    /* The layers a Type belongs to, derived from the layers the KML pipeline produced.
-       A Type can name more than one: the KML filed all 23 clubs under both Food Spots
-       and Activities, which is right — a nightclub is somewhere to drink and something
-       to do. A Type that is not listed here (a new one, or a typo in the sheet) still
-       appears in the All layer, and is reported in meta.unknownTypes rather than being
-       guessed into a layer. */
     const ALL_LAYER = 'Chicago Todo List';
-    const TYPE_LAYERS = {
-        restaurant: ['Food Spots'], bar: ['Food Spots'], cafe: ['Food Spots'],
-        brunch: ['Food Spots'], snack: ['Food Spots'], market: ['Food Spots'],
-        club: ['Food Spots', 'Activities'],
-        museum: ['Activities'], landmark: ['Activities'], books: ['Activities'],
-        park: ['Activities'], retail: ['Activities'], activity: ['Activities'],
-        beach: ['Activities']
-    };
-    const LAYER_ORDER = [ALL_LAYER, 'Food Spots', 'Activities'];
+    const LAYER_ORDER = [ALL_LAYER];
 
     // Sheet headers are matched by name, so columns can be reordered or added freely.
     const COLUMNS = {
-        name: ['place', 'name'],
-        type: ['type', 'category'],
-        neighborhood: ['neighborhood', 'neighbourhood', 'area'],
-        reviews: ['reviews', 'notes', 'review'],
-        address: ['address'],
-        lat: ['lat', 'latitude'],
-        lon: ['lon', 'lng', 'long', 'longitude']
+        name:           ['place', 'name'],
+        type:           ['type', 'category'],
+        neighborhood:   ['neighborhood', 'neighbourhood', 'area'],
+        reviews:        ['reviews', 'notes', 'review'],
+        description:    ['description'],
+        address:        ['address'],
+        phone:          ['phone'],
+        website:        ['website'],
+        ratingsAverage: ['ratingsaverage', 'rating', 'ratingaverage'],
+        ratingsTotal:   ['ratingstotal', 'ratingcount', 'ratingtotal'],
+        googleUrl:      ['googleurl', 'google_url'],
+        originalUrl:    ['originalurl', 'original_url'],
+        lat:            ['lat', 'latitude'],
+        lon:            ['lon', 'lng', 'long', 'longitude']
     };
 
     let pending = null;
@@ -81,13 +74,20 @@
 
         const rows = table
             .map(row => ({
-                name: cell(row, at.name),
-                type: cell(row, at.type),
-                neighborhood: cell(row, at.neighborhood),
-                reviews: cell(row, at.reviews),
-                address: cell(row, at.address),
-                lon: number(cell(row, at.lon)),
-                lat: number(cell(row, at.lat))
+                name:           cell(row, at.name),
+                type:           cell(row, at.type),
+                neighborhood:   cell(row, at.neighborhood),
+                reviews:        cell(row, at.reviews),
+                description:    cell(row, at.description),
+                address:        cell(row, at.address),
+                phone:          cell(row, at.phone),
+                website:        cell(row, at.website),
+                ratingsAverage: number(cell(row, at.ratingsAverage)),
+                ratingsTotal:   number(cell(row, at.ratingsTotal)),
+                googleUrl:      cell(row, at.googleUrl),
+                originalUrl:    cell(row, at.originalUrl),
+                lon:            number(cell(row, at.lon)),
+                lat:            number(cell(row, at.lat))
             }))
             .filter(row => row.name);
 
@@ -111,29 +111,18 @@
             if (feature.geometry) meta.placed++;
             else meta.unplaced.push(row.name);
 
-            const typeKey = row.type.toLowerCase();
             if (row.type) meta.types[row.type] = (meta.types[row.type] || 0) + 1;
 
             layers[ALL_LAYER].features.push(feature);
-            const named = TYPE_LAYERS[typeKey];
-            if (named) {
-                named.forEach(layerName => layers[layerName].features.push(feature));
-            } else if (row.type && meta.unknownTypes.indexOf(row.type) === -1) {
-                meta.unknownTypes.push(row.type);
-            }
         });
 
         LAYER_ORDER.forEach(name => { meta.layerCounts[name] = layers[name].features.length; });
-        if (meta.unknownTypes.length) {
-            console.warn('Chicago map: Types with no layer mapping —', meta.unknownTypes.join(', '));
-        }
         return { layers, meta };
     }
 
-    /* Features keep the property names the KML pipeline used (name, address, reviews) so
-       the popup and the chat index need no special cases, and gain the two fields only
-       the sheet has: type and neighborhood. A row without coordinates gets a null
-       geometry rather than being dropped — the map skips it, the chat still finds it. */
+    /* A row without coordinates gets a null geometry rather than being dropped —
+       the map skips it, the chat still finds it. All sheet columns are preserved so
+       the chat worker can answer questions about ratings, websites, phone numbers, etc. */
     function toFeature(row) {
         return {
             type: 'Feature',
@@ -141,11 +130,18 @@
                 ? { type: 'Point', coordinates: [row.lon, row.lat] }
                 : null,
             properties: {
-                name: row.name,
-                address: row.address,
-                reviews: row.reviews,
-                type: row.type,
-                neighborhood: row.neighborhood
+                name:           row.name,
+                address:        row.address,
+                reviews:        row.reviews,
+                description:    row.description,
+                type:           row.type,
+                neighborhood:   row.neighborhood,
+                phone:          row.phone,
+                website:        row.website,
+                ratingsAverage: row.ratingsAverage,
+                ratingsTotal:   row.ratingsTotal,
+                googleUrl:      row.googleUrl,
+                originalUrl:    row.originalUrl
             }
         };
     }
@@ -202,12 +198,10 @@
             placed: all.filter(f => f.geometry).length, unplaced: [],
             types: {}, unknownTypes: [], layerCounts: {}, coordsFrom: 'geojson'
         };
-        Object.keys(layers).forEach(name => {
-            meta.layerCounts[name] = (layers[name].features || []).length;
-            (layers[name].features || []).forEach(f => {
-                const type = (f.properties || {}).type;
-                if (type && name === ALL_LAYER) meta.types[type] = (meta.types[type] || 0) + 1;
-            });
+        meta.layerCounts[ALL_LAYER] = all.length;
+        all.forEach(f => {
+            const type = (f.properties || {}).type;
+            if (type) meta.types[type] = (meta.types[type] || 0) + 1;
         });
         return { layers, meta };
     }
@@ -259,5 +253,5 @@
         return rows;
     }
 
-    window.ChicagoData = { load, SHEET_URL, ALL_LAYER, LAYER_ORDER, TYPE_LAYERS };
+    window.ChicagoData = { load, SHEET_URL, ALL_LAYER, LAYER_ORDER };
 })();

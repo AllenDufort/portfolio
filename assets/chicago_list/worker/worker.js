@@ -63,28 +63,22 @@ const FAR_AWAY_MI   = 25;                 // past this, tell the model the visit
 const MODEL_MAX_TOKENS = 700;
 const MODEL_TEMPERATURE = 0.3;
 
-/* The Type -> layer mapping, mirroring TYPE_LAYERS in chicagoData.js (and geocode.py).
-   Keep the three in sync; a Type missing here still appears in the catalog, it just
-   belongs to no layer. */
-const TYPE_LAYERS = {
-    restaurant: ['Food Spots'], bar: ['Food Spots'], cafe: ['Food Spots'],
-    brunch: ['Food Spots'], snack: ['Food Spots'], market: ['Food Spots'],
-    club: ['Food Spots', 'Activities'],
-    museum: ['Activities'], landmark: ['Activities'], books: ['Activities'],
-    park: ['Activities'], retail: ['Activities'], activity: ['Activities'],
-    beach: ['Activities']
-};
-const LAYER_ORDER = ['Food Spots', 'Activities'];
-
 // Sheet headers are matched by name, so columns can be reordered or added freely.
 const COLUMNS = {
-    name: ['place', 'name'],
-    type: ['type', 'category'],
-    neighborhood: ['neighborhood', 'neighbourhood', 'area'],
-    notes: ['reviews', 'notes', 'review'],
-    address: ['address'],
-    lat: ['lat', 'latitude'],
-    lon: ['lon', 'lng', 'long', 'longitude']
+    name:           ['place', 'name'],
+    type:           ['type', 'category'],
+    neighborhood:   ['neighborhood', 'neighbourhood', 'area'],
+    notes:          ['reviews', 'notes', 'review'],
+    description:    ['description'],
+    address:        ['address'],
+    phone:          ['phone'],
+    website:        ['website'],
+    ratingsAverage: ['ratingsaverage', 'rating', 'ratingaverage'],
+    ratingsTotal:   ['ratingstotal', 'ratingcount', 'ratingtotal'],
+    googleUrl:      ['googleurl', 'google_url'],
+    originalUrl:    ['originalurl', 'original_url'],
+    lat:            ['lat', 'latitude'],
+    lon:            ['lon', 'lng', 'long', 'longitude']
 };
 
 /* Module scope, so a warm isolate reuses the built catalog and the sheet is fetched
@@ -261,24 +255,22 @@ function sseTransform() {
 
 /* ── Prompt ──────────────────────────────────────────────────────────────── */
 
-/* Every question gets the whole map. All 552 places with their notes come to ~34 KB
-   (~8.5k tokens) against a 1M-token context, so there is no reason to pre-select
-   places and risk hiding the one the visitor asked about. Grouping by neighborhood is
-   what makes "what food spots are in South Loop?" reliable: the answer is one
-   contiguous, counted block rather than 552 rows to filter. */
+/* Every question gets the whole map. All places with their details come to well within
+   the model's context, so there is no reason to pre-select and risk hiding the one the
+   visitor asked about. Grouping by neighborhood is what makes neighborhood queries
+   reliable: the answer is one contiguous, counted block. */
 function systemPrompt(catalog, near, hasPoint) {
     const lines = [
         'You are Chicago Assistant, the guide to a personal Chicago TODO map of saved places.',
         `The map holds ${catalog.places.length} saved places across ${catalog.hoods.length} neighborhoods.`,
-        'Layers group them by Type:',
-        ...catalog.layerLines,
         '',
         'Rules:',
         '- Answer only from the CATALOG below. Never invent a place, address, note, or detail, and never add well-known Chicago spots that are not listed.',
         '- The catalog is one person\'s saved list, not all of Chicago. If nothing fits, say so and name a neighborhood or type that does.',
-        '- Neighborhood headings carry exact counts. Use them when asked how many, and count only inside the layer or Type asked about.',
-        '- Keep replies under 120 words. Use "- " bullets for lists, at most 8 places per reply, and say the total when there are more.',
+        '- Neighborhood headings carry exact counts. Use them when asked how many, and count only inside the Type or neighborhood asked about.',
+        '- Keep replies under 150 words. Use "- " bullets for lists, at most 8 places per reply, and say the total when there are more.',
         '- Give each place\'s Type and neighborhood; add the address when the visitor is heading there.',
+        '- When asked about ratings, phone numbers, websites, or descriptions, quote them exactly from the catalog.',
         '- Plain text only, no markdown headings or tables. Skip preamble and pleasantries.'
     ];
 
@@ -426,14 +418,18 @@ function buildCatalog(rows, source) {
         const key = `${row.name.toLowerCase()}|${row.address.toLowerCase()}`;
         if (byKey.has(key)) return;
         byKey.set(key, {
-            name: row.name,
-            type: row.type,
-            neighborhood: row.neighborhood,
-            address: shortAddress(row.address),
-            notes: row.notes.replace(/\s+/g, ' ').trim(),
-            lon: row.lon,
-            lat: row.lat,
-            layers: TYPE_LAYERS[row.type.toLowerCase()] || []
+            name:           row.name,
+            type:           row.type,
+            neighborhood:   row.neighborhood,
+            address:        shortAddress(row.address),
+            notes:          row.notes.replace(/\s+/g, ' ').trim(),
+            description:    (row.description || '').replace(/\s+/g, ' ').trim(),
+            phone:          row.phone || '',
+            website:        row.website || '',
+            ratingsAverage: row.ratingsAverage,
+            ratingsTotal:   row.ratingsTotal,
+            lon:            row.lon,
+            lat:            row.lat
         });
     });
     const places = Array.from(byKey.values());
@@ -457,8 +453,10 @@ function buildCatalog(rows, source) {
         };
     });
 
-    const lines = ['CATALOG — every saved place, grouped by neighborhood.',
-        'Format: Name (Type) | address | notes'];
+    const lines = [
+        'CATALOG — every saved place, grouped by neighborhood.',
+        'Format: Name (Type) | address | rating | description | notes | phone | website'
+    ];
     hoods.forEach(hood => {
         lines.push('', `## ${hood.label} (${hood.count})`);
         groups.get(hood.label)
@@ -467,20 +465,19 @@ function buildCatalog(rows, source) {
             .forEach(place => {
                 const bits = [`- ${place.name} (${place.type || 'Place'})`];
                 if (place.address) bits.push(place.address);
+                const rating = place.ratingsAverage != null
+                    ? `${place.ratingsAverage}★${place.ratingsTotal != null ? ` (${place.ratingsTotal})` : ''}`
+                    : '';
+                if (rating) bits.push(rating);
+                if (place.description) bits.push(place.description);
                 if (place.notes) bits.push(place.notes);
+                if (place.phone) bits.push(place.phone);
+                if (place.website) bits.push(place.website);
                 lines.push(bits.join(' | '));
             });
     });
 
-    const layerLines = LAYER_ORDER.map(layer => {
-        const types = Object.keys(TYPE_LAYERS)
-            .filter(type => TYPE_LAYERS[type].indexOf(layer) !== -1)
-            .map(titleCase);
-        const count = places.filter(place => place.layers.indexOf(layer) !== -1).length;
-        return `- ${layer} (${count} places): Types ${types.join(', ')}`;
-    });
-
-    return { places, hoods, layerLines, text: lines.join('\n'), source, builtAt: Date.now() };
+    return { places, hoods, text: lines.join('\n'), source, builtAt: Date.now() };
 }
 
 // "5025 N Clark St, Chicago, IL 60640" -> "5025 N Clark St", but suburbs keep their city.
@@ -505,13 +502,18 @@ function fromSheet(csv) {
 
     return table
         .map(row => ({
-            name: cell(row, at.name),
-            type: cell(row, at.type),
-            neighborhood: cell(row, at.neighborhood),
-            notes: cell(row, at.notes),
-            address: cell(row, at.address),
-            lon: number(cell(row, at.lon)),
-            lat: number(cell(row, at.lat))
+            name:           cell(row, at.name),
+            type:           cell(row, at.type),
+            neighborhood:   cell(row, at.neighborhood),
+            notes:          cell(row, at.notes),
+            description:    cell(row, at.description),
+            address:        cell(row, at.address),
+            phone:          cell(row, at.phone),
+            website:        cell(row, at.website),
+            ratingsAverage: number(cell(row, at.ratingsAverage)),
+            ratingsTotal:   number(cell(row, at.ratingsTotal)),
+            lon:            number(cell(row, at.lon)),
+            lat:            number(cell(row, at.lat))
         }))
         .filter(row => row.name);
 }
@@ -523,13 +525,18 @@ function fromSnapshot(json) {
         const props = feature.properties || {};
         const coords = (feature.geometry && feature.geometry.coordinates) || [];
         return {
-            name: String(props.name || '').trim(),
-            type: String(props.type || '').trim(),
-            neighborhood: String(props.neighborhood || '').trim(),
-            notes: String(props.reviews || props.notes || '').trim(),
-            address: String(props.address || '').trim(),
-            lon: typeof coords[0] === 'number' ? coords[0] : null,
-            lat: typeof coords[1] === 'number' ? coords[1] : null
+            name:           String(props.name || '').trim(),
+            type:           String(props.type || '').trim(),
+            neighborhood:   String(props.neighborhood || '').trim(),
+            notes:          String(props.reviews || props.notes || '').trim(),
+            description:    String(props.description || '').trim(),
+            address:        String(props.address || '').trim(),
+            phone:          String(props.phone || '').trim(),
+            website:        String(props.website || '').trim(),
+            ratingsAverage: typeof props.ratingsAverage === 'number' ? props.ratingsAverage : null,
+            ratingsTotal:   typeof props.ratingsTotal === 'number' ? props.ratingsTotal : null,
+            lon:            typeof coords[0] === 'number' ? coords[0] : null,
+            lat:            typeof coords[1] === 'number' ? coords[1] : null
         };
     }).filter(row => row.name);
 }
