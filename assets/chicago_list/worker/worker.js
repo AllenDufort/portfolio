@@ -24,7 +24,7 @@
    GET / returns a health summary (place count, neighborhoods, data source, model), so
    a deployment can be verified without spending a model call. */
 
-const OLLAMA_CLOUD_URL = 'https://api.ollama.com/v1/chat/completions';
+const OLLAMA_CLOUD_URL = 'https://ollama.com/api/chat';
 
 /* Overridable in wrangler.toml [vars]. The model is pinned server-side on purpose:
    the browser never chooses it, so nobody can swap in a paid model on this key. */
@@ -144,9 +144,9 @@ export default {
 /* ── Ollama Cloud ────────────────────────────────────────────────────────── */
 
 /* The reply is streamed so the visitor sees the first words immediately rather than
-   waiting for the full response. The upstream SSE is normalised here into one small
-   event shape — {"delta"} / {"error"} / [DONE] — so the page never has to know what
-   a provider chunk looks like. */
+   waiting for the full response. Ollama's /api/chat streams newline-delimited JSON
+   objects (NDJSON). The transformer normalises those into the one small event shape
+   the browser expects — {"delta"} / {"error"} / [DONE]. */
 async function askModel(env, messages, cors) {
     const model = env.MODEL || DEFAULTS.MODEL;
     let upstream;
@@ -161,8 +161,10 @@ async function askModel(env, messages, cors) {
                 model,
                 messages,
                 stream: true,
-                temperature: MODEL_TEMPERATURE,
-                max_tokens: MODEL_MAX_TOKENS
+                options: {
+                    temperature: MODEL_TEMPERATURE,
+                    num_predict: MODEL_MAX_TOKENS
+                }
             })
         });
     } catch (err) {
@@ -174,7 +176,7 @@ async function askModel(env, messages, cors) {
             upstream.headers.get('Retry-After'));
     }
 
-    return new Response(upstream.body.pipeThrough(sseTransform()), {
+    return new Response(upstream.body.pipeThrough(ndjsonTransform()), {
         headers: {
             ...cors,
             'Content-Type': 'text/event-stream; charset=utf-8',
@@ -190,7 +192,9 @@ async function upstreamMessage(res) {
     let detail = '';
     try {
         const data = await res.json();
-        detail = (data && data.error && data.error.message) || '';
+        // Ollama error shape: {"error": "message string"}
+        detail = (data && typeof data.error === 'string' ? data.error : '') ||
+                 (data && data.error && data.error.message) || '';
     } catch (err) { /* an HTML error page — the status is all we have */ }
 
     switch (res.status) {
@@ -205,9 +209,12 @@ async function upstreamMessage(res) {
     }
 }
 
-/* Upstream SSE -> our SSE. Comment/keep-alive lines are dropped; only assistant
-   content deltas are forwarded. */
-function sseTransform() {
+/* Upstream NDJSON -> our SSE.
+   Ollama /api/chat streams one JSON object per line:
+     {"model":"…","message":{"role":"assistant","content":"Hello"},"done":false}
+     {"model":"…","done":true,"done_reason":"stop"}
+   We forward only the content token from each non-done line, then emit [DONE]. */
+function ndjsonTransform() {
     const decoder = new TextDecoder();
     const encoder = new TextEncoder();
     let buffer = '';
@@ -218,29 +225,35 @@ function sseTransform() {
     return new TransformStream({
         transform(chunk, controller) {
             buffer += decoder.decode(chunk, { stream: true });
-            const blocks = buffer.split('\n\n');
-            buffer = blocks.pop() || '';
+            const lines = buffer.split('\n');
+            buffer = lines.pop() || '';   // keep any incomplete line for the next chunk
 
-            blocks.forEach(block => block.split('\n').forEach(rawLine => {
+            lines.forEach(rawLine => {
                 const line = rawLine.trim();
-                if (!line.startsWith('data:')) return;
-                const payload = line.slice(5).trim();
-                if (!payload || payload === '[DONE]') return;
+                if (!line) return;
 
                 let data;
-                try { data = JSON.parse(payload); } catch (err) { return; }
+                try { data = JSON.parse(line); } catch (err) { return; }
 
-                // A generation can fail mid-stream, in which case the error arrives here.
                 if (data.error) {
-                    send(controller, { error: data.error.message || 'The model stopped early.' });
+                    send(controller, { error: typeof data.error === 'string'
+                        ? data.error : 'The model stopped early.' });
                     return;
                 }
-                const choice = data.choices && data.choices[0];
-                const text = choice && choice.delta && choice.delta.content;
+                // Each streaming chunk carries the incremental token in message.content.
+                const text = data.message && data.message.content;
                 if (typeof text === 'string' && text) send(controller, { delta: text });
-            }));
+            });
         },
         flush(controller) {
+            // Flush any remaining buffered line (the final done:true object).
+            if (buffer.trim()) {
+                try {
+                    const data = JSON.parse(buffer.trim());
+                    if (data.error) send(controller, { error: typeof data.error === 'string'
+                        ? data.error : 'The model stopped early.' });
+                } catch (err) { /* ignore */ }
+            }
             controller.enqueue(encoder.encode('data: [DONE]\n\n'));
         }
     });
