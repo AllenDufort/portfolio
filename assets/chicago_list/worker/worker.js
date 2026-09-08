@@ -24,7 +24,7 @@
    GET / returns a health summary (place count, neighborhoods, data source, model), so
    a deployment can be verified without spending a model call. */
 
-const OLLAMA_CLOUD_URL = 'https://ollama.com/api/chat';
+const OLLAMA_CLOUD_URL = 'https://ollama.com/api/generate';
 
 /* Overridable in wrangler.toml [vars]. The model is pinned server-side on purpose:
    the browser never chooses it, so nobody can swap in a paid model on this key. */
@@ -131,23 +131,31 @@ export default {
 
         const point = coords(body && body.coords);
         const near = nearbyBlock(catalog, point);
-        const messages = [
-            { role: 'system', content: systemPrompt(catalog, near, Boolean(point)) },
-            ...history(body && body.history),
-            { role: 'user', content: question }
-        ];
+        const sysPrompt = systemPrompt(catalog, near, Boolean(point));
+        const prompt    = buildPrompt(history(body && body.history), question);
 
-        return askModel(env, messages, cors);
+        return askModel(env, sysPrompt, prompt, cors);
     }
 };
 
 /* ── Ollama Cloud ────────────────────────────────────────────────────────── */
 
+/* Flatten chat history + the current question into a single prompt string.
+   /api/generate has no native multi-turn support, so prior turns are prepended
+   as role-labelled blocks so the model has the conversation context. */
+function buildPrompt(historyMsgs, question) {
+    const parts = historyMsgs.map(m =>
+        `${m.role === 'assistant' ? 'Assistant' : 'User'}: ${m.content}`
+    );
+    parts.push(`User: ${question}`);
+    return parts.join('\n\n');
+}
+
 /* The reply is streamed so the visitor sees the first words immediately rather than
-   waiting for the full response. Ollama's /api/chat streams newline-delimited JSON
-   objects (NDJSON). The transformer normalises those into the one small event shape
-   the browser expects — {"delta"} / {"error"} / [DONE]. */
-async function askModel(env, messages, cors) {
+   waiting for the full response. Ollama's /api/generate streams newline-delimited
+   JSON objects (NDJSON). The transformer normalises those into the one small event
+   shape the browser expects — {"delta"} / {"error"} / [DONE]. */
+async function askModel(env, sysPrompt, prompt, cors) {
     const model = env.MODEL || DEFAULTS.MODEL;
     let upstream;
     try {
@@ -159,7 +167,8 @@ async function askModel(env, messages, cors) {
             },
             body: JSON.stringify({
                 model,
-                messages,
+                system: sysPrompt,
+                prompt,
                 stream: true,
                 options: {
                     temperature: MODEL_TEMPERATURE,
@@ -210,10 +219,10 @@ async function upstreamMessage(res) {
 }
 
 /* Upstream NDJSON -> our SSE.
-   Ollama /api/chat streams one JSON object per line:
-     {"model":"…","message":{"role":"assistant","content":"Hello"},"done":false}
-     {"model":"…","done":true,"done_reason":"stop"}
-   We forward only the content token from each non-done line, then emit [DONE]. */
+   Ollama /api/generate streams one JSON object per line:
+     {"model":"…","response":"Hello","done":false}
+     {"model":"…","response":"","done":true,"done_reason":"stop"}
+   We forward only the response token from each non-done line, then emit [DONE]. */
 function ndjsonTransform() {
     const decoder = new TextDecoder();
     const encoder = new TextEncoder();
@@ -240,8 +249,8 @@ function ndjsonTransform() {
                         ? data.error : 'The model stopped early.' });
                     return;
                 }
-                // Each streaming chunk carries the incremental token in message.content.
-                const text = data.message && data.message.content;
+                // Each streaming chunk carries the incremental token in response.
+                const text = data.response;
                 if (typeof text === 'string' && text) send(controller, { delta: text });
             });
         },
