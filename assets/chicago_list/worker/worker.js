@@ -24,7 +24,7 @@
    GET / returns a health summary (place count, neighborhoods, data source, model), so
    a deployment can be verified without spending a model call. */
 
-const OLLAMA_CLOUD_URL = 'https://ollama.com/api/generate';
+const OLLAMA_CLOUD_URL = 'https://ollama.com/api/chat';
 
 /* Overridable in wrangler.toml [vars]. The model is pinned server-side on purpose:
    the browser never chooses it, so nobody can swap in a paid model on this key. */
@@ -131,35 +131,150 @@ export default {
 
         const point = coords(body && body.coords);
         const near = nearbyBlock(catalog, point);
-        const sysPrompt = systemPrompt(catalog, near, Boolean(point));
-        const prompt    = buildPrompt(history(body && body.history), question);
+        const messages = [
+            { role: 'system', content: systemPrompt(catalog, near, Boolean(point)) },
+            ...history(body && body.history),
+            { role: 'user', content: question }
+        ];
 
-        return askModel(env, sysPrompt, prompt, cors);
+        return askModel(env, catalog, point, messages, cors);
     }
 };
 
-/* ── Ollama Cloud ────────────────────────────────────────────────────────── */
+/* ── Ollama Cloud — tools + agentic loop ─────────────────────────────────── */
 
-/* Flatten chat history + the current question into a single prompt string.
-   /api/generate has no native multi-turn support, so prior turns are prepended
-   as role-labelled blocks so the model has the conversation context. */
-function buildPrompt(historyMsgs, question) {
-    const parts = historyMsgs.map(m =>
-        `${m.role === 'assistant' ? 'Assistant' : 'User'}: ${m.content}`
-    );
-    parts.push(`User: ${question}`);
-    return parts.join('\n\n');
+/* Tools the model may call. The Worker executes every call against the in-memory
+   catalog and feeds the results back before asking for the final reply, so the model
+   never has to guess at details it can look up precisely. */
+const TOOLS = [
+    {
+        type: 'function',
+        function: {
+            name: 'search_places',
+            description: 'Search saved places by name, type, or neighborhood. Returns matching places with all their details.',
+            parameters: {
+                type: 'object',
+                properties: {
+                    query:        { type: 'string',  description: 'Name, partial name, or keyword to search for.' },
+                    type:         { type: 'string',  description: 'Filter by place type, e.g. Restaurant, Bar, Museum.' },
+                    neighborhood: { type: 'string',  description: 'Filter by neighborhood name.' },
+                    limit:        { type: 'integer', description: 'Max results to return (default 10, max 20).' }
+                }
+            }
+        }
+    },
+    {
+        type: 'function',
+        function: {
+            name: 'get_place_details',
+            description: 'Get full details for a specific place by exact name: address, rating, review count, description, notes, phone, website.',
+            parameters: {
+                type: 'object',
+                required: ['name'],
+                properties: {
+                    name: { type: 'string', description: 'Exact or near-exact name of the place.' }
+                }
+            }
+        }
+    },
+    {
+        type: 'function',
+        function: {
+            name: 'find_nearby',
+            description: 'Find saved places nearest to the visitor\'s current location, sorted by distance.',
+            parameters: {
+                type: 'object',
+                properties: {
+                    type:         { type: 'string',  description: 'Optional: filter by place type.' },
+                    radius_miles: { type: 'number',  description: 'Search radius in miles (default 1).' },
+                    limit:        { type: 'integer', description: 'Max results (default 10, max 20).' }
+                }
+            }
+        }
+    }
+];
+
+/* Execute a tool call against the live catalog. Returns a plain-text result string
+   the model can read directly. All filtering is case-insensitive. */
+function executeTool(name, args, catalog, point) {
+    const cap = n => Math.min(Math.max(1, n || 10), 20);
+
+    if (name === 'search_places') {
+        const q     = String(args.query        || '').toLowerCase();
+        const type  = String(args.type         || '').toLowerCase();
+        const hood  = String(args.neighborhood || '').toLowerCase();
+        const limit = cap(args.limit);
+
+        const hits = catalog.places.filter(p => {
+            if (q    && !p.name.toLowerCase().includes(q) &&
+                        !(p.notes       || '').toLowerCase().includes(q) &&
+                        !(p.description || '').toLowerCase().includes(q)) return false;
+            if (type && !(p.type         || '').toLowerCase().includes(type)) return false;
+            if (hood && !(p.neighborhood || '').toLowerCase().includes(hood)) return false;
+            return true;
+        }).slice(0, limit);
+
+        if (!hits.length) return 'No places found matching those criteria.';
+        return hits.map(p => formatPlace(p)).join('\n\n');
+    }
+
+    if (name === 'get_place_details') {
+        const q = String(args.name || '').toLowerCase();
+        const exact = catalog.places.find(p => p.name.toLowerCase() === q);
+        const match = exact || catalog.places.find(p => p.name.toLowerCase().includes(q));
+        if (!match) return `No place named "${args.name}" found in the catalog.`;
+        return formatPlace(match, true);
+    }
+
+    if (name === 'find_nearby') {
+        if (!point) return 'No visitor location available. Ask the visitor to share their location.';
+        const type   = String(args.type || '').toLowerCase();
+        const radius = args.radius_miles || 1;
+        const limit  = cap(args.limit);
+
+        const ranked = catalog.places
+            .filter(p => p.lon != null)
+            .filter(p => !type || (p.type || '').toLowerCase().includes(type))
+            .map(p => ({ p, miles: haversineMiles(point.lon, point.lat, p.lon, p.lat) }))
+            .filter(hit => hit.miles <= radius)
+            .sort((a, b) => a.miles - b.miles)
+            .slice(0, limit);
+
+        if (!ranked.length) return `No places within ${radius} miles${type ? ` of type "${args.type}"` : ''}.`;
+        return ranked.map(({ p, miles }) =>
+            `${formatPlace(p)} | distance: ${miles.toFixed(2)} mi`
+        ).join('\n\n');
+    }
+
+    return `Unknown tool: ${name}`;
 }
 
-/* The reply is streamed so the visitor sees the first words immediately rather than
-   waiting for the full response. Ollama's /api/generate streams newline-delimited
-   JSON objects (NDJSON). The transformer normalises those into the one small event
-   shape the browser expects — {"delta"} / {"error"} / [DONE]. */
-async function askModel(env, sysPrompt, prompt, cors) {
+/* Format a single place as a readable block for tool results. */
+function formatPlace(p, full = false) {
+    const lines = [`${p.name} (${p.type || 'Place'}) — ${p.neighborhood || 'Chicago'}`];
+    if (p.address)        lines.push(`address: ${p.address}`);
+    if (p.ratingsAverage != null) {
+        const rev = p.ratingsTotal != null ? ` (${p.ratingsTotal} reviews)` : '';
+        lines.push(`rating: ${p.ratingsAverage}★${rev}`);
+    }
+    if (p.description)    lines.push(`description: ${p.description}`);
+    if (p.notes)          lines.push(`notes: ${p.notes}`);
+    if (full || p.phone)  lines.push(`phone: ${p.phone || 'not listed'}`);
+    if (full || p.website)lines.push(`website: ${p.website || 'not listed'}`);
+    return lines.join('\n');
+}
+
+/* Agentic loop: call the model, handle any tool calls it makes, then call again
+   until it produces a plain text reply. Tool calls are not streamed by Ollama —
+   only the final text turn is, so we buffer the intermediate rounds and stream
+   just the last one back to the browser. */
+const MAX_TOOL_ROUNDS = 5;   // guard against a runaway loop
+
+async function askModel(env, catalog, point, messages, cors) {
     const model = env.MODEL || DEFAULTS.MODEL;
-    let upstream;
-    try {
-        upstream = await fetch(OLLAMA_CLOUD_URL, {
+
+    const callOllama = async (msgs, stream) => {
+        const res = await fetch(OLLAMA_CLOUD_URL, {
             method: 'POST',
             headers: {
                 'Authorization': `Bearer ${env.OLLAMA_API_KEY}`,
@@ -167,19 +282,65 @@ async function askModel(env, sysPrompt, prompt, cors) {
             },
             body: JSON.stringify({
                 model,
-                system: sysPrompt,
-                prompt,
-                stream: true,
-                options: {
-                    temperature: MODEL_TEMPERATURE,
-                    num_predict: MODEL_MAX_TOKENS
-                }
+                messages: msgs,
+                tools: TOOLS,
+                stream,
+                options: { temperature: MODEL_TEMPERATURE, num_predict: MODEL_MAX_TOKENS }
             })
         });
+        return res;
+    };
+
+    let msgs = messages;
+
+    // Tool-call rounds (not streamed — we need the full JSON to parse tool calls).
+    for (let round = 0; round < MAX_TOOL_ROUNDS; round++) {
+        let upstream;
+        try {
+            upstream = await callOllama(msgs, false);
+        } catch (err) {
+            return fail(502, 'I could not reach the model just now — try again shortly.', cors);
+        }
+        if (!upstream.ok) {
+            return fail(upstream.status || 502, await upstreamMessage(upstream), cors,
+                upstream.headers.get('Retry-After'));
+        }
+
+        let data;
+        try { data = await upstream.json(); } catch (err) {
+            return fail(502, 'Unexpected response from the model.', cors);
+        }
+
+        const msg = data.message || {};
+        const toolCalls = msg.tool_calls;
+
+        // No tool calls — this is the final answer. Re-request with streaming.
+        if (!toolCalls || !toolCalls.length) {
+            msgs = [...msgs, { role: 'assistant', content: msg.content || '' }];
+            break;
+        }
+
+        // Execute each tool call and add results to the message list.
+        msgs = [...msgs, { role: 'assistant', content: msg.content || '', tool_calls: toolCalls }];
+        for (const call of toolCalls) {
+            const fn   = call.function || {};
+            const name = fn.name || '';
+            let fnArgs = {};
+            try { fnArgs = typeof fn.arguments === 'string' ? JSON.parse(fn.arguments) : (fn.arguments || {}); }
+            catch (err) { /* use empty args */ }
+
+            const result = executeTool(name, fnArgs, catalog, point);
+            msgs = [...msgs, { role: 'tool', content: result }];
+        }
+    }
+
+    // Stream the final assistant reply back to the browser.
+    let upstream;
+    try {
+        upstream = await callOllama(msgs, true);
     } catch (err) {
         return fail(502, 'I could not reach the model just now — try again shortly.', cors);
     }
-
     if (!upstream.ok || !upstream.body) {
         return fail(upstream.status || 502, await upstreamMessage(upstream), cors,
             upstream.headers.get('Retry-After'));
@@ -195,13 +356,11 @@ async function askModel(env, sysPrompt, prompt, cors) {
     });
 }
 
-/* Turn an Ollama Cloud status into something worth showing a visitor. Rate limits and
-   a temporarily unavailable model are the most likely failures — both are temporary. */
+/* Turn an Ollama Cloud status into something worth showing a visitor. */
 async function upstreamMessage(res) {
     let detail = '';
     try {
         const data = await res.json();
-        // Ollama error shape: {"error": "message string"}
         detail = (data && typeof data.error === 'string' ? data.error : '') ||
                  (data && data.error && data.error.message) || '';
     } catch (err) { /* an HTML error page — the status is all we have */ }
@@ -219,10 +378,10 @@ async function upstreamMessage(res) {
 }
 
 /* Upstream NDJSON -> our SSE.
-   Ollama /api/generate streams one JSON object per line:
-     {"model":"…","response":"Hello","done":false}
-     {"model":"…","response":"","done":true,"done_reason":"stop"}
-   We forward only the response token from each non-done line, then emit [DONE]. */
+   Ollama /api/chat streams one JSON object per line:
+     {"message":{"role":"assistant","content":"Hello"},"done":false}
+     {"message":{"role":"assistant","content":""},"done":true}
+   We forward message.content tokens, then emit [DONE]. */
 function ndjsonTransform() {
     const decoder = new TextDecoder();
     const encoder = new TextEncoder();
@@ -235,27 +394,23 @@ function ndjsonTransform() {
         transform(chunk, controller) {
             buffer += decoder.decode(chunk, { stream: true });
             const lines = buffer.split('\n');
-            buffer = lines.pop() || '';   // keep any incomplete line for the next chunk
+            buffer = lines.pop() || '';
 
             lines.forEach(rawLine => {
                 const line = rawLine.trim();
                 if (!line) return;
-
                 let data;
                 try { data = JSON.parse(line); } catch (err) { return; }
-
                 if (data.error) {
                     send(controller, { error: typeof data.error === 'string'
                         ? data.error : 'The model stopped early.' });
                     return;
                 }
-                // Each streaming chunk carries the incremental token in response.
-                const text = data.response;
+                const text = data.message && data.message.content;
                 if (typeof text === 'string' && text) send(controller, { delta: text });
             });
         },
         flush(controller) {
-            // Flush any remaining buffered line (the final done:true object).
             if (buffer.trim()) {
                 try {
                     const data = JSON.parse(buffer.trim());
@@ -270,46 +425,32 @@ function ndjsonTransform() {
 
 /* ── Prompt ──────────────────────────────────────────────────────────────── */
 
-/* Every question gets the whole map. All places with their details come to well within
-   the model's context, so there is no reason to pre-select and risk hiding the one the
-   visitor asked about. Grouping by neighborhood is what makes neighborhood queries
-   reliable: the answer is one contiguous, counted block. */
-function systemPrompt(catalog, near, hasPoint) {
+/* With tools available, the model no longer needs the whole catalog in the prompt.
+   The system message tells it what it is, what tools it has, and how to behave.
+   Actual place data comes back through tool results, which are precise and complete. */
+function systemPrompt(catalog, _near, hasPoint) {
     const lines = [
-        'You are Chicago Assistant, the guide to a personal Chicago TODO map of saved places.',
+        'You are Chicago Assistant, a guide to a personal Chicago TODO map of saved places.',
         `The map holds ${catalog.places.length} saved places across ${catalog.hoods.length} neighborhoods.`,
         '',
+        'You have three tools:',
+        '- search_places: find places by name, type, or neighborhood.',
+        '- get_place_details: get every available field for one specific place (address, rating, review count, description, notes, phone, website).',
+        '- find_nearby: find places closest to the visitor\'s current location, sorted by distance.',
+        '',
         'Rules:',
-        '- Answer only from the CATALOG below. Never invent a place, address, note, or detail, and never add well-known Chicago spots that are not listed.',
-        '- The catalog is one person\'s saved list, not all of Chicago. If nothing fits, say so and name a neighborhood or type that does.',
-        '- Neighborhood headings carry exact counts. Use them when asked how many, and count only inside the Type or neighborhood asked about.',
-        '- Keep replies under 150 words. Use "- " bullets for lists, at most 8 places per reply, and say the total when there are more.',
-        '- Give each place\'s Type and neighborhood; add the address when the visitor is heading there.',
-        '- When asked about ratings, phone numbers, websites, or descriptions, quote them exactly from the catalog.',
+        '- Always call a tool before answering. Never invent or guess any detail — all facts come from tool results.',
+        '- For a specific place question (phone, rating, address, website, description), call get_place_details and quote the result exactly. If a field is absent in the result, say it is not listed.',
+        '- For "near me" questions, call find_nearby. If no location is available, tell the visitor to allow location access or name a neighborhood.',
+        '- For list questions, call search_places. Use "- " bullets, at most 8 results, note the total when there are more.',
+        '- Always include Type and neighborhood in your reply. Add the address when the visitor is heading somewhere.',
         '- Plain text only, no markdown headings or tables. Skip preamble and pleasantries.'
     ];
 
-    if (near) {
-        lines.push(
-            '- NEAR THE VISITOR lists the closest saved places with real distances, computed from ' +
-            'the location they just shared. Use it for "near me" questions and quote those ' +
-            'distances verbatim. Never estimate a distance yourself.'
-        );
-    } else if (hasPoint) {
-        // Location shared, but no place in the catalog has coordinates to measure against.
-        lines.push(
-            '- The visitor shared their location, but no distances are available right now. Say so ' +
-            'and ask which neighborhood they are in.'
-        );
-    } else {
-        lines.push(
-            '- You have no location for the visitor. If they ask what is near them, tell them to ' +
-            'allow location access in the browser, or to name a neighborhood instead.'
-        );
+    if (!hasPoint) {
+        lines.push('', '- The visitor has not shared their location. find_nearby is unavailable until they do.');
     }
 
-    lines.push('', catalog.text);
-    if (near) lines.push('', near);
     return lines.join('\n');
 }
 
@@ -351,8 +492,12 @@ function nearbyBlock(catalog, point) {
 
 function nearLine(hit, decimals) {
     const place = hit.place;
+    const rating = place.ratingsAverage != null
+        ? ` | ${place.ratingsAverage}★${place.ratingsTotal != null ? ` (${place.ratingsTotal})` : ''}`
+        : '';
+    const address = place.address ? ` | ${place.address}` : '';
     return `- ${place.name} (${place.type || 'Place'}) | ${hit.miles.toFixed(decimals)} mi | ` +
-        `${place.neighborhood || 'Chicago'}`;
+        `${place.neighborhood || 'Chicago'}${rating}${address}`;
 }
 
 /* Which neighborhood the visitor is standing in, from the average coordinates of the
@@ -470,7 +615,8 @@ function buildCatalog(rows, source) {
 
     const lines = [
         'CATALOG — every saved place, grouped by neighborhood.',
-        'Format: Name (Type) | address | rating | description | notes | phone | website'
+        'Each entry lists every available field. Fields that are absent are not shown.',
+        'Format per line: Name (Type) | neighborhood | [address: …] | [rating: …★ (N reviews)] | [description: …] | [notes: …] | [phone: …] | [website: …]'
     ];
     hoods.forEach(hood => {
         lines.push('', `## ${hood.label} (${hood.count})`);
@@ -478,17 +624,17 @@ function buildCatalog(rows, source) {
             .slice()
             .sort((a, b) => a.name.localeCompare(b.name))
             .forEach(place => {
-                const bits = [`- ${place.name} (${place.type || 'Place'})`];
-                if (place.address) bits.push(place.address);
-                const rating = place.ratingsAverage != null
-                    ? `${place.ratingsAverage}★${place.ratingsTotal != null ? ` (${place.ratingsTotal})` : ''}`
-                    : '';
-                if (rating) bits.push(rating);
-                if (place.description) bits.push(place.description);
-                if (place.notes) bits.push(place.notes);
-                if (place.phone) bits.push(place.phone);
-                if (place.website) bits.push(place.website);
-                lines.push(bits.join(' | '));
+                const parts = [`- ${place.name} (${place.type || 'Place'}) | ${place.neighborhood || 'Chicago'}`];
+                if (place.address)        parts.push(`address: ${place.address}`);
+                if (place.ratingsAverage != null) {
+                    const rev = place.ratingsTotal != null ? ` (${place.ratingsTotal} reviews)` : '';
+                    parts.push(`rating: ${place.ratingsAverage}★${rev}`);
+                }
+                if (place.description)    parts.push(`description: ${place.description}`);
+                if (place.notes)          parts.push(`notes: ${place.notes}`);
+                if (place.phone)          parts.push(`phone: ${place.phone}`);
+                if (place.website)        parts.push(`website: ${place.website}`);
+                lines.push(parts.join(' | '));
             });
     });
 
