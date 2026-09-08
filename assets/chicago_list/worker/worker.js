@@ -1,5 +1,5 @@
 /* ── Chicago Assistant API — Cloudflare Worker ─────────────────────────────
-   The chat widget on a static GitHub Pages site cannot hold an OpenRouter key: any
+   The chat widget on a static GitHub Pages site cannot hold an Ollama Cloud key: any
    key shipped to the browser is public. So the key lives here as a Worker secret and
    the page talks to this endpoint instead.
 
@@ -13,7 +13,7 @@
 
    Deploy:
      cd assets/chicago_list/worker
-     npx wrangler secret put OPENROUTER_API_KEY     # from .env — never commit it
+     npx wrangler secret put OLLAMA_API_KEY         # from ollama.com — never commit it
      npx wrangler deploy
    Then put the deployed URL in WORKER_URL at the top of ../chicagoChat.js.
 
@@ -24,12 +24,12 @@
    GET / returns a health summary (place count, neighborhoods, data source, model), so
    a deployment can be verified without spending a model call. */
 
-const OPENROUTER_URL = 'https://openrouter.ai/api/v1/chat/completions';
+const OLLAMA_CLOUD_URL = 'https://api.ollama.com/v1/chat/completions';
 
 /* Overridable in wrangler.toml [vars]. The model is pinned server-side on purpose:
    the browser never chooses it, so nobody can swap in a paid model on this key. */
 const DEFAULTS = {
-    MODEL: 'nvidia/nemotron-3-ultra-550b-a55b:free',
+    MODEL: 'gemma4:31b',
     ALLOWED_ORIGINS: [
         'https://allendufort.github.io',
         'http://localhost:8000', 'http://127.0.0.1:8000',
@@ -108,8 +108,8 @@ export default {
             return fail(429, 'That is a lot of questions at once — give it a minute.', cors, 60);
         }
 
-        if (!env.OPENROUTER_API_KEY) {
-            return fail(500, 'The assistant is missing its API key. Run: wrangler secret put OPENROUTER_API_KEY', cors);
+        if (!env.OLLAMA_API_KEY) {
+            return fail(500, 'The assistant is missing its API key. Run: wrangler secret put OLLAMA_API_KEY', cors);
         }
 
         let body;
@@ -141,33 +141,28 @@ export default {
     }
 };
 
-/* ── OpenRouter ──────────────────────────────────────────────────────────── */
+/* ── Ollama Cloud ────────────────────────────────────────────────────────── */
 
-/* The reply is streamed, because a 550B model on a free endpoint can take a while to
-   finish a sentence and a visitor should see the first words immediately. The upstream
-   SSE is normalised here into one small event shape — {"delta"} / {"error"} / [DONE] —
-   so the page never has to know what a provider chunk looks like. */
+/* The reply is streamed so the visitor sees the first words immediately rather than
+   waiting for the full response. The upstream SSE is normalised here into one small
+   event shape — {"delta"} / {"error"} / [DONE] — so the page never has to know what
+   a provider chunk looks like. */
 async function askModel(env, messages, cors) {
     const model = env.MODEL || DEFAULTS.MODEL;
     let upstream;
     try {
-        upstream = await fetch(OPENROUTER_URL, {
+        upstream = await fetch(OLLAMA_CLOUD_URL, {
             method: 'POST',
             headers: {
-                'Authorization': `Bearer ${env.OPENROUTER_API_KEY}`,
-                'Content-Type': 'application/json',
-                // Attribution headers OpenRouter shows on the account's activity page.
-                'HTTP-Referer': 'https://allendufort.github.io/portfolio/chicagoMap.html',
-                'X-Title': 'Chicago TODO Map Assistant'
+                'Authorization': `Bearer ${env.OLLAMA_API_KEY}`,
+                'Content-Type': 'application/json'
             },
             body: JSON.stringify({
                 model,
                 messages,
                 stream: true,
                 temperature: MODEL_TEMPERATURE,
-                max_tokens: MODEL_MAX_TOKENS,
-                // A reasoning model: think a little, but keep the chain out of the reply.
-                reasoning: { effort: 'low', exclude: true }
+                max_tokens: MODEL_MAX_TOKENS
             })
         });
     } catch (err) {
@@ -189,9 +184,8 @@ async function askModel(env, messages, cors) {
     });
 }
 
-/* Turn an OpenRouter status into something worth showing a visitor. The free tier's
-   daily cap and a cold provider are by far the most likely failures here, and both are
-   temporary — so say that rather than printing a status code. */
+/* Turn an Ollama Cloud status into something worth showing a visitor. Rate limits and
+   a temporarily unavailable model are the most likely failures — both are temporary. */
 async function upstreamMessage(res) {
     let detail = '';
     try {
@@ -200,20 +194,19 @@ async function upstreamMessage(res) {
     } catch (err) { /* an HTML error page — the status is all we have */ }
 
     switch (res.status) {
-        case 401: return 'The assistant’s API key was rejected. It may need to be rotated.';
-        case 402: return 'The free model’s allowance is used up for now. It resets — try later.';
+        case 401: return 'The assistant\'s API key was rejected. It may need to be rotated.';
         case 403: return detail || 'The model refused that request.';
         case 408:
         case 504: return 'The model took too long. Try a shorter question.';
-        case 429: return 'The free model is rate limited right now. Give it a minute.';
+        case 429: return 'Too many requests — give it a minute.';
         case 502: return 'The model is down at the moment. Try again shortly.';
-        case 503: return 'No provider is free for this model right now. Try again shortly.';
+        case 503: return 'The model is temporarily unavailable. Try again shortly.';
         default:  return detail || `The model returned an error (HTTP ${res.status}).`;
     }
 }
 
-/* Upstream SSE -> our SSE. Comment lines (": OPENROUTER PROCESSING" keep-alives) and
-   the reasoning field are dropped; only assistant content is forwarded. */
+/* Upstream SSE -> our SSE. Comment/keep-alive lines are dropped; only assistant
+   content deltas are forwarded. */
 function sseTransform() {
     const decoder = new TextDecoder();
     const encoder = new TextEncoder();
@@ -667,7 +660,7 @@ async function health(env, cors) {
             source: catalog.source,
             promptChars: catalog.text.length,
             model: env.MODEL || DEFAULTS.MODEL,
-            keyConfigured: Boolean(env.OPENROUTER_API_KEY)
+            keyConfigured: Boolean(env.OLLAMA_API_KEY)
         };
     } catch (err) {
         info = { ok: false, error: 'could not load place data' };

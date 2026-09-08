@@ -4,7 +4,7 @@
    reply back token by token.
 
    The model is reached through the Cloudflare Worker in ./worker, never directly. That
-   is not indirection for its own sake — an OpenRouter key in a static page is a public
+   is not indirection for its own sake — an Ollama Cloud key in a static page is a public
    key, so it stays a Worker secret. The Worker also builds the prompt (it fetches the
    same Google Sheet the map uses and sends the model all 552 places grouped by
    neighborhood), which is why this file needs no place data at all and does not wait on
@@ -158,7 +158,7 @@
         return WORKER_URL;
     }
 
-    /* Read the Worker's event stream. It normalises whatever OpenRouter sends into one
+    /* Read the Worker's event stream. It normalises whatever Ollama Cloud sends into one
        shape — {"delta"} for text, {"error"} for a generation that failed halfway, and a
        trailing [DONE] — so this side only has to accumulate. */
     async function stream(question, coords, onText) {
@@ -297,9 +297,9 @@
         msgs.scrollTop = msgs.scrollHeight;
     }
 
-    /* The Worker asks OpenRouter to keep the reasoning out of the reply, but a reasoning
-       model can still leak a <think> block. Drop closed ones, and hide an open one and
-       everything after it until it closes, so a half-streamed thought never shows. */
+    /* A reasoning model can leak a <think> block into the stream. Drop closed ones, and
+       hide an open one and everything after it until it closes, so a half-streamed
+       thought never shows. */
     function visible(text) {
         return String(text)
             .replace(/<think>[\s\S]*?<\/think>/gi, '')
