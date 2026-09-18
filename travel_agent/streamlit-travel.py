@@ -716,6 +716,13 @@ def page_preferences():
 # ---------------------------------------------------------------------------
 def main():
     st.sidebar.title("✈️ AI Travel Planner")
+    st.sidebar.markdown(
+        '<a href="https://allendufort.github.io/portfolio/" target="_self" style="display:inline-block;margin-bottom:0.75rem;padding:0.35rem 0.85rem;'
+        'background:#262730;border:1px solid #555;border-radius:6px;color:#fafafa;text-decoration:none;font-size:0.875rem;">'
+        '🏠 Portfolio Home</a>',
+        unsafe_allow_html=True,
+    )
+    st.sidebar.markdown("---")
     page = st.sidebar.radio(
         "Navigation",
         [
