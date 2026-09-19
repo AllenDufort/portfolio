@@ -15,6 +15,8 @@ document.addEventListener('DOMContentLoaded', () => {
     const nlpText = "L'Union Fait La Force";
     const chicagoTextElement = document.getElementById('animated-chicago');
     const chicagoText = "Chicago TODO Map";
+    const travelTextElement = document.getElementById('animated-travel');
+    const travelText = "AI Travel Planner";
 
     function animateText(textElement, text) {
         // Check if the element exists before trying to animate it
@@ -45,4 +47,5 @@ document.addEventListener('DOMContentLoaded', () => {
     animateText(reaiTextElement, reaiText);
     animateText(nlpTextElement, nlpText);
     animateText(chicagoTextElement, chicagoText);
+    animateText(travelTextElement, travelText);
 });

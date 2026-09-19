@@ -123,7 +123,7 @@ Provide daily_itinerary with all {min(duration, 7)} days populated with real, sp
 # Page Configuration
 # ---------------------------------------------------------------------------
 st.set_page_config(
-    page_title="AI Travel Planner & Concierge",
+    page_title="AI Travel Planner",
     page_icon="✈️",
     layout="wide",
     initial_sidebar_state="expanded",

@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="description" content="AI Travel Planner — an LLM-powered Streamlit app for itinerary generation, budget tracking, and travel recommendations." />
+    <title>AI Travel Planner</title>
+    <link rel="icon" href="assets/logos/silhouette.png" type="image/x-icon" />
+    <link rel="stylesheet" href="style.css" />
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet"
+        integrity="sha384-9ndCyUaIbzAi2FUVXJi0CjmCapSmO7SnpJef0486qhLnuZ2cdeRhO02iuK6FUUVM" crossorigin="anonymous" />
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.5/font/bootstrap-icons.css">
+    <script src="animate.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"
+        integrity="sha384-geWF76RCwLtnZ8qwWowPQNguL3RmwHVBC9FhGdlKrxdiJJigb/j/68SIy3Te4Bkz"
+        crossorigin="anonymous"></script>
+</head>
+
+<body class="travel">
+    <nav class="navbar navbar-dark bg-dark d-md-none sticky-top">
+        <div class="container-fluid">
+            <a class="navbar-brand" href="index.html"><i class="bi bi-house-door"></i> Home</a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#mobileNavbar"
+                aria-controls="mobileNavbar" aria-expanded="false" aria-label="Toggle navigation">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div class="collapse navbar-collapse" id="mobileNavbar">
+                <ul class="navbar-nav ms-auto">
+                    <li class="nav-item"><a class="nav-link" href="#overview">Overview</a></li>
+                    <li class="nav-item"><a class="nav-link" href="#features">Features</a></li>
+                    <li class="nav-item"><a class="nav-link" href="#conclusion">Conclusion</a></li>
+                </ul>
+            </div>
+        </div>
+    </nav>
+
+    <div class="sidebar bg-dark text-white p-3 d-none d-md-block">
+        <a class="navbar-brand" href="index.html"><i class="bi bi-house-door"></i> Home</a>
+        <hr>
+        <ul class="nav flex-column">
+            <li class="nav-item"><a class="nav-link text-white" href="#overview">Overview</a></li>
+            <li class="nav-item"><a class="nav-link text-white" href="#features">Features</a></li>
+            <li class="nav-item"><a class="nav-link text-white" href="#conclusion">Conclusion</a></li>
+        </ul>
+    </div>
+
+    <div class="content">
+        <div class="container" id="overview">
+            <h1 id="animated-travel">AI Travel Planner</h1>
+            <h2>Overview</h2>
+            <p>
+                A Python and Streamlit app that uses a local
+                <a href="https://ollama.com" target="_blank" rel="noopener noreferrer">Ollama</a>
+                LLM to generate personalized vacation itineraries, track budgets, and answer
+                travel questions — all on-device, no API key required.
+            </p>
+            <p>
+                Live at
+                <a href="https://allen-travel-agent.streamlit.app/" target="_blank" rel="noopener noreferrer">
+                    allen-travel-agent.streamlit.app
+                    <i class="bi bi-box-arrow-up-right" style="font-size: 0.75em;"></i>
+                </a>.
+            </p>
+        </div>
+
+        <div class="container mb-4" id="features">
+            <h2>Features</h2>
+            <div class="row">
+                <div class="col-md-6">
+                    <h3>AI Itinerary Generation</h3>
+                    <p>
+                        Enter a destination, duration, pace, and budget tier.
+                        The LLM returns a structured day-by-day plan with attractions,
+                        dining picks, hidden gems, and cultural tips.
+                    </p>
+                </div>
+                <div class="col-md-6">
+                    <h3>Budget & Expense Tracker</h3>
+                    <p>
+                        Log expenses per trip, monitor spending against a total budget,
+                        and view a per-category breakdown chart in real time.
+                    </p>
+                </div>
+                <div class="col-md-6">
+                    <h3>AI Concierge Chat</h3>
+                    <p>
+                        Ask anything travel-related. The chat is backed by the selected
+                        local model and is primed with your saved preferences for
+                        context-aware answers.
+                    </p>
+                </div>
+                <div class="col-md-6">
+                    <h3>Packing & Pre-Trip Checklists</h3>
+                    <p>
+                        Auto-generated packing lists and a time-bucketed preparation
+                        timeline (8 weeks → day before) based on destination and activities.
+                    </p>
+                </div>
+            </div>
+
+            <h3>Stack</h3>
+            <ul>
+                <li><span class="result-accepted">Python</span> — app logic and LLM prompt engineering</li>
+                <li><span class="result-accepted">Streamlit</span> — reactive UI with sidebar routing</li>
+                <li><span class="result-accepted">Ollama</span> — local inference (Llama 3.1, Mistral, Granite, DeepSeek R1)</li>
+                <li><span class="result-accepted">pandas</span> — expense tables and budget breakdowns</li>
+            </ul>
+        </div>
+
+        <div class="container mb-4" id="conclusion">
+            <h2>Conclusion</h2>
+            <p>
+                This project showed that local LLMs can power practical productivity tools
+                without cloud APIs. The key engineering tradeoff was enforcing a strict JSON
+                response schema — limiting model expressiveness in exchange for reliably
+                parseable output — with a rule-based fallback so the UI never breaks.
+            </p>
+        </div>
+
+        <footer class="bg-dark text-white py-4 justify-content-center" id="contact">
+            <div class="container text-start">
+                <p style="color: rgba(255,255,255,0.4); font-size: 0.85rem;">
+                    © 2026 Allen Dufort. All rights reserved.
+                </p>
+            </div>
+        </footer>
+    </div>
+</body>
+
+</html>
