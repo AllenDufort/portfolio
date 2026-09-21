@@ -1,6 +1,6 @@
 ---
 name: travel-planner
-description: This skill should be used whenever users need help planning trips, creating travel itineraries, managing travel budgets, or seeking destination advice. On first use, collects comprehensive travel preferences including budget level, travel style, interests, and dietary restrictions. Generates detailed travel plans with day-by-day itineraries, budget breakdowns, packing checklists, cultural do's and don'ts, and region-specific schedules. Maintains database of preferences and past trips for personalized recommendations.
+description: This skill should be used whenever users need help planning trips, creating travel itineraries, managing travel budgets, or seeking destination advice. On first use, collects comprehensive travel preferences including budget level, travel style, interests, and dietary restrictions. Generates detailed travel plans with day-by-day itineraries, budget breakdowns, packing checklists, cultural do's and don'ts, and region-specific schedules. Maintains database of preferences and past trips for personalized recommendations. Requires ANTHROPIC_API_KEY environment variable.
 ---
 
 # Travel Planner
@@ -8,6 +8,21 @@ description: This skill should be used whenever users need help planning trips, 
 ## Overview
 
 This skill transforms Claude into a comprehensive travel planning assistant that maintains your travel preferences and generates detailed, personalized trip plans including itineraries, budget breakdowns, packing lists, and cultural guidelines for any destination.
+
+## Prerequisites
+
+**API Key:** Set `ANTHROPIC_API_KEY` in your environment before running the Streamlit app:
+
+```bash
+export ANTHROPIC_API_KEY=<your key from console.anthropic.com>
+# or add it to a .env file in the travel_agent/ directory
+```
+
+**Dependencies:** Install the Anthropic Python SDK if not already present:
+
+```bash
+pip install anthropic streamlit pandas
+```
 
 ## When to Use This Skill
 
@@ -498,6 +513,19 @@ Would you like me to adjust anything in the itinerary?
 ```
 
 ## Technical Notes
+
+**AI Backend:** Anthropic Claude via the `anthropic` Python SDK.
+The model is selected from the sidebar in the Streamlit UI. Available models:
+- `claude-haiku-4-5` — fast, lowest cost (default)
+- `claude-3-5-haiku-20241022` — previous Haiku generation
+- `claude-sonnet-4-5` — balanced quality and speed
+- `claude-3-5-sonnet-20241022` — previous Sonnet generation
+- `claude-opus-4-5` — highest capability
+
+**Environment Variable:**
+```bash
+ANTHROPIC_API_KEY=<your key from console.anthropic.com>
+```
 
 **Data Storage:**
 - Preferences: `~/.claude/travel_planner/preferences.json`

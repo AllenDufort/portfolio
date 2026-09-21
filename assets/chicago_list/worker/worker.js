@@ -1,5 +1,5 @@
 /* ── Chicago Assistant API — Cloudflare Worker ─────────────────────────────
-   The chat widget on a static GitHub Pages site cannot hold an Ollama Cloud key: any
+   The chat widget on a static GitHub Pages site cannot hold an Anthropic API key: any
    key shipped to the browser is public. So the key lives here as a Worker secret and
    the page talks to this endpoint instead.
 
@@ -13,7 +13,7 @@
 
    Deploy:
      cd assets/chicago_list/worker
-     npx wrangler secret put OLLAMA_API_KEY         # from ollama.com — never commit it
+     npx wrangler secret put ANTHROPIC_API_KEY      # from console.anthropic.com — never commit it
      npx wrangler deploy
    Then put the deployed URL in WORKER_URL at the top of ../chicagoChat.js.
 
@@ -24,12 +24,13 @@
    GET / returns a health summary (place count, neighborhoods, data source, model), so
    a deployment can be verified without spending a model call. */
 
-const OLLAMA_CLOUD_URL = 'https://ollama.com/api/chat';
+const ANTHROPIC_API_URL = 'https://api.anthropic.com/v1/messages';
+const ANTHROPIC_VERSION = '2023-06-01';
 
 /* Overridable in wrangler.toml [vars]. The model is pinned server-side on purpose:
    the browser never chooses it, so nobody can swap in a paid model on this key. */
 const DEFAULTS = {
-    MODEL: 'gemma4:31b',
+    MODEL: 'claude-haiku-4-5',
     ALLOWED_ORIGINS: [
         'https://allendufort.github.io',
         'http://localhost:8000', 'http://127.0.0.1:8000',
@@ -108,8 +109,8 @@ export default {
             return fail(429, 'That is a lot of questions at once — give it a minute.', cors, 60);
         }
 
-        if (!env.OLLAMA_API_KEY) {
-            return fail(500, 'The assistant is missing its API key. Run: wrangler secret put OLLAMA_API_KEY', cors);
+        if (!env.ANTHROPIC_API_KEY) {
+            return fail(500, 'The assistant is missing its API key. Run: wrangler secret put ANTHROPIC_API_KEY', cors);
         }
 
         let body;
@@ -141,54 +142,46 @@ export default {
     }
 };
 
-/* ── Ollama Cloud — tools + agentic loop ─────────────────────────────────── */
+/* ── Claude — tools + agentic loop ───────────────────────────────────────── */
 
 /* Tools the model may call. The Worker executes every call against the in-memory
    catalog and feeds the results back before asking for the final reply, so the model
-   never has to guess at details it can look up precisely. */
+   never has to guess at details it can look up precisely.
+   Schema follows the Anthropic tool format. */
 const TOOLS = [
     {
-        type: 'function',
-        function: {
-            name: 'search_places',
-            description: 'Search saved places by name, type, or neighborhood. Returns matching places with all their details.',
-            parameters: {
-                type: 'object',
-                properties: {
-                    query:        { type: 'string',  description: 'Name, partial name, or keyword to search for.' },
-                    type:         { type: 'string',  description: 'Filter by place type, e.g. Restaurant, Bar, Museum.' },
-                    neighborhood: { type: 'string',  description: 'Filter by neighborhood name.' },
-                    limit:        { type: 'integer', description: 'Max results to return (default 10, max 20).' }
-                }
+        name: 'search_places',
+        description: 'Search saved places by name, type, or neighborhood. Returns matching places with all their details.',
+        input_schema: {
+            type: 'object',
+            properties: {
+                query:        { type: 'string',  description: 'Name, partial name, or keyword to search for.' },
+                type:         { type: 'string',  description: 'Filter by place type, e.g. Restaurant, Bar, Museum.' },
+                neighborhood: { type: 'string',  description: 'Filter by neighborhood name.' },
+                limit:        { type: 'integer', description: 'Max results to return (default 10, max 20).' }
             }
         }
     },
     {
-        type: 'function',
-        function: {
-            name: 'get_place_details',
-            description: 'Get full details for a specific place by exact name: address, rating, review count, description, notes, phone, website.',
-            parameters: {
-                type: 'object',
-                required: ['name'],
-                properties: {
-                    name: { type: 'string', description: 'Exact or near-exact name of the place.' }
-                }
+        name: 'get_place_details',
+        description: 'Get full details for a specific place by exact name: address, rating, review count, description, notes, phone, website.',
+        input_schema: {
+            type: 'object',
+            required: ['name'],
+            properties: {
+                name: { type: 'string', description: 'Exact or near-exact name of the place.' }
             }
         }
     },
     {
-        type: 'function',
-        function: {
-            name: 'find_nearby',
-            description: 'Find saved places nearest to the visitor\'s current location, sorted by distance.',
-            parameters: {
-                type: 'object',
-                properties: {
-                    type:         { type: 'string',  description: 'Optional: filter by place type.' },
-                    radius_miles: { type: 'number',  description: 'Search radius in miles (default 1).' },
-                    limit:        { type: 'integer', description: 'Max results (default 10, max 20).' }
-                }
+        name: 'find_nearby',
+        description: 'Find saved places nearest to the visitor\'s current location, sorted by distance.',
+        input_schema: {
+            type: 'object',
+            properties: {
+                type:         { type: 'string',  description: 'Optional: filter by place type.' },
+                radius_miles: { type: 'number',  description: 'Search radius in miles (default 1).' },
+                limit:        { type: 'integer', description: 'Max results (default 10, max 20).' }
             }
         }
     }
@@ -264,8 +257,8 @@ function formatPlace(p, full = false) {
     return lines.join('\n');
 }
 
-/* Agentic loop: call the model, handle any tool calls it makes, then call again
-   until it produces a plain text reply. Tool calls are not streamed by Ollama —
+/* Agentic loop: call Claude, handle any tool calls it makes, then call again
+   until it produces a plain text reply. Tool calls are not streamed by Claude —
    only the final text turn is, so we buffer the intermediate rounds and stream
    just the last one back to the browser. */
 const MAX_TOOL_ROUNDS = 5;   // guard against a runaway loop
@@ -273,20 +266,33 @@ const MAX_TOOL_ROUNDS = 5;   // guard against a runaway loop
 async function askModel(env, catalog, point, messages, cors) {
     const model = env.MODEL || DEFAULTS.MODEL;
 
-    const callOllama = async (msgs, stream) => {
-        const res = await fetch(OLLAMA_CLOUD_URL, {
+    /* Build a Claude Messages API request body.
+       The system prompt is a top-level field; user/assistant turns go in messages.
+       Tool results use role "user" with content type "tool_result". */
+    const buildBody = (msgs, stream) => {
+        // Separate the leading system message from the conversation turns.
+        const systemMsg = msgs.find(m => m.role === 'system');
+        const turns     = msgs.filter(m => m.role !== 'system');
+        return JSON.stringify({
+            model,
+            system:     systemMsg ? systemMsg.content : '',
+            messages:   turns,
+            tools:      TOOLS,
+            stream,
+            max_tokens: MODEL_MAX_TOKENS,
+            temperature: MODEL_TEMPERATURE
+        });
+    };
+
+    const callClaude = async (msgs, stream) => {
+        const res = await fetch(ANTHROPIC_API_URL, {
             method: 'POST',
             headers: {
-                'Authorization': `Bearer ${env.OLLAMA_API_KEY}`,
-                'Content-Type': 'application/json'
+                'x-api-key':         env.ANTHROPIC_API_KEY,
+                'anthropic-version': ANTHROPIC_VERSION,
+                'Content-Type':      'application/json'
             },
-            body: JSON.stringify({
-                model,
-                messages: msgs,
-                tools: TOOLS,
-                stream,
-                options: { temperature: MODEL_TEMPERATURE, num_predict: MODEL_MAX_TOKENS }
-            })
+            body: buildBody(msgs, stream)
         });
         return res;
     };
@@ -297,7 +303,7 @@ async function askModel(env, catalog, point, messages, cors) {
     for (let round = 0; round < MAX_TOOL_ROUNDS; round++) {
         let upstream;
         try {
-            upstream = await callOllama(msgs, false);
+            upstream = await callClaude(msgs, false);
         } catch (err) {
             return fail(502, 'I could not reach the model just now — try again shortly.', cors);
         }
@@ -311,33 +317,40 @@ async function askModel(env, catalog, point, messages, cors) {
             return fail(502, 'Unexpected response from the model.', cors);
         }
 
-        const msg = data.message || {};
-        const toolCalls = msg.tool_calls;
+        /* Claude response shape:
+             { "stop_reason": "tool_use" | "end_turn", "content": [...blocks] }
+           A block is either { "type": "text", "text": "..." }
+                          or { "type": "tool_use", "id": "...", "name": "...", "input": {...} } */
+        const stopReason  = data.stop_reason;
+        const content     = data.content || [];
+        const toolUseBlocks = content.filter(b => b.type === 'tool_use');
 
         // No tool calls — this is the final answer. Re-request with streaming.
-        if (!toolCalls || !toolCalls.length) {
-            msgs = [...msgs, { role: 'assistant', content: msg.content || '' }];
+        if (stopReason !== 'tool_use' || !toolUseBlocks.length) {
+            // Add the assistant turn so the final streaming request has full context.
+            msgs = [...msgs, { role: 'assistant', content }];
             break;
         }
 
-        // Execute each tool call and add results to the message list.
-        msgs = [...msgs, { role: 'assistant', content: msg.content || '', tool_calls: toolCalls }];
-        for (const call of toolCalls) {
-            const fn   = call.function || {};
-            const name = fn.name || '';
-            let fnArgs = {};
-            try { fnArgs = typeof fn.arguments === 'string' ? JSON.parse(fn.arguments) : (fn.arguments || {}); }
-            catch (err) { /* use empty args */ }
+        // Append the assistant turn (with tool_use blocks) to the conversation.
+        msgs = [...msgs, { role: 'assistant', content }];
 
-            const result = executeTool(name, fnArgs, catalog, point);
-            msgs = [...msgs, { role: 'tool', content: result }];
-        }
+        // Execute each tool call and build the tool_result turn (role: "user").
+        const toolResults = toolUseBlocks.map(block => {
+            const result = executeTool(block.name, block.input || {}, catalog, point);
+            return {
+                type:        'tool_result',
+                tool_use_id: block.id,
+                content:     result
+            };
+        });
+        msgs = [...msgs, { role: 'user', content: toolResults }];
     }
 
     // Stream the final assistant reply back to the browser.
     let upstream;
     try {
-        upstream = await callOllama(msgs, true);
+        upstream = await callClaude(msgs, true);
     } catch (err) {
         return fail(502, 'I could not reach the model just now — try again shortly.', cors);
     }
@@ -346,7 +359,7 @@ async function askModel(env, catalog, point, messages, cors) {
             upstream.headers.get('Retry-After'));
     }
 
-    return new Response(upstream.body.pipeThrough(ndjsonTransform()), {
+    return new Response(upstream.body.pipeThrough(claudeSseTransform()), {
         headers: {
             ...cors,
             'Content-Type': 'text/event-stream; charset=utf-8',
@@ -356,13 +369,14 @@ async function askModel(env, catalog, point, messages, cors) {
     });
 }
 
-/* Turn an Ollama Cloud status into something worth showing a visitor. */
+/* Turn a Claude API error response into something worth showing a visitor. */
 async function upstreamMessage(res) {
     let detail = '';
     try {
         const data = await res.json();
-        detail = (data && typeof data.error === 'string' ? data.error : '') ||
-                 (data && data.error && data.error.message) || '';
+        // Claude wraps errors as { "type": "error", "error": { "type": "...", "message": "..." } }
+        detail = (data && data.error && data.error.message) ||
+                 (data && typeof data.error === 'string' ? data.error : '') || '';
     } catch (err) { /* an HTML error page — the status is all we have */ }
 
     switch (res.status) {
@@ -377,12 +391,16 @@ async function upstreamMessage(res) {
     }
 }
 
-/* Upstream NDJSON -> our SSE.
-   Ollama /api/chat streams one JSON object per line:
-     {"message":{"role":"assistant","content":"Hello"},"done":false}
-     {"message":{"role":"assistant","content":""},"done":true}
-   We forward message.content tokens, then emit [DONE]. */
-function ndjsonTransform() {
+/* Upstream Claude SSE -> our SSE.
+   Claude streams events like:
+     event: content_block_delta
+     data: {"type":"content_block_delta","delta":{"type":"text_delta","text":"Hello"}}
+
+     event: message_stop
+     data: {"type":"message_stop"}
+
+   We extract text_delta tokens and forward them as {"delta":"..."}, then emit [DONE]. */
+function claudeSseTransform() {
     const decoder = new TextDecoder();
     const encoder = new TextEncoder();
     let buffer = '';
@@ -393,30 +411,46 @@ function ndjsonTransform() {
     return new TransformStream({
         transform(chunk, controller) {
             buffer += decoder.decode(chunk, { stream: true });
-            const lines = buffer.split('\n');
-            buffer = lines.pop() || '';
+            // Claude SSE uses blank-line-separated event blocks.
+            const blocks = buffer.split('\n\n');
+            buffer = blocks.pop() || '';   // keep the unfinished block
 
-            lines.forEach(rawLine => {
-                const line = rawLine.trim();
-                if (!line) return;
+            blocks.forEach(block => {
+                // Extract the data line from the event block.
+                const dataLine = block.split('\n').find(l => l.startsWith('data:'));
+                if (!dataLine) return;
+                const payload = dataLine.slice(5).trim();
+                if (!payload || payload === '[DONE]') return;
+
                 let data;
-                try { data = JSON.parse(line); } catch (err) { return; }
-                if (data.error) {
-                    send(controller, { error: typeof data.error === 'string'
-                        ? data.error : 'The model stopped early.' });
-                    return;
+                try { data = JSON.parse(payload); } catch (err) { return; }
+
+                if (data.type === 'content_block_delta' &&
+                    data.delta && data.delta.type === 'text_delta' &&
+                    typeof data.delta.text === 'string' && data.delta.text) {
+                    send(controller, { delta: data.delta.text });
                 }
-                const text = data.message && data.message.content;
-                if (typeof text === 'string' && text) send(controller, { delta: text });
+
+                if (data.type === 'error') {
+                    send(controller, { error: (data.error && data.error.message) || 'The model stopped early.' });
+                }
             });
         },
         flush(controller) {
+            // Process any remaining buffered block.
             if (buffer.trim()) {
-                try {
-                    const data = JSON.parse(buffer.trim());
-                    if (data.error) send(controller, { error: typeof data.error === 'string'
-                        ? data.error : 'The model stopped early.' });
-                } catch (err) { /* ignore */ }
+                const dataLine = buffer.split('\n').find(l => l.startsWith('data:'));
+                if (dataLine) {
+                    const payload = dataLine.slice(5).trim();
+                    if (payload && payload !== '[DONE]') {
+                        try {
+                            const data = JSON.parse(payload);
+                            if (data.type === 'error') {
+                                send(controller, { error: (data.error && data.error.message) || 'The model stopped early.' });
+                            }
+                        } catch (err) { /* ignore */ }
+                    }
+                }
             }
             controller.enqueue(encoder.encode('data: [DONE]\n\n'));
         }
@@ -828,7 +862,7 @@ async function health(env, cors) {
             source: catalog.source,
             promptChars: catalog.text.length,
             model: env.MODEL || DEFAULTS.MODEL,
-            keyConfigured: Boolean(env.OLLAMA_API_KEY)
+            keyConfigured: Boolean(env.ANTHROPIC_API_KEY)
         };
     } catch (err) {
         info = { ok: false, error: 'could not load place data' };

@@ -18,28 +18,30 @@ import travel_db
 import plan_generator
 
 # ---------------------------------------------------------------------------
-# AI Suggestions Engine (Ollama / Local LLM Integration)
+# AI Suggestions Engine (Claude / Anthropic Integration)
 # ---------------------------------------------------------------------------
-AVAILABLE_OLLAMA_MODELS = [
-    "llama3.1:latest",
-    "llama3:latest",
-    "mistral:7b",
-    "gemma2:27b",
-    "granite4:tiny-h",
-    "deepseek-r1:8b",
+AVAILABLE_CLAUDE_MODELS = [
+    "claude-haiku-4-5",
+    "claude-3-5-haiku-20241022",
+    "claude-sonnet-4-5",
+    "claude-3-5-sonnet-20241022",
+    "claude-opus-4-5",
 ]
 
-def query_ai_model(prompt: str, model_name: str = "granite4:tiny-h", system_prompt: str = "") -> str:
-    """Query local Ollama instance with fallback to error notice."""
+def query_ai_model(prompt: str, model_name: str = "claude-haiku-4-5", system_prompt: str = "") -> str:
+    """Query Claude via the Anthropic SDK. API key is read from ANTHROPIC_API_KEY env var."""
     try:
-        import ollama
-        messages = []
+        import anthropic
+        client = anthropic.Anthropic(api_key=os.environ.get("ANTHROPIC_API_KEY"))
+        kwargs = {
+            "model": model_name,
+            "max_tokens": 2048,
+            "messages": [{"role": "user", "content": prompt}],
+        }
         if system_prompt:
-            messages.append({"role": "system", "content": system_prompt})
-        messages.append({"role": "user", "content": prompt})
-
-        response = ollama.chat(model=model_name, messages=messages)
-        return response["message"]["content"]
+            kwargs["system"] = system_prompt
+        message = client.messages.create(**kwargs)
+        return message.content[0].text
     except Exception as e:
         return f"[AI service error: {e}]"
 
@@ -237,8 +239,8 @@ def page_plan_trip():
     prefs = travel_db.get_preferences()
 
     with st.sidebar.expander("🤖 AI Model Settings", expanded=False):
-        selected_model = st.selectbox("LLM Model", AVAILABLE_OLLAMA_MODELS, index=0)
-        st.caption("Powered by local Ollama instance.")
+        selected_model = st.selectbox("Claude Model", AVAILABLE_CLAUDE_MODELS, index=0)
+        st.caption("Powered by Anthropic Claude. Set ANTHROPIC_API_KEY in your environment.")
 
     st.subheader("1. Where & When")
     col1, col2 = st.columns(2)
@@ -282,7 +284,7 @@ def page_plan_trip():
         submitted = st.form_submit_button("✨ Generate AI Vacation Plan & Suggestions", use_container_width=True)
 
     if submitted:
-        with st.spinner(f"Generating tailored AI suggestions for {city}, {country} using {selected_model}..."):
+        with st.spinner(f"Generating tailored AI suggestions for {city}, {country} using Claude ({selected_model})..."):
             # Call AI Engine
             ai_data, raw_ai_text = generate_ai_itinerary_and_recommendations(
                 city=city.strip(),
@@ -502,7 +504,7 @@ def page_ai_concierge():
 
     col1, col2 = st.columns([3, 1])
     with col2:
-        model = st.selectbox("AI Model", AVAILABLE_OLLAMA_MODELS, index=0, key="chat_model")
+        model = st.selectbox("Claude Model", AVAILABLE_CLAUDE_MODELS, index=0, key="chat_model")
         if st.button("Clear Chat History", use_container_width=True):
             st.session_state["travel_chat_messages"] = []
             st.rerun()
