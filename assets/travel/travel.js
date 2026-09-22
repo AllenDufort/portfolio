@@ -1,13 +1,13 @@
 /* ── AI Travel Planner — browser app ──────────────────────────────────────
    All data lives in localStorage (no server needed for the data layer).
    AI calls go to the Cloudflare Worker in ./worker, which holds the
-   Anthropic API key as a server-side secret. The Worker streams the reply
+   Gemini API key as a server-side secret. The Worker streams the reply
    back as SSE and this side renders it token by token.
 
    Five pages:
      dashboard  — stats, current/past trips, ideas
-     plan       — form → Claude → day-by-day itinerary + budget + packing + timeline
-     concierge  — open chat backed by Claude, primed with saved preferences
+     plan       — form → Gemini → day-by-day itinerary + budget + packing + timeline
+     concierge  — open chat backed by Gemini, primed with saved preferences
      budget     — expense logger + per-trip spending tracker
      profile    — preferences, bucket list, previously visited destinations     */
 
