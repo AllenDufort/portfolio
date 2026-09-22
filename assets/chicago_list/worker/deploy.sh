@@ -6,14 +6,14 @@ set -euo pipefail
 REPO_ROOT="$(cd "$(dirname "$0")/../../.." && pwd)"
 WORKER_DIR="$(cd "$(dirname "$0")" && pwd)"
 
-# Load .env from the repo root so ANTHROPIC_API_KEY and WRANGLER_WORKER_NAME are available.
+# Load .env from the repo root so GEMINI_API_KEY and WRANGLER_WORKER_NAME are available.
 set -a
 # shellcheck source=../../../.env
 source "$REPO_ROOT/.env"
 set +a
 
-if [[ -z "${ANTHROPIC_API_KEY:-}" ]]; then
-    echo "error: ANTHROPIC_API_KEY is not set in $REPO_ROOT/.env" >&2
+if [[ -z "${GEMINI_API_KEY:-}" ]]; then
+    echo "error: GEMINI_API_KEY is not set in $REPO_ROOT/.env" >&2
     exit 1
 fi
 if [[ -z "${WRANGLER_WORKER_NAME:-}" ]]; then
@@ -21,8 +21,8 @@ if [[ -z "${WRANGLER_WORKER_NAME:-}" ]]; then
     exit 1
 fi
 
-echo "==> Setting ANTHROPIC_API_KEY secret on Worker '$WRANGLER_WORKER_NAME'..."
-echo "$ANTHROPIC_API_KEY" | npx wrangler secret put ANTHROPIC_API_KEY --name "$WRANGLER_WORKER_NAME"
+echo "==> Setting GEMINI_API_KEY secret on Worker '$WRANGLER_WORKER_NAME'..."
+echo "$GEMINI_API_KEY" | npx wrangler secret put GEMINI_API_KEY --name "$WRANGLER_WORKER_NAME"
 
 echo "==> Deploying Worker '$WRANGLER_WORKER_NAME'..."
 cd "$WORKER_DIR"

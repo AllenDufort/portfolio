@@ -1,5 +1,5 @@
 /* ── Chicago Assistant API — Cloudflare Worker ─────────────────────────────
-   The chat widget on a static GitHub Pages site cannot hold an Anthropic API key: any
+   The chat widget on a static GitHub Pages site cannot hold a Gemini API key: any
    key shipped to the browser is public. So the key lives here as a Worker secret and
    the page talks to this endpoint instead.
 
@@ -12,23 +12,20 @@
    key behind a public URL.
 
    Deploy:
-     bash assets/chicago_list/worker/deploy.sh      # sets ANTHROPIC_API_KEY secret and deploys
+     bash assets/chicago_list/worker/deploy.sh      # sets GEMINI_API_KEY secret and deploys
    Then put the deployed URL in WORKER_URL at the top of ../chicagoChat.js.
 
    Local development:
-     cp .dev.vars.example .dev.vars                 # paste your ANTHROPIC_API_KEY into .dev.vars
+     cp .dev.vars.example .dev.vars                 # paste your GEMINI_API_KEY into .dev.vars
      bash assets/chicago_list/worker/deploy.sh      # serves http://127.0.0.1:8787
 
    GET / returns a health summary (place count, neighborhoods, data source, model), so
    a deployment can be verified without spending a model call. */
 
-const ANTHROPIC_API_URL = 'https://api.anthropic.com/v1/messages';
-const ANTHROPIC_VERSION = '2023-06-01';
-
 /* Overridable in wrangler.toml [vars]. The model is pinned server-side on purpose:
    the browser never chooses it, so nobody can swap in a paid model on this key. */
 const DEFAULTS = {
-    MODEL: 'claude-haiku-4-5',
+    MODEL: 'gemini-2.0-flash',
     ALLOWED_ORIGINS: [
         'https://allendufort.github.io',
         'http://localhost:8000', 'http://127.0.0.1:8000',
@@ -86,6 +83,11 @@ const COLUMNS = {
 let catalogCache = null;
 const rateLog = new Map();   // ip -> recent request timestamps
 
+function geminiUrl(model, stream, apiKey) {
+    const action = stream ? 'streamGenerateContent?alt=sse' : 'generateContent';
+    return `https://generativelanguage.googleapis.com/v1beta/models/${model}:${action}&key=${apiKey}`;
+}
+
 export default {
     async fetch(request, env) {
         const origin = request.headers.get('Origin') || '';
@@ -107,8 +109,8 @@ export default {
             return fail(429, 'That is a lot of questions at once — give it a minute.', cors, 60);
         }
 
-        if (!env.ANTHROPIC_API_KEY) {
-            return fail(500, 'The assistant is missing its API key. Run: wrangler secret put ANTHROPIC_API_KEY', cors);
+        if (!env.GEMINI_API_KEY) {
+            return fail(500, 'The assistant is missing its API key. Run: wrangler secret put GEMINI_API_KEY', cors);
         }
 
         let body;
@@ -130,27 +132,30 @@ export default {
 
         const point = coords(body && body.coords);
         const near = nearbyBlock(catalog, point);
-        const messages = [
-            { role: 'system', content: systemPrompt(catalog, near, Boolean(point)) },
-            ...history(body && body.history),
-            { role: 'user', content: question }
+        const systemText = systemPrompt(catalog, near, Boolean(point));
+        const historyTurns = history(body && body.history);
+
+        // Build Gemini contents array from history + current question
+        const contents = [
+            ...historyTurns.map(m => ({
+                role:  m.role === 'assistant' ? 'model' : 'user',
+                parts: [{ text: m.content }]
+            })),
+            { role: 'user', parts: [{ text: question }] }
         ];
 
-        return askModel(env, catalog, point, messages, cors);
+        return askModel(env, catalog, point, systemText, contents, cors);
     }
 };
 
-/* ── Claude — tools + agentic loop ───────────────────────────────────────── */
+/* ── Gemini — function calling + agentic loop ────────────────────────────── */
 
-/* Tools the model may call. The Worker executes every call against the in-memory
-   catalog and feeds the results back before asking for the final reply, so the model
-   never has to guess at details it can look up precisely.
-   Schema follows the Anthropic tool format. */
-const TOOLS = [
+/* Tool declarations in Gemini's functionDeclarations format. */
+const TOOL_DECLARATIONS = [
     {
         name: 'search_places',
         description: 'Search saved places by name, type, or neighborhood. Returns matching places with all their details.',
-        input_schema: {
+        parameters: {
             type: 'object',
             properties: {
                 query:        { type: 'string',  description: 'Name, partial name, or keyword to search for.' },
@@ -163,7 +168,7 @@ const TOOLS = [
     {
         name: 'get_place_details',
         description: 'Get full details for a specific place by exact name: address, rating, review count, description, notes, phone, website.',
-        input_schema: {
+        parameters: {
             type: 'object',
             required: ['name'],
             properties: {
@@ -174,7 +179,7 @@ const TOOLS = [
     {
         name: 'find_nearby',
         description: 'Find saved places nearest to the visitor\'s current location, sorted by distance.',
-        input_schema: {
+        parameters: {
             type: 'object',
             properties: {
                 type:         { type: 'string',  description: 'Optional: filter by place type.' },
@@ -255,53 +260,41 @@ function formatPlace(p, full = false) {
     return lines.join('\n');
 }
 
-/* Agentic loop: call Claude, handle any tool calls it makes, then call again
-   until it produces a plain text reply. Tool calls are not streamed by Claude —
+/* Agentic loop: call Gemini, handle any function calls it makes, then call again
+   until it produces a plain text reply. Function calls are not streamed —
    only the final text turn is, so we buffer the intermediate rounds and stream
    just the last one back to the browser. */
 const MAX_TOOL_ROUNDS = 5;   // guard against a runaway loop
 
-async function askModel(env, catalog, point, messages, cors) {
+async function askModel(env, catalog, point, systemText, contents, cors) {
     const model = env.MODEL || DEFAULTS.MODEL;
 
-    /* Build a Claude Messages API request body.
-       The system prompt is a top-level field; user/assistant turns go in messages.
-       Tool results use role "user" with content type "tool_result". */
-    const buildBody = (msgs, stream) => {
-        // Separate the leading system message from the conversation turns.
-        const systemMsg = msgs.find(m => m.role === 'system');
-        const turns     = msgs.filter(m => m.role !== 'system');
-        return JSON.stringify({
-            model,
-            system:     systemMsg ? systemMsg.content : '',
-            messages:   turns,
-            tools:      TOOLS,
-            stream,
-            max_tokens: MODEL_MAX_TOKENS,
-            temperature: MODEL_TEMPERATURE
-        });
-    };
+    const buildBody = (msgs, stream) => JSON.stringify({
+        systemInstruction: { parts: [{ text: systemText }] },
+        contents: msgs,
+        tools: [{ functionDeclarations: TOOL_DECLARATIONS }],
+        generationConfig: {
+            maxOutputTokens: MODEL_MAX_TOKENS,
+            temperature:     MODEL_TEMPERATURE
+        }
+    });
 
-    const callClaude = async (msgs, stream) => {
-        const res = await fetch(ANTHROPIC_API_URL, {
+    const callGemini = async (msgs, stream) => {
+        const res = await fetch(geminiUrl(model, stream, env.GEMINI_API_KEY), {
             method: 'POST',
-            headers: {
-                'x-api-key':         env.ANTHROPIC_API_KEY,
-                'anthropic-version': ANTHROPIC_VERSION,
-                'Content-Type':      'application/json'
-            },
+            headers: { 'Content-Type': 'application/json' },
             body: buildBody(msgs, stream)
         });
         return res;
     };
 
-    let msgs = messages;
+    let msgs = contents;
 
-    // Tool-call rounds (not streamed — we need the full JSON to parse tool calls).
+    // Tool-call rounds (not streamed — we need the full JSON to parse function calls).
     for (let round = 0; round < MAX_TOOL_ROUNDS; round++) {
         let upstream;
         try {
-            upstream = await callClaude(msgs, false);
+            upstream = await callGemini(msgs, false);
         } catch (err) {
             return fail(502, 'I could not reach the model just now — try again shortly.', cors);
         }
@@ -315,40 +308,43 @@ async function askModel(env, catalog, point, messages, cors) {
             return fail(502, 'Unexpected response from the model.', cors);
         }
 
-        /* Claude response shape:
-             { "stop_reason": "tool_use" | "end_turn", "content": [...blocks] }
-           A block is either { "type": "text", "text": "..." }
-                          or { "type": "tool_use", "id": "...", "name": "...", "input": {...} } */
-        const stopReason  = data.stop_reason;
-        const content     = data.content || [];
-        const toolUseBlocks = content.filter(b => b.type === 'tool_use');
+        /* Gemini response shape:
+             { "candidates": [{ "content": { "role": "model", "parts": [...] }, "finishReason": "..." }] }
+           A part is either { "text": "..." }
+                         or { "functionCall": { "name": "...", "args": {...} } } */
+        const candidate  = data?.candidates?.[0];
+        const finishReason = candidate?.finishReason;
+        const parts      = candidate?.content?.parts || [];
+        const funcCalls  = parts.filter(p => p.functionCall);
 
-        // No tool calls — this is the final answer. Re-request with streaming.
-        if (stopReason !== 'tool_use' || !toolUseBlocks.length) {
-            // Add the assistant turn so the final streaming request has full context.
-            msgs = [...msgs, { role: 'assistant', content }];
+        // No function calls — this is the final answer. Re-request with streaming.
+        if (!funcCalls.length || finishReason === 'STOP') {
+            // Add the model turn so the final streaming request has full context.
+            msgs = [...msgs, { role: 'model', parts }];
             break;
         }
 
-        // Append the assistant turn (with tool_use blocks) to the conversation.
-        msgs = [...msgs, { role: 'assistant', content }];
+        // Append the model turn (with functionCall parts) to the conversation.
+        msgs = [...msgs, { role: 'model', parts }];
 
-        // Execute each tool call and build the tool_result turn (role: "user").
-        const toolResults = toolUseBlocks.map(block => {
-            const result = executeTool(block.name, block.input || {}, catalog, point);
+        // Execute each function call and build the functionResponse turn (role: "user").
+        const responseParts = funcCalls.map(part => {
+            const { name, args } = part.functionCall;
+            const result = executeTool(name, args || {}, catalog, point);
             return {
-                type:        'tool_result',
-                tool_use_id: block.id,
-                content:     result
+                functionResponse: {
+                    name,
+                    response: { result }
+                }
             };
         });
-        msgs = [...msgs, { role: 'user', content: toolResults }];
+        msgs = [...msgs, { role: 'user', parts: responseParts }];
     }
 
-    // Stream the final assistant reply back to the browser.
+    // Stream the final model reply back to the browser.
     let upstream;
     try {
-        upstream = await callClaude(msgs, true);
+        upstream = await callGemini(msgs, true);
     } catch (err) {
         return fail(502, 'I could not reach the model just now — try again shortly.', cors);
     }
@@ -357,7 +353,7 @@ async function askModel(env, catalog, point, messages, cors) {
             upstream.headers.get('Retry-After'));
     }
 
-    return new Response(upstream.body.pipeThrough(claudeSseTransform()), {
+    return new Response(upstream.body.pipeThrough(geminiSseTransform()), {
         headers: {
             ...cors,
             'Content-Type': 'text/event-stream; charset=utf-8',
@@ -367,17 +363,17 @@ async function askModel(env, catalog, point, messages, cors) {
     });
 }
 
-/* Turn a Claude API error response into something worth showing a visitor. */
+/* Turn a Gemini API error response into something worth showing a visitor. */
 async function upstreamMessage(res) {
     let detail = '';
     try {
         const data = await res.json();
-        // Claude wraps errors as { "type": "error", "error": { "type": "...", "message": "..." } }
         detail = (data && data.error && data.error.message) ||
                  (data && typeof data.error === 'string' ? data.error : '') || '';
     } catch (err) { /* an HTML error page — the status is all we have */ }
 
     switch (res.status) {
+        case 400: return detail || 'Bad request to model API.';
         case 401: return 'The assistant\'s API key was rejected. It may need to be rotated.';
         case 403: return detail || 'The model refused that request.';
         case 408:
@@ -389,16 +385,12 @@ async function upstreamMessage(res) {
     }
 }
 
-/* Upstream Claude SSE -> our SSE.
-   Claude streams events like:
-     event: content_block_delta
-     data: {"type":"content_block_delta","delta":{"type":"text_delta","text":"Hello"}}
+/* Upstream Gemini SSE -> our SSE.
+   Gemini streams SSE events like:
+     data: {"candidates":[{"content":{"parts":[{"text":"Hello"}],...}}]}
 
-     event: message_stop
-     data: {"type":"message_stop"}
-
-   We extract text_delta tokens and forward them as {"delta":"..."}, then emit [DONE]. */
-function claudeSseTransform() {
+   We extract text parts and forward them as {"delta":"..."}, then emit [DONE]. */
+function geminiSseTransform() {
     const decoder = new TextDecoder();
     const encoder = new TextEncoder();
     let buffer = '';
@@ -409,7 +401,7 @@ function claudeSseTransform() {
     return new TransformStream({
         transform(chunk, controller) {
             buffer += decoder.decode(chunk, { stream: true });
-            // Claude SSE uses blank-line-separated event blocks.
+            // Gemini SSE uses blank-line-separated event blocks.
             const blocks = buffer.split('\n\n');
             buffer = blocks.pop() || '';   // keep the unfinished block
 
@@ -423,13 +415,12 @@ function claudeSseTransform() {
                 let data;
                 try { data = JSON.parse(payload); } catch (err) { return; }
 
-                if (data.type === 'content_block_delta' &&
-                    data.delta && data.delta.type === 'text_delta' &&
-                    typeof data.delta.text === 'string' && data.delta.text) {
-                    send(controller, { delta: data.delta.text });
+                const text = data?.candidates?.[0]?.content?.parts?.[0]?.text;
+                if (typeof text === 'string' && text) {
+                    send(controller, { delta: text });
                 }
 
-                if (data.type === 'error') {
+                if (data?.error) {
                     send(controller, { error: (data.error && data.error.message) || 'The model stopped early.' });
                 }
             });
@@ -443,7 +434,7 @@ function claudeSseTransform() {
                     if (payload && payload !== '[DONE]') {
                         try {
                             const data = JSON.parse(payload);
-                            if (data.type === 'error') {
+                            if (data?.error) {
                                 send(controller, { error: (data.error && data.error.message) || 'The model stopped early.' });
                             }
                         } catch (err) { /* ignore */ }
@@ -860,7 +851,7 @@ async function health(env, cors) {
             source: catalog.source,
             promptChars: catalog.text.length,
             model: env.MODEL || DEFAULTS.MODEL,
-            keyConfigured: Boolean(env.ANTHROPIC_API_KEY)
+            keyConfigured: Boolean(env.GEMINI_API_KEY)
         };
     } catch (err) {
         info = { ok: false, error: 'could not load place data' };

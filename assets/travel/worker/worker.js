@@ -1,5 +1,5 @@
 /* ── Travel Planner API — Cloudflare Worker ─────────────────────────────────
-   Holds the Anthropic API key as a server-side secret so the static page on
+   Holds the Gemini API key as a server-side secret so the static page on
    GitHub Pages never exposes it. Two request types:
 
      type: "generate"   — build a full JSON itinerary (non-streaming)
@@ -10,16 +10,13 @@
    Then put the deployed URL in WORKER_URL at the top of ../travel.js.
 
    Local development:
-     cp .dev.vars.example .dev.vars             # paste your ANTHROPIC_API_KEY
+     cp .dev.vars.example .dev.vars             # paste your GEMINI_API_KEY
      bash assets/travel/worker/deploy.sh        # serves http://127.0.0.1:8788
 
    GET / returns a health JSON (model, keyConfigured). */
 
-const ANTHROPIC_API_URL = 'https://api.anthropic.com/v1/messages';
-const ANTHROPIC_VERSION = '2023-06-01';
-
 const DEFAULTS = {
-    MODEL: 'claude-haiku-4-5',
+    MODEL: 'gemini-2.0-flash',
     ALLOWED_ORIGINS: [
         'https://allendufort.github.io',
         'http://localhost:8000', 'http://127.0.0.1:8000',
@@ -36,6 +33,11 @@ const RATE_LIMIT_MAX       = 15;
 const RATE_LIMIT_WINDOW_MS = 60 * 1000;
 
 const rateLog = new Map();
+
+function geminiUrl(model, stream, apiKey) {
+    const action = stream ? 'streamGenerateContent?alt=sse' : 'generateContent';
+    return `https://generativelanguage.googleapis.com/v1beta/models/${model}:${action}&key=${apiKey}`;
+}
 
 export default {
     async fetch(request, env) {
@@ -61,10 +63,10 @@ export default {
 
         const type = String(body?.type || '');
 
-        // DB operations do not require the Anthropic key.
+        // DB operations do not require the Gemini key.
         if (type === 'db') return handleDb(body, env, cors);
 
-        if (!env.ANTHROPIC_API_KEY) {
+        if (!env.GEMINI_API_KEY) {
             return fail(500, 'API key not configured. Run: bash deploy.sh', cors);
         }
 
@@ -134,19 +136,18 @@ Provide daily_itinerary with all ${days} days using real, specific locations in 
 
     let upstream;
     try {
-        upstream = await fetch(ANTHROPIC_API_URL, {
+        upstream = await fetch(geminiUrl(model, false, env.GEMINI_API_KEY), {
             method: 'POST',
-            headers: {
-                'x-api-key':         env.ANTHROPIC_API_KEY,
-                'anthropic-version': ANTHROPIC_VERSION,
-                'Content-Type':      'application/json'
-            },
+            headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
-                model,
-                system: 'You are an expert travel concierge. Provide rich, specific, realistic, culturally tailored travel recommendations in valid JSON only.',
-                messages: [{ role: 'user', content: prompt }],
-                max_tokens:  MAX_TOKENS_GENERATE,
-                temperature: TEMPERATURE
+                systemInstruction: {
+                    parts: [{ text: 'You are an expert travel concierge. Provide rich, specific, realistic, culturally tailored travel recommendations in valid JSON only.' }]
+                },
+                contents: [{ role: 'user', parts: [{ text: prompt }] }],
+                generationConfig: {
+                    maxOutputTokens: MAX_TOKENS_GENERATE,
+                    temperature:     TEMPERATURE
+                }
             })
         });
     } catch (err) {
@@ -158,10 +159,10 @@ Provide daily_itinerary with all ${days} days using real, specific locations in 
     let data;
     try { data = await upstream.json(); } catch { return fail(502, 'Unexpected model response.', cors); }
 
-    // Extract text content from Claude's response
-    const raw = (data.content || []).find(b => b.type === 'text')?.text || '';
+    // Extract text from Gemini's response
+    const raw = data?.candidates?.[0]?.content?.parts?.[0]?.text || '';
 
-    // Strip any markdown fences Claude might have added
+    // Strip any markdown fences the model might have added
     let cleaned = raw.trim();
     if (cleaned.startsWith('```json')) cleaned = cleaned.slice(7);
     else if (cleaned.startsWith('```'))  cleaned = cleaned.slice(3);
@@ -180,7 +181,6 @@ Provide daily_itinerary with all ${days} days using real, specific locations in 
 /* ── /concierge — streaming travel chat ──────────────────────────────────── */
 
 async function handleConcierge(body, env, cors) {
-    // Accept a model override from the client dropdown; fall back to the server-pinned default.
     const model    = String(body?.model || env.MODEL || DEFAULTS.MODEL).slice(0, 80);
     const question = String(body?.question || '').trim().slice(0, 600);
     if (!question) return fail(400, 'question is required.', cors);
@@ -188,7 +188,7 @@ async function handleConcierge(body, env, cors) {
     const history = sanitizeHistory(body?.history);
     const prefs   = body?.prefs || {};
 
-    const system = [
+    const systemText = [
         'You are an expert travel consultant and concierge.',
         'Give helpful, specific, engaging travel advice.',
         prefs.interests?.length  ? `The traveler enjoys: ${prefs.interests.join(', ')}.`  : '',
@@ -197,22 +197,27 @@ async function handleConcierge(body, env, cors) {
         'Use bullet lists where helpful. Keep replies concise and practical.'
     ].filter(Boolean).join(' ');
 
+    // Convert history into Gemini's contents format
+    const contents = [
+        ...history.map(m => ({
+            role:  m.role === 'assistant' ? 'model' : 'user',
+            parts: [{ text: m.content }]
+        })),
+        { role: 'user', parts: [{ text: question }] }
+    ];
+
     let upstream;
     try {
-        upstream = await fetch(ANTHROPIC_API_URL, {
+        upstream = await fetch(geminiUrl(model, true, env.GEMINI_API_KEY), {
             method: 'POST',
-            headers: {
-                'x-api-key':         env.ANTHROPIC_API_KEY,
-                'anthropic-version': ANTHROPIC_VERSION,
-                'Content-Type':      'application/json'
-            },
+            headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
-                model,
-                system,
-                messages: [...history, { role: 'user', content: question }],
-                max_tokens:  MAX_TOKENS_CONCIERGE,
-                temperature: TEMPERATURE,
-                stream:      true
+                systemInstruction: { parts: [{ text: systemText }] },
+                contents,
+                generationConfig: {
+                    maxOutputTokens: MAX_TOKENS_CONCIERGE,
+                    temperature:     TEMPERATURE
+                }
             })
         });
     } catch (err) {
@@ -223,7 +228,7 @@ async function handleConcierge(body, env, cors) {
         return fail(upstream.status || 502, await upstreamMsg(upstream), cors);
     }
 
-    return new Response(upstream.body.pipeThrough(claudeSseTransform()), {
+    return new Response(upstream.body.pipeThrough(geminiSseTransform()), {
         headers: {
             ...cors,
             'Content-Type': 'text/event-stream; charset=utf-8',
@@ -233,9 +238,13 @@ async function handleConcierge(body, env, cors) {
     });
 }
 
-/* ── Claude SSE passthrough ──────────────────────────────────────────────── */
+/* ── Gemini SSE passthrough ──────────────────────────────────────────────── */
 
-function claudeSseTransform() {
+/* Gemini streams SSE lines like:
+     data: {"candidates":[{"content":{"parts":[{"text":"Hello"}],...}}]}
+   We extract the text delta from each chunk and forward it as {"delta":"..."},
+   then emit [DONE] at the end. */
+function geminiSseTransform() {
     const decoder = new TextDecoder();
     const encoder = new TextEncoder();
     let buffer = '';
@@ -257,12 +266,11 @@ function claudeSseTransform() {
                 let data;
                 try { data = JSON.parse(payload); } catch { return; }
 
-                if (data.type === 'content_block_delta' &&
-                    data.delta?.type === 'text_delta' &&
-                    typeof data.delta.text === 'string' && data.delta.text) {
-                    send(ctrl, { delta: data.delta.text });
+                const text = data?.candidates?.[0]?.content?.parts?.[0]?.text;
+                if (typeof text === 'string' && text) {
+                    send(ctrl, { delta: text });
                 }
-                if (data.type === 'error') {
+                if (data?.error) {
                     send(ctrl, { error: data.error?.message || 'Model error.' });
                 }
             });
@@ -273,7 +281,7 @@ function claudeSseTransform() {
                 if (dl) {
                     try {
                         const d = JSON.parse(dl.slice(5).trim());
-                        if (d.type === 'error') send(ctrl, { error: d.error?.message || 'Model error.' });
+                        if (d?.error) send(ctrl, { error: d.error?.message || 'Model error.' });
                     } catch { /* ignore */ }
                 }
             }
@@ -529,6 +537,7 @@ async function upstreamMsg(res) {
         detail = d?.error?.message || (typeof d?.error === 'string' ? d.error : '') || '';
     } catch { /* ignore */ }
     switch (res.status) {
+        case 400: return detail || 'Bad request to model API.';
         case 401: return 'API key rejected — it may need rotating.';
         case 429: return 'Rate limit hit — give it a minute.';
         case 408:
@@ -576,7 +585,7 @@ async function health(env, cors) {
     return new Response(JSON.stringify({
         ok:            true,
         model:         env.MODEL || DEFAULTS.MODEL,
-        keyConfigured: Boolean(env.ANTHROPIC_API_KEY)
+        keyConfigured: Boolean(env.GEMINI_API_KEY)
     }, null, 2), {
         headers: { ...cors, 'Content-Type': 'application/json' }
     });

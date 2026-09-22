@@ -11,14 +11,14 @@ REPO_ROOT="$(cd "$(dirname "$0")/../../.." && pwd)"
 WORKER_DIR="$(cd "$(dirname "$0")" && pwd)"
 TOML="$WORKER_DIR/wrangler.toml"
 
-# Load .env from the repo root so ANTHROPIC_API_KEY is available.
+# Load .env from the repo root so GEMINI_API_KEY is available.
 set -a
 # shellcheck source=../../../.env
 source "$REPO_ROOT/.env"
 set +a
 
-if [[ -z "${ANTHROPIC_API_KEY:-}" ]]; then
-    echo "error: ANTHROPIC_API_KEY is not set in $REPO_ROOT/.env" >&2
+if [[ -z "${GEMINI_API_KEY:-}" ]]; then
+    echo "error: GEMINI_API_KEY is not set in $REPO_ROOT/.env" >&2
     exit 1
 fi
 
@@ -69,8 +69,8 @@ cd "$WORKER_DIR"
 npx wrangler deploy worker.js --config wrangler.toml
 
 # ── Secret (set after deploy so the worker exists) ────────────────────────
-echo "==> Setting ANTHROPIC_API_KEY secret on Worker '$TRAVEL_WORKER_NAME'..."
-echo "$ANTHROPIC_API_KEY" | npx wrangler secret put ANTHROPIC_API_KEY \
+echo "==> Setting GEMINI_API_KEY secret on Worker '$TRAVEL_WORKER_NAME'..."
+echo "$GEMINI_API_KEY" | npx wrangler secret put GEMINI_API_KEY \
     --config wrangler.toml
 
 echo ""
