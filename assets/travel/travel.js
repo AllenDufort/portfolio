@@ -15,7 +15,7 @@
     'use strict';
 
     /* ── Worker endpoints ─────────────────────────────────────────────────── */
-    const WORKER_URL     = 'https://travel-planner.travelplanner.workers.dev';
+    const WORKER_URL     = 'https://travel-planner.chicagochat.workers.dev';
     const DEV_WORKER_URL = 'http://127.0.0.1:8788';   // deploy.sh in worker/
 
     const REQUEST_TIMEOUT_MS = 120_000;

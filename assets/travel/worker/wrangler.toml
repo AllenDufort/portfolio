@@ -23,5 +23,5 @@ ALLOWED_ORIGINS = "https://allendufort.github.io,http://localhost:8000,http://12
 # Run deploy.sh once to create this namespace; it will fill in the id below.
 [[kv_namespaces]]
 binding = "TRAVEL_DB"
-id = ""                 # filled in by deploy.sh on first run
-preview_id = ""         # filled in by deploy.sh on first run
+id = "6d3264125b134a16be0423048f4ae844"
+preview_id = "18b2216a31954a49a9d4571aea915eec"

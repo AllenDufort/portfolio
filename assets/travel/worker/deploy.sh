@@ -61,14 +61,17 @@ else
     echo "==> KV namespace already configured: $CURRENT_ID"
 fi
 
-# ── Secret ────────────────────────────────────────────────────────────────
-echo "==> Setting ANTHROPIC_API_KEY secret on Worker '$TRAVEL_WORKER_NAME'..."
-echo "$ANTHROPIC_API_KEY" | npx wrangler secret put ANTHROPIC_API_KEY --name "$TRAVEL_WORKER_NAME"
-
 # ── Deploy ────────────────────────────────────────────────────────────────
+# Deploy using the config file only — do not pass --name, it conflicts with
+# the name already set in wrangler.toml and causes API 10007 errors.
 echo "==> Deploying Worker '$TRAVEL_WORKER_NAME'..."
 cd "$WORKER_DIR"
-npx wrangler deploy --config wrangler.toml --name "$TRAVEL_WORKER_NAME"
+npx wrangler deploy worker.js --config wrangler.toml
+
+# ── Secret (set after deploy so the worker exists) ────────────────────────
+echo "==> Setting ANTHROPIC_API_KEY secret on Worker '$TRAVEL_WORKER_NAME'..."
+echo "$ANTHROPIC_API_KEY" | npx wrangler secret put ANTHROPIC_API_KEY \
+    --config wrangler.toml
 
 echo ""
 echo "✅  Done. Data is stored in KV namespace '$KV_NAMESPACE_TITLE'."
