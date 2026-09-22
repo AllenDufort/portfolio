@@ -23,7 +23,8 @@ const DEFAULTS = {
     ALLOWED_ORIGINS: [
         'https://allendufort.github.io',
         'http://localhost:8000', 'http://127.0.0.1:8000',
-        'http://localhost:5500', 'http://127.0.0.1:5500'
+        'http://localhost:5500', 'http://127.0.0.1:5500',
+        'http://localhost:3000', 'http://127.0.0.1:3000'
     ].join(',')
 };
 
@@ -558,7 +559,8 @@ function allowRequest(ip) {
 }
 
 function corsHeaders(origin, env) {
-    const allowed = String(env.ALLOWED_ORIGINS || DEFAULTS.ALLOWED_ORIGINS)
+    const raw = String(env.ALLOWED_ORIGINS || '').trim();
+    const allowed = (raw || DEFAULTS.ALLOWED_ORIGINS)
         .split(',').map(s => s.trim()).filter(Boolean);
     const headers = {
         'Vary': 'Origin',
