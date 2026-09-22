@@ -4,10 +4,11 @@
 <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <meta name="description" content="AI Travel Planner — an LLM-powered Streamlit app for itinerary generation, budget tracking, and travel recommendations." />
+    <meta name="description" content="AI Travel Planner — an LLM-powered app for itinerary generation, budget tracking, and travel recommendations." />
     <title>AI Travel Planner</title>
     <link rel="icon" href="assets/logos/silhouette.png" type="image/x-icon" />
     <link rel="stylesheet" href="style.css" />
+    <link rel="stylesheet" href="assets/travel/travel.css" />
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet"
         integrity="sha384-9ndCyUaIbzAi2FUVXJi0CjmCapSmO7SnpJef0486qhLnuZ2cdeRhO02iuK6FUUVM" crossorigin="anonymous" />
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.5/font/bootstrap-icons.css">
@@ -18,6 +19,7 @@
 </head>
 
 <body class="travel">
+    <!-- Mobile navbar -->
     <nav class="navbar navbar-dark bg-dark d-md-none sticky-top">
         <div class="container-fluid">
             <a class="navbar-brand" href="index.html"><i class="bi bi-house-door"></i> Home</a>
@@ -26,97 +28,409 @@
                 <span class="navbar-toggler-icon"></span>
             </button>
             <div class="collapse navbar-collapse" id="mobileNavbar">
-                <ul class="navbar-nav ms-auto">
-                    <li class="nav-item"><a class="nav-link" href="#overview">Overview</a></li>
-                    <li class="nav-item"><a class="nav-link" href="#features">Features</a></li>
-                    <li class="nav-item"><a class="nav-link" href="#conclusion">Conclusion</a></li>
+                <ul class="navbar-nav ms-auto" id="mobile-page-nav">
+                    <li class="nav-item"><a class="nav-link" href="#" data-page="dashboard">📊 Dashboard</a></li>
+                    <li class="nav-item"><a class="nav-link" href="#" data-page="plan">🗺️ Plan Trip</a></li>
+                    <li class="nav-item"><a class="nav-link" href="#" data-page="concierge">💬 Concierge</a></li>
+                    <li class="nav-item"><a class="nav-link" href="#" data-page="budget">💵 Budget</a></li>
+                    <li class="nav-item"><a class="nav-link" href="#" data-page="profile">👤 Profile</a></li>
                 </ul>
             </div>
         </div>
     </nav>
 
+    <!-- Desktop sidebar -->
     <div class="sidebar bg-dark text-white p-3 d-none d-md-block">
         <a class="navbar-brand" href="index.html"><i class="bi bi-house-door"></i> Home</a>
         <hr>
-        <ul class="nav flex-column">
-            <li class="nav-item"><a class="nav-link text-white" href="#overview">Overview</a></li>
-            <li class="nav-item"><a class="nav-link text-white" href="#features">Features</a></li>
-            <li class="nav-item"><a class="nav-link text-white" href="#conclusion">Conclusion</a></li>
+        <p class="sidebar-app-title">✈️ Travel Planner</p>
+        <ul class="nav flex-column" id="sidebar-page-nav">
+            <li class="nav-item">
+                <a class="nav-link text-white tp-nav active" href="#" data-page="dashboard">
+                    <i class="bi bi-bar-chart-fill me-1"></i> Dashboard
+                </a>
+            </li>
+            <li class="nav-item">
+                <a class="nav-link text-white tp-nav" href="#" data-page="plan">
+                    <i class="bi bi-map-fill me-1"></i> Plan Trip
+                </a>
+            </li>
+            <li class="nav-item">
+                <a class="nav-link text-white tp-nav" href="#" data-page="concierge">
+                    <i class="bi bi-chat-dots-fill me-1"></i> Concierge
+                </a>
+            </li>
+            <li class="nav-item">
+                <a class="nav-link text-white tp-nav" href="#" data-page="budget">
+                    <i class="bi bi-cash-stack me-1"></i> Budget
+                </a>
+            </li>
+            <li class="nav-item">
+                <a class="nav-link text-white tp-nav" href="#" data-page="profile">
+                    <i class="bi bi-person-fill me-1"></i> Profile
+                </a>
+            </li>
         </ul>
+        <hr>
+        <div class="sidebar-model-select">
+            <label class="sidebar-label">Claude Model</label>
+            <select id="model-select" class="tp-select tp-select-sm">
+                <option value="claude-haiku-4-5">claude-haiku-4-5</option>
+                <option value="claude-3-5-haiku-20241022">claude-3-5-haiku</option>
+                <option value="claude-sonnet-4-5">claude-sonnet-4-5</option>
+                <option value="claude-3-5-sonnet-20241022">claude-3-5-sonnet</option>
+                <option value="claude-opus-4-5">claude-opus-4-5</option>
+            </select>
+        </div>
     </div>
 
+    <!-- Main content area -->
     <div class="content">
-        <div class="container" id="overview">
-            <h1 id="animated-travel">AI Travel Planner</h1>
-            <h2>Overview</h2>
-            <p>
-                A Python and Streamlit app that uses a local
-                <a href="https://ollama.com" target="_blank" rel="noopener noreferrer">Ollama</a>
-                LLM to generate personalized vacation itineraries, track budgets, and answer
-                travel questions — all on-device, no API key required.
-            </p>
-            <p>
-                Live at
-                <a href="https://allen-travel-agent.streamlit.app/" target="_blank" rel="noopener noreferrer">
-                    allen-travel-agent.streamlit.app
-                    <i class="bi bi-box-arrow-up-right" style="font-size: 0.75em;"></i>
-                </a>.
-            </p>
-        </div>
+        <div id="tp-app">
 
-        <div class="container mb-4" id="features">
-            <h2>Features</h2>
-            <div class="row">
-                <div class="col-md-6">
-                    <h3>AI Itinerary Generation</h3>
-                    <p>
-                        Enter a destination, duration, pace, and budget tier.
-                        The LLM returns a structured day-by-day plan with attractions,
-                        dining picks, hidden gems, and cultural tips.
-                    </p>
-                </div>
-                <div class="col-md-6">
-                    <h3>Budget & Expense Tracker</h3>
-                    <p>
-                        Log expenses per trip, monitor spending against a total budget,
-                        and view a per-category breakdown chart in real time.
-                    </p>
-                </div>
-                <div class="col-md-6">
-                    <h3>AI Concierge Chat</h3>
-                    <p>
-                        Ask anything travel-related. The chat is backed by the selected
-                        local model and is primed with your saved preferences for
-                        context-aware answers.
-                    </p>
-                </div>
-                <div class="col-md-6">
-                    <h3>Packing & Pre-Trip Checklists</h3>
-                    <p>
-                        Auto-generated packing lists and a time-bucketed preparation
-                        timeline (8 weeks → day before) based on destination and activities.
-                    </p>
+            <!-- ── Page: Dashboard ── -->
+            <div id="page-dashboard" class="tp-page active">
+                <div class="container tp-container">
+                    <h1 id="animated-travel">AI Travel Planner</h1>
+                    <p class="tp-subtitle">Plan, manage, and track your trips powered by Claude.</p>
+
+                    <div class="tp-stats-row" id="stats-row">
+                        <div class="tp-stat-card">
+                            <div class="tp-stat-value" id="stat-trips">0</div>
+                            <div class="tp-stat-label">Past Trips</div>
+                        </div>
+                        <div class="tp-stat-card">
+                            <div class="tp-stat-value" id="stat-active">0</div>
+                            <div class="tp-stat-label">Active Trips</div>
+                        </div>
+                        <div class="tp-stat-card">
+                            <div class="tp-stat-value" id="stat-countries">0</div>
+                            <div class="tp-stat-label">Countries</div>
+                        </div>
+                        <div class="tp-stat-card">
+                            <div class="tp-stat-value" id="stat-days">0</div>
+                            <div class="tp-stat-label">Days Traveled</div>
+                        </div>
+                        <div class="tp-stat-card">
+                            <div class="tp-stat-value" id="stat-spent">$0</div>
+                            <div class="tp-stat-label">Total Spent</div>
+                        </div>
+                    </div>
+
+                    <h2>Current &amp; Upcoming Trips</h2>
+                    <div id="current-trips-list"></div>
+
+                    <div class="tp-two-col">
+                        <div>
+                            <h2>Past Trips</h2>
+                            <div id="past-trips-list"></div>
+                        </div>
+                        <div>
+                            <h2>Trip Ideas</h2>
+                            <div id="ideas-list"></div>
+                        </div>
+                    </div>
                 </div>
             </div>
 
-            <h3>Stack</h3>
-            <ul>
-                <li><span class="result-accepted">Python</span> — app logic and LLM prompt engineering</li>
-                <li><span class="result-accepted">Streamlit</span> — reactive UI with sidebar routing</li>
-                <li><span class="result-accepted">Ollama</span> — local inference (Llama 3.1, Mistral, Granite, DeepSeek R1)</li>
-                <li><span class="result-accepted">pandas</span> — expense tables and budget breakdowns</li>
-            </ul>
-        </div>
+            <!-- ── Page: Plan New Trip ── -->
+            <div id="page-plan" class="tp-page">
+                <div class="container tp-container">
+                    <h1>🗺️ Plan a New Trip</h1>
+                    <p class="tp-subtitle">Let Claude generate custom itineraries, dining picks, hidden gems, and cultural tips.</p>
 
-        <div class="container mb-4" id="conclusion">
-            <h2>Conclusion</h2>
-            <p>
-                This project showed that local LLMs can power practical productivity tools
-                without cloud APIs. The key engineering tradeoff was enforcing a strict JSON
-                response schema — limiting model expressiveness in exchange for reliably
-                parseable output — with a rule-based fallback so the UI never breaks.
-            </p>
-        </div>
+                    <h2>Where &amp; When</h2>
+                    <div class="tp-form-grid">
+                        <div class="tp-field">
+                            <label class="tp-label">Destination City</label>
+                            <input type="text" id="plan-city" class="tp-input" value="Rome" />
+                        </div>
+                        <div class="tp-field">
+                            <label class="tp-label">Country</label>
+                            <input type="text" id="plan-country" class="tp-input" value="Italy" />
+                        </div>
+                        <div class="tp-field">
+                            <label class="tp-label">Departure Date</label>
+                            <input type="date" id="plan-dep" class="tp-input" />
+                        </div>
+                        <div class="tp-field">
+                            <label class="tp-label">Duration (days)</label>
+                            <input type="number" id="plan-duration" class="tp-input" min="1" max="30" value="5" />
+                        </div>
+                        <div class="tp-field">
+                            <label class="tp-label">Climate / Season</label>
+                            <select id="plan-climate" class="tp-select">
+                                <option>Temperate / Spring &amp; Fall</option>
+                                <option>Warm / Summer / Tropical</option>
+                                <option>Cold / Winter</option>
+                            </select>
+                        </div>
+                        <div class="tp-field">
+                            <label class="tp-label">Budget Tier</label>
+                            <select id="plan-budget-tier" class="tp-select">
+                                <option value="budget">Budget</option>
+                                <option value="mid-range" selected>Mid-range</option>
+                                <option value="luxury">Luxury</option>
+                            </select>
+                        </div>
+                        <div class="tp-field">
+                            <label class="tp-label">Total Budget (USD)</label>
+                            <input type="number" id="plan-budget" class="tp-input" min="100" value="2500" step="100" />
+                        </div>
+                        <div class="tp-field">
+                            <label class="tp-label">Pace</label>
+                            <select id="plan-pace" class="tp-select">
+                                <option value="relaxed">Relaxed</option>
+                                <option value="moderate" selected>Moderate</option>
+                                <option value="packed">Packed</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div class="tp-field">
+                        <label class="tp-label">Activity Types</label>
+                        <div class="tp-checkboxes" id="activity-checkboxes">
+                            <label class="tp-check"><input type="checkbox" value="sightseeing" checked> Sightseeing</label>
+                            <label class="tp-check"><input type="checkbox" value="cultural & museums" checked> Cultural &amp; Museums</label>
+                            <label class="tp-check"><input type="checkbox" value="food & wine tasting" checked> Food &amp; Wine</label>
+                            <label class="tp-check"><input type="checkbox" value="hiking & nature"> Hiking &amp; Nature</label>
+                            <label class="tp-check"><input type="checkbox" value="beach & relaxation"> Beach</label>
+                            <label class="tp-check"><input type="checkbox" value="nightlife"> Nightlife</label>
+                            <label class="tp-check"><input type="checkbox" value="shopping"> Shopping</label>
+                            <label class="tp-check"><input type="checkbox" value="photography"> Photography</label>
+                        </div>
+                    </div>
+
+                    <div class="tp-field">
+                        <label class="tp-label">Save as</label>
+                        <div class="tp-radios">
+                            <label class="tp-radio"><input type="radio" name="plan-status" value="current" checked> Current / Upcoming Trip</label>
+                            <label class="tp-radio"><input type="radio" name="plan-status" value="idea"> Trip Idea</label>
+                        </div>
+                    </div>
+
+                    <button class="tp-btn tp-btn-primary" id="plan-generate-btn">
+                        <i class="bi bi-stars me-1"></i> Generate AI Vacation Plan
+                    </button>
+
+                    <div id="plan-status-msg" class="tp-status-msg" hidden></div>
+
+                    <!-- Results rendered here after generation -->
+                    <div id="plan-results" hidden>
+                        <div class="tp-divider"></div>
+                        <div id="plan-ai-summary" class="tp-info-box" hidden></div>
+
+                        <div class="tp-tabs" id="plan-tabs">
+                            <button class="tp-tab active" data-tab="suggestions">🌟 AI Suggestions</button>
+                            <button class="tp-tab" data-tab="itinerary">📅 Itinerary</button>
+                            <button class="tp-tab" data-tab="budget-breakdown">💰 Budget</button>
+                            <button class="tp-tab" data-tab="packing">🎒 Packing</button>
+                            <button class="tp-tab" data-tab="timeline">⏰ Pre-Trip</button>
+                        </div>
+
+                        <div id="tab-suggestions" class="tp-tab-panel active">
+                            <div class="tp-two-col">
+                                <div>
+                                    <h3>🏛️ Top Attractions</h3>
+                                    <div id="res-attractions"></div>
+                                </div>
+                                <div>
+                                    <h3>🍽️ Dining Picks</h3>
+                                    <div id="res-dining"></div>
+                                </div>
+                            </div>
+                            <div class="tp-two-col mt-3">
+                                <div>
+                                    <h3>💎 Hidden Gems</h3>
+                                    <div id="res-gems"></div>
+                                </div>
+                                <div>
+                                    <h3>🤝 Cultural Tips</h3>
+                                    <div id="res-etiquette"></div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div id="tab-itinerary" class="tp-tab-panel">
+                            <div id="res-itinerary"></div>
+                        </div>
+
+                        <div id="tab-budget-breakdown" class="tp-tab-panel">
+                            <div id="res-budget"></div>
+                        </div>
+
+                        <div id="tab-packing" class="tp-tab-panel">
+                            <div id="res-packing"></div>
+                        </div>
+
+                        <div id="tab-timeline" class="tp-tab-panel">
+                            <div id="res-timeline"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ── Page: AI Concierge ── -->
+            <div id="page-concierge" class="tp-page">
+                <div class="container tp-container">
+                    <h1>💬 AI Travel Concierge</h1>
+                    <p class="tp-subtitle">Ask anything — packing tips, restaurant ideas, visa questions, day trips.</p>
+
+                    <div class="tp-chat-wrap">
+                        <div id="concierge-messages" class="tp-chat-messages"></div>
+                        <div id="concierge-suggestions" class="tp-chat-suggestions"></div>
+                        <div class="tp-chat-input-row">
+                            <input id="concierge-input" type="text" class="tp-chat-input"
+                                placeholder="e.g. Best cafes in Florence with vegan options?" autocomplete="off" />
+                            <button id="concierge-send" class="tp-chat-send"><i class="bi bi-send-fill"></i></button>
+                        </div>
+                    </div>
+
+                    <button class="tp-btn tp-btn-ghost mt-3" id="concierge-clear">
+                        <i class="bi bi-trash me-1"></i> Clear history
+                    </button>
+                </div>
+            </div>
+
+            <!-- ── Page: Budget Tracker ── -->
+            <div id="page-budget" class="tp-page">
+                <div class="container tp-container">
+                    <h1>💵 Budget &amp; Expenses</h1>
+                    <p class="tp-subtitle">Log expenses and track spending against your trip budget.</p>
+
+                    <div class="tp-field">
+                        <label class="tp-label">Select Trip</label>
+                        <select id="budget-trip-select" class="tp-select"></select>
+                    </div>
+
+                    <div id="budget-summary" class="tp-stats-row" style="margin-top:1rem"></div>
+
+                    <div class="tp-two-col mt-3">
+                        <div>
+                            <h2>Add Expense</h2>
+                            <div class="tp-form-grid">
+                                <div class="tp-field">
+                                    <label class="tp-label">Description</label>
+                                    <input type="text" id="exp-desc" class="tp-input" value="Dinner" />
+                                </div>
+                                <div class="tp-field">
+                                    <label class="tp-label">Amount (USD)</label>
+                                    <input type="number" id="exp-amount" class="tp-input" min="0.01" step="1" value="35" />
+                                </div>
+                                <div class="tp-field">
+                                    <label class="tp-label">Category</label>
+                                    <select id="exp-category" class="tp-select">
+                                        <option>Accommodation</option>
+                                        <option>Food</option>
+                                        <option>Activities</option>
+                                        <option>Transportation</option>
+                                        <option>Miscellaneous</option>
+                                    </select>
+                                </div>
+                                <div class="tp-field">
+                                    <label class="tp-label">Date</label>
+                                    <input type="date" id="exp-date" class="tp-input" />
+                                </div>
+                            </div>
+                            <button class="tp-btn tp-btn-primary" id="exp-add-btn">
+                                <i class="bi bi-plus-circle me-1"></i> Add Expense
+                            </button>
+                        </div>
+                        <div>
+                            <h2>Expense History</h2>
+                            <div id="expense-list"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ── Page: Profile / Preferences ── -->
+            <div id="page-profile" class="tp-page">
+                <div class="container tp-container">
+                    <h1>👤 Traveler Profile</h1>
+                    <p class="tp-subtitle">Set your travel style, dietary needs, and manage bucket list.</p>
+
+                    <div class="tp-form-grid">
+                        <div class="tp-field">
+                            <label class="tp-label">Travel Style</label>
+                            <select id="pref-style" class="tp-select">
+                                <option>Backpacking / Solo</option>
+                                <option>Cultural &amp; Sightseeing</option>
+                                <option>Relaxed &amp; Resort</option>
+                                <option>Adventure &amp; Nature</option>
+                                <option>Luxury &amp; Fine Dining</option>
+                            </select>
+                        </div>
+                        <div class="tp-field">
+                            <label class="tp-label">Default Budget Level</label>
+                            <select id="pref-budget" class="tp-select">
+                                <option value="budget">Budget</option>
+                                <option value="mid-range" selected>Mid-range</option>
+                                <option value="luxury">Luxury</option>
+                            </select>
+                        </div>
+                        <div class="tp-field">
+                            <label class="tp-label">Pace Preference</label>
+                            <select id="pref-pace" class="tp-select">
+                                <option value="relaxed">Relaxed</option>
+                                <option value="moderate" selected>Moderate</option>
+                                <option value="packed">Packed</option>
+                            </select>
+                        </div>
+                        <div class="tp-field">
+                            <label class="tp-label">Travel Companions</label>
+                            <input type="text" id="pref-companions" class="tp-input" value="Solo / Partner" />
+                        </div>
+                        <div class="tp-field">
+                            <label class="tp-label">Interests (comma-separated)</label>
+                            <input type="text" id="pref-interests" class="tp-input" value="history, food, photography" />
+                        </div>
+                        <div class="tp-field">
+                            <label class="tp-label">Dietary Restrictions (comma-separated)</label>
+                            <input type="text" id="pref-dietary" class="tp-input" value="None" />
+                        </div>
+                        <div class="tp-field">
+                            <label class="tp-label">Languages Spoken</label>
+                            <input type="text" id="pref-languages" class="tp-input" value="English" />
+                        </div>
+                    </div>
+                    <button class="tp-btn tp-btn-primary" id="pref-save-btn">
+                        <i class="bi bi-floppy me-1"></i> Save Preferences
+                    </button>
+                    <div id="pref-saved-msg" class="tp-status-msg" hidden></div>
+
+                    <div class="tp-divider"></div>
+                    <div class="tp-two-col">
+                        <div>
+                            <h2>🌍 Bucket List</h2>
+                            <div id="bucket-list"></div>
+                            <div class="tp-form-grid mt-2">
+                                <div class="tp-field">
+                                    <input type="text" id="bucket-dest" class="tp-input" placeholder="Destination" value="Reykjavik, Iceland" />
+                                </div>
+                                <div class="tp-field">
+                                    <input type="text" id="bucket-notes" class="tp-input" placeholder="Notes / goals" value="Northern lights" />
+                                </div>
+                            </div>
+                            <button class="tp-btn tp-btn-secondary" id="bucket-add-btn">
+                                <i class="bi bi-plus me-1"></i> Add to Bucket List
+                            </button>
+                        </div>
+                        <div>
+                            <h2>🗺️ Previously Visited</h2>
+                            <div id="prev-dest-list"></div>
+                            <div class="tp-field mt-2">
+                                <input type="text" id="prev-dest-input" class="tp-input" placeholder="Paris, France" />
+                            </div>
+                            <button class="tp-btn tp-btn-secondary" id="prev-dest-add-btn">
+                                <i class="bi bi-plus me-1"></i> Add Visited Place
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+        </div><!-- /#tp-app -->
 
         <footer class="bg-dark text-white py-4 justify-content-center" id="contact">
             <div class="container text-start">
@@ -125,7 +439,9 @@
                 </p>
             </div>
         </footer>
-    </div>
+    </div><!-- /.content -->
+
+    <script src="assets/travel/travel.js"></script>
 </body>
 
 </html>
