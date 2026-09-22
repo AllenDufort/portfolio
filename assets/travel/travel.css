@@ -154,6 +154,12 @@
     color: var(--off-white);
 }
 
+.tp-select optgroup {
+    background: #1a1a1a;
+    color: rgba(255, 255, 255, 0.55);
+    font-style: normal;
+}
+
 .tp-select-sm {
     font-size: 0.78rem;
     padding: 0.3rem 0.5rem;
