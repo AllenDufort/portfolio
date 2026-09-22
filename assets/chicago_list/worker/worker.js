@@ -25,7 +25,7 @@
 /* Overridable in wrangler.toml [vars]. The model is pinned server-side on purpose:
    the browser never chooses it, so nobody can swap in a paid model on this key. */
 const DEFAULTS = {
-    MODEL: 'gemini-2.0-flash',
+    MODEL: 'gemini-3.8-flash',
     ALLOWED_ORIGINS: [
         'https://allendufort.github.io',
         'http://localhost:8000', 'http://127.0.0.1:8000',
@@ -84,8 +84,8 @@ let catalogCache = null;
 const rateLog = new Map();   // ip -> recent request timestamps
 
 function geminiUrl(model, stream, apiKey) {
-    const action = stream ? 'streamGenerateContent?alt=sse' : 'generateContent';
-    return `https://generativelanguage.googleapis.com/v1beta/models/${model}:${action}&key=${apiKey}`;
+    const action = stream ? 'streamGenerateContent?alt=sse&' : 'generateContent?';
+    return `https://generativelanguage.googleapis.com/v1beta/models/${model}:${action}key=${apiKey}`;
 }
 
 export default {

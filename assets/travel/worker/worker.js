@@ -16,7 +16,7 @@
    GET / returns a health JSON (model, keyConfigured). */
 
 const DEFAULTS = {
-    MODEL: 'gemini-2.0-flash',
+    MODEL: 'gemini-3.8-flash',
     ALLOWED_ORIGINS: [
         'https://allendufort.github.io',
         'http://localhost:8000', 'http://127.0.0.1:8000',
@@ -35,8 +35,8 @@ const RATE_LIMIT_WINDOW_MS = 60 * 1000;
 const rateLog = new Map();
 
 function geminiUrl(model, stream, apiKey) {
-    const action = stream ? 'streamGenerateContent?alt=sse' : 'generateContent';
-    return `https://generativelanguage.googleapis.com/v1beta/models/${model}:${action}&key=${apiKey}`;
+    const action = stream ? 'streamGenerateContent?alt=sse&' : 'generateContent?';
+    return `https://generativelanguage.googleapis.com/v1beta/models/${model}:${action}key=${apiKey}`;
 }
 
 export default {
