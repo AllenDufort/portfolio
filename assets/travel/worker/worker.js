@@ -35,12 +35,21 @@ const MAX_TOKENS_GENERATE  = 4096;   // itinerary JSON can be large
 const MAX_TOKENS_CONCIERGE = 700;
 const TEMPERATURE          = 0.4;
 
-/* Groq's gpt-oss and qwen models reason before answering, and those hidden
-   tokens are billed against the same budget as the reply. Left alone, a 700
-   token concierge cap can be spent entirely on thinking, so Groq requests ask
-   for minimal reasoning and get this much extra room on top of the caps. */
-const GROQ_REASONING_EFFORT   = 'low';
-const GROQ_REASONING_HEADROOM = 1024;
+/* Reasoning models think before answering, and those hidden tokens are billed against the
+   same budget as the reply. Left alone, a 700 token concierge cap can be spent entirely on
+   thinking, so every request gets this much extra room on top of the caps.
+
+   This applies to both providers. Groq's gpt-oss and qwen models reason, and so does Gemma
+   on the Gemini path — verified against the live API, where a substantive concierge question
+   at a bare 700 spent ~2.5k characters on thoughts and returned finishReason MAX_TOKENS with
+   no answer text at all, i.e. an empty reply. The headroom is a ceiling rather than a
+   reservation, so a model that does not think is unaffected by it. */
+const REASONING_HEADROOM = 1024;
+
+/* Groq alone exposes a dial for how much thinking to do; Gemma rejects thinkingConfig
+   outright ("Thinking budget is not supported for this model"), so on the Gemini path the
+   headroom above is the only lever. */
+const GROQ_REASONING_EFFORT = 'low';
 
 const RATE_LIMIT_MAX       = 15;
 const RATE_LIMIT_WINDOW_MS = 60 * 1000;
@@ -49,13 +58,19 @@ const rateLog = new Map();
 
 /* ── Providers ───────────────────────────────────────────────────────────────
    Two upstreams, chosen by model id. Every Groq id is either namespaced
-   ("openai/gpt-oss-120b", "qwen/qwen3.8-27b") or bare, and Groq serves no
-   "gemini-*" model, so the prefix is enough to route on. */
+   ("openai/gpt-oss-120b", "qwen/qwen3.8-27b") or bare, and Groq serves none of
+   Google's models, so the prefix is enough to route on.
+
+   Both "gemini-*" and "gemma-*" are Google's. Gemma is open-weights, but on this key it
+   is served by the same generativelanguage.googleapis.com endpoint in the same request
+   shape, so it rides the Gemini path; matching only "gemini-" would send it to Groq,
+   which does not serve it. */
 
 const GROQ_URL = 'https://api.groq.com/openai/v1/chat/completions';
 
 function providerFor(model) {
-    return String(model).startsWith('gemini-') ? 'gemini' : 'groq';
+    const id = String(model);
+    return (id.startsWith('gemini-') || id.startsWith('gemma-')) ? 'gemini' : 'groq';
 }
 
 function apiKeyFor(provider, env) {
@@ -93,7 +108,7 @@ function upstreamRequest(provider, { model, apiKey, system, turns, maxTokens, st
                         parts: [{ text: t.content }]
                     })),
                     generationConfig: {
-                        maxOutputTokens: maxTokens,
+                        maxOutputTokens: maxTokens + REASONING_HEADROOM,
                         temperature:     TEMPERATURE
                     }
                 })
@@ -112,7 +127,7 @@ function upstreamRequest(provider, { model, apiKey, system, turns, maxTokens, st
             body: JSON.stringify({
                 model,
                 messages: [{ role: 'system', content: system }, ...turns],
-                max_completion_tokens: maxTokens + GROQ_REASONING_HEADROOM,
+                max_completion_tokens: maxTokens + REASONING_HEADROOM,
                 temperature:           TEMPERATURE,
                 reasoning_effort:      GROQ_REASONING_EFFORT,
                 ...(stream   ? { stream: true } : {}),
@@ -122,11 +137,19 @@ function upstreamRequest(provider, { model, apiKey, system, turns, maxTokens, st
     };
 }
 
-/* Pull the reply text out of a non-streaming response. */
+/* Pull the reply text out of a non-streaming response.
+
+   Every text part, not just parts[0], and thought parts dropped — the same rule
+   geminiSseTransform applies to the streaming path. A thinking model puts its reasoning in
+   the leading parts and the answer after them, so reading parts[0] returns the model
+   thinking out loud. On the itinerary path that reached JSON.parse as prose and surfaced as
+   "Model returned malformed JSON" for every Gemma request. */
 function extractText(provider, data) {
-    return provider === 'gemini'
-        ? (data?.candidates?.[0]?.content?.parts?.[0]?.text || '')
-        : (data?.choices?.[0]?.message?.content || '');
+    if (provider !== 'gemini') return data?.choices?.[0]?.message?.content || '';
+    return (data?.candidates?.[0]?.content?.parts || [])
+        .filter(part => !part.thought && typeof part.text === 'string')
+        .map(part => part.text)
+        .join('');
 }
 
 function sseTransform(provider) {

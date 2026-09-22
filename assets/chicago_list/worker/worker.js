@@ -45,8 +45,8 @@ const DEFAULTS = {
 /* The page chooses a model, so this endpoint would otherwise be a way to spend the keys
    on whatever model a scripted caller names. It is not: an id that is not on this list
    is discarded and DEFAULTS.MODEL is used instead, so the worst a caller can do is pick
-   another cheap model. Everything here is flash-tier or a small Groq model — no pro
-   models, which is what keeps a public URL on a paid key affordable.
+   another cheap model. Everything here is flash-tier, Gemma, or a small Groq model — no
+   pro models, which is what keeps a public URL on a paid key affordable.
 
    Keep in sync with the <select id="chat-model"> options in ../../../chicagoMap.html. */
 const ALLOWED_MODELS = [
@@ -60,7 +60,12 @@ const ALLOWED_MODELS = [
     'gemini-3.6-flash',
     'gemini-3.5-flash',
     'gemini-3.5-flash-lite',
-    'gemini-3.1-flash-lite'
+    'gemini-3.1-flash-lite',
+    /* Gemma 4 — Google's open-weights family, served by the Gemini endpoint (see
+       providerFor). Verified against the live API to accept systemInstruction, call
+       functionDeclarations, and stream, so the tool loop works here unchanged. */
+    'gemma-4-31b-it',
+    'gemma-4-26b-a4b-it'
 ];
 
 // Same sheet chicagoData.js reads, so the chat and the map never disagree.
@@ -113,7 +118,12 @@ const rateLog = new Map();   // ip -> recent request timestamps
 
 /* ── Providers ─────────────────────────────────────────────────────────────
    Two upstreams, chosen by model id: every Groq id is namespaced ("openai/…",
-   "qwen/…") or bare, and Groq serves no "gemini-*" model, so the prefix decides.
+   "qwen/…") or bare, and Groq serves none of Google's models, so the prefix decides.
+
+   Both "gemini-*" and "gemma-*" are Google's — Gemma is an open-weights family, but on
+   this key it is served by the same generativelanguage.googleapis.com endpoint, speaks
+   the same request shape, and is billed the same way, so it is simply a Gemini-path
+   model here. Matching only "gemini-" would route it to Groq, which does not serve it.
 
    These few helpers are deliberately duplicated in ../../travel/worker/worker.js
    rather than shared: each worker deploys as one standalone file with no bundler,
@@ -121,14 +131,23 @@ const rateLog = new Map();   // ip -> recent request timestamps
 
 const GROQ_URL = 'https://api.groq.com/openai/v1/chat/completions';
 
-/* Groq's gpt-oss and qwen models reason before answering and those hidden tokens are
-   billed against the same budget as the reply, so a 700-token cap can be spent entirely
-   on thinking. Groq requests ask for minimal reasoning and get extra room on top. */
-const GROQ_REASONING_EFFORT   = 'low';
-const GROQ_REASONING_HEADROOM = 1024;
+/* Reasoning models think before answering and those hidden tokens are billed against the
+   same budget as the reply, so a bare 700-token cap can be spent entirely on thinking and
+   return nothing at all. Every request gets extra room on top of the cap.
+
+   Both providers need this: Groq's gpt-oss and qwen models reason, and so does Gemma on the
+   Gemini path. The headroom is a ceiling, not a reservation, so a model that does not think
+   is unaffected. */
+const REASONING_HEADROOM = 1024;
+
+/* Groq alone exposes a dial for how much thinking to do; Gemma rejects thinkingConfig
+   ("Thinking budget is not supported for this model"), so on the Gemini path the headroom
+   above is the only lever. */
+const GROQ_REASONING_EFFORT = 'low';
 
 function providerFor(model) {
-    return String(model).startsWith('gemini-') ? 'gemini' : 'groq';
+    const id = String(model);
+    return (id.startsWith('gemini-') || id.startsWith('gemma-')) ? 'gemini' : 'groq';
 }
 
 function apiKeyFor(provider, env) {
@@ -364,7 +383,7 @@ function buildBody(provider, { model, systemText, turns, stream }) {
             contents,
             tools: [{ functionDeclarations: TOOL_DECLARATIONS }],
             generationConfig: {
-                maxOutputTokens: MODEL_MAX_TOKENS,
+                maxOutputTokens: MODEL_MAX_TOKENS + REASONING_HEADROOM,
                 temperature:     MODEL_TEMPERATURE
             }
         });
@@ -401,7 +420,7 @@ function buildBody(provider, { model, systemText, turns, stream }) {
             type: 'function',
             function: { name: d.name, description: d.description, parameters: d.parameters }
         })),
-        max_completion_tokens: MODEL_MAX_TOKENS + GROQ_REASONING_HEADROOM,
+        max_completion_tokens: MODEL_MAX_TOKENS + REASONING_HEADROOM,
         temperature:           MODEL_TEMPERATURE,
         reasoning_effort:      GROQ_REASONING_EFFORT,
         ...(stream ? { stream: true } : {})
@@ -416,7 +435,11 @@ function parseTurn(provider, data) {
     if (provider === 'gemini') {
         const parts = data?.candidates?.[0]?.content?.parts || [];
         return {
-            text: parts.filter(p => typeof p.text === 'string').map(p => p.text).join(''),
+            /* Thought parts dropped, as in geminiSseTransform. On a tool round this text
+               becomes the assistant turn in the transcript, so keeping them would feed a
+               thinking model's own reasoning back to it as something it had said. */
+            text: parts.filter(p => !p.thought && typeof p.text === 'string')
+                .map(p => p.text).join(''),
             toolCalls: parts.filter(p => p.functionCall).map((p, i) => ({
                 // Gemini 3 sends an id; older models do not, so fall back to a stable one.
                 id:   p.functionCall.id || `call_${i}`,

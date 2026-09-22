@@ -42,7 +42,7 @@ commit, no build, and no pipeline run.
 
 ## Chat assistant
 
-Every answer comes from [Google Gemini](https://ai.google.dev/gemini-api/docs) or
+Every answer comes from [Google Gemini or Gemma](https://ai.google.dev/gemini-api/docs) or
 [Groq](https://console.groq.com/docs), whichever the visitor picks in the widget's Model dropdown.
 There is no local retrieval layer and no fallback answer: if the model cannot be reached, the widget
 says so rather than showing a quiet substitute that would read like a bad reply.
@@ -56,8 +56,8 @@ browser ──POST {question, history, coords?, model?}──> Worker ──> Ge
                                                         └── Google Sheet + geocode_cache.json (prompt)
 ```
 
-The provider follows from the model id — anything starting with `gemini-` goes to Gemini, everything
-else to Groq — and the two very different upstream APIs (Gemini's `functionDeclarations` and
+The provider follows from the model id — anything starting with `gemini-` or `gemma-` goes to Google,
+everything else to Groq — and the two very different upstream APIs (Gemini's `functionDeclarations` and
 `functionCall.args`; Groq's OpenAI-shaped `tools` and JSON-string `arguments`) are normalised inside
 the Worker, so the page's request and SSE envelope are identical either way.
 
@@ -70,7 +70,7 @@ lets a caller use it as a general LLM proxy.
 | The keys | `GEMINI_API_KEY` and `GROQ_API_KEY`, pushed by `deploy.sh`. Never in `wrangler.toml`, the repo, or a response. |
 | Who may call it | `ALLOWED_ORIGINS` in `wrangler.toml`. A foreign origin gets `403` with no CORS header. |
 | Abuse | 12 requests/minute per IP (`429` + `Retry-After`). Temperature and the token cap are pinned server-side. |
-| Which model a caller may pick | `ALLOWED_MODELS` in `worker.js` — the cheap Groq models plus Gemini's flash tier. Anything else, including a hand-edited request, silently falls back to the default, so a leaked endpoint cannot be pointed at an expensive model. |
+| Which model a caller may pick | `ALLOWED_MODELS` in `worker.js` — the cheap Groq models, Gemini's flash tier, and Gemma 4. Anything else, including a hand-edited request, silently falls back to the default, so a leaked endpoint cannot be pointed at an expensive model. |
 | Prompt injection through history | Only `user` and `assistant` turns are forwarded; an injected `system` turn is dropped. History is capped at 6 turns and 600 chars, the question at 500. |
 | Sheet outages | Same fallback the map uses: the sheet, then `chicago_layers.geojson`. The built catalog is cached for 5 minutes, so a burst of questions is one sheet fetch. |
 | A dead endpoint | `GET /` returns a health JSON — place count, neighborhood count, whether the data came from the sheet or the snapshot, prompt size, the default model and allowlist, and which keys are configured. It never reveals a key itself. |
