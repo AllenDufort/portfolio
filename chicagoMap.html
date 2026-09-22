@@ -116,6 +116,27 @@
                 <span><i class="bi bi-robot"></i> Chicago Assistant</span>
                 <button id="chat-close" aria-label="Close chat"><i class="bi bi-x-lg"></i></button>
             </div>
+            <!-- Keep these options in sync with ALLOWED_MODELS in
+                 assets/chicago_list/worker/worker.js — the worker ignores anything else
+                 and falls back to its default. -->
+            <div id="chat-model-row">
+                <label for="chat-model">Model</label>
+                <select id="chat-model" aria-label="AI model">
+                    <optgroup label="Groq">
+                        <option value="openai/gpt-oss-120b">openai/gpt-oss-120b</option>
+                        <option value="openai/gpt-oss-20b">openai/gpt-oss-20b</option>
+                        <option value="qwen/qwen3.8-27b">qwen/qwen3.8-27b</option>
+                    </optgroup>
+                    <optgroup label="Gemini">
+                        <option value="gemini-3.8-flash">gemini-3.8-flash</option>
+                        <option value="gemini-3.7-flash">gemini-3.7-flash</option>
+                        <option value="gemini-3.6-flash">gemini-3.6-flash</option>
+                        <option value="gemini-3.5-flash">gemini-3.5-flash</option>
+                        <option value="gemini-3.5-flash-lite">gemini-3.5-flash-lite</option>
+                        <option value="gemini-3.1-flash-lite">gemini-3.1-flash-lite</option>
+                    </optgroup>
+                </select>
+            </div>
             <div id="chat-messages" aria-live="polite"></div>
             <div id="chat-suggestions"></div>
             <div id="chat-input-row">

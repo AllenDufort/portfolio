@@ -324,6 +324,22 @@ async function handleConcierge(body, env, cors) {
    Both providers are normalised to the one envelope the page understands:
    {"delta":"..."} per token, {"error":"..."} on failure, then [DONE]. */
 
+/* SSE event blocks are blank-line separated, but the two providers disagree on the line
+   ending: Gemini sends CRLF (so its blocks end "\r\n\r\n") and Groq sends bare LF. Splitting
+   on "\n\n" alone therefore finds no boundary at all in a Gemini stream — the whole reply
+   accumulates in the buffer and is thrown away at flush. Match either. */
+const SSE_BLOCK_SPLIT = /\r?\n\r?\n/;
+
+/* Pull the payload out of one event block, tolerating CRLF line endings inside it too.
+   Returns null for a comment/keepalive block, a block with no data line, or [DONE]. */
+function sseData(block) {
+    const dataLine = block.split(/\r?\n/).find(l => l.startsWith('data:'));
+    if (!dataLine) return null;
+    const payload = dataLine.slice(5).trim();
+    if (!payload || payload === '[DONE]') return null;
+    try { return JSON.parse(payload); } catch { return null; }
+}
+
 /* Gemini streams SSE lines like:
      data: {"candidates":[{"content":{"parts":[{"text":"Hello"}],...}}]}
    We extract the text delta from each chunk and forward it as {"delta":"..."},
@@ -336,39 +352,31 @@ function geminiSseTransform() {
     const send = (ctrl, payload) =>
         ctrl.enqueue(encoder.encode(`data: ${JSON.stringify(payload)}\n\n`));
 
+    const handleBlock = (block, ctrl) => {
+        const data = sseData(block);
+        if (!data) return;
+
+        /* Every text part, not just parts[0]: a chunk can carry a thought part alongside
+           the answer, in which case the answer is not the first one. */
+        (data?.candidates?.[0]?.content?.parts || []).forEach(part => {
+            if (part.thought) return;     // the model thinking out loud, not the answer
+            if (typeof part.text === 'string' && part.text) send(ctrl, { delta: part.text });
+        });
+
+        if (data?.error) {
+            send(ctrl, { error: data.error?.message || 'Model error.' });
+        }
+    };
+
     return new TransformStream({
         transform(chunk, ctrl) {
             buffer += decoder.decode(chunk, { stream: true });
-            const blocks = buffer.split('\n\n');
+            const blocks = buffer.split(SSE_BLOCK_SPLIT);
             buffer = blocks.pop() || '';
-
-            blocks.forEach(block => {
-                const dataLine = block.split('\n').find(l => l.startsWith('data:'));
-                if (!dataLine) return;
-                const payload = dataLine.slice(5).trim();
-                if (!payload || payload === '[DONE]') return;
-                let data;
-                try { data = JSON.parse(payload); } catch { return; }
-
-                const text = data?.candidates?.[0]?.content?.parts?.[0]?.text;
-                if (typeof text === 'string' && text) {
-                    send(ctrl, { delta: text });
-                }
-                if (data?.error) {
-                    send(ctrl, { error: data.error?.message || 'Model error.' });
-                }
-            });
+            blocks.forEach(block => handleBlock(block, ctrl));
         },
         flush(ctrl) {
-            if (buffer.trim()) {
-                const dl = buffer.split('\n').find(l => l.startsWith('data:'));
-                if (dl) {
-                    try {
-                        const d = JSON.parse(dl.slice(5).trim());
-                        if (d?.error) send(ctrl, { error: d.error?.message || 'Model error.' });
-                    } catch { /* ignore */ }
-                }
-            }
+            if (buffer.trim()) handleBlock(buffer, ctrl);
             ctrl.enqueue(encoder.encode('data: [DONE]\n\n'));
         }
     });
@@ -389,12 +397,8 @@ function groqSseTransform() {
         ctrl.enqueue(encoder.encode(`data: ${JSON.stringify(payload)}\n\n`));
 
     const handleBlock = (block, ctrl) => {
-        const dataLine = block.split('\n').find(l => l.startsWith('data:'));
-        if (!dataLine) return;
-        const payload = dataLine.slice(5).trim();
-        if (!payload || payload === '[DONE]') return;
-        let data;
-        try { data = JSON.parse(payload); } catch { return; }
+        const data = sseData(block);
+        if (!data) return;
 
         const text = data?.choices?.[0]?.delta?.content;
         if (typeof text === 'string' && text) {
@@ -408,7 +412,7 @@ function groqSseTransform() {
     return new TransformStream({
         transform(chunk, ctrl) {
             buffer += decoder.decode(chunk, { stream: true });
-            const blocks = buffer.split('\n\n');
+            const blocks = buffer.split(SSE_BLOCK_SPLIT);
             buffer = blocks.pop() || '';
             blocks.forEach(block => handleBlock(block, ctrl));
         },

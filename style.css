@@ -578,6 +578,40 @@ footer a:hover {
 #chat-close:hover { background: rgba(255,255,255,0.2); }
 #chat-close:focus-visible { outline: 2px solid rgba(255,255,255,0.5); outline-offset: 1px; }
 
+/* Model picker, between the header and the transcript. */
+#chat-model-row {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.4rem 0.75rem;
+    background: #16162a;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+#chat-model-row label {
+    margin: 0;
+    font-size: 0.72rem;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: rgba(255, 255, 255, 0.4);
+}
+#chat-model {
+    flex: 1;
+    min-width: 0;
+    background: #111122;
+    color: #e0e0f0;
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    border-radius: 6px;
+    padding: 0.25rem 0.4rem;
+    font-size: 0.75rem;
+    font-family: inherit;
+    cursor: pointer;
+}
+#chat-model:focus { outline: none; border-color: var(--accent); }
+/* Native dropdowns render light by default on most platforms; these two rules keep the
+   open list dark to match the panel. optgroup needs its own rule — option does not cover it. */
+#chat-model option  { background: #111122; color: #e0e0f0; }
+#chat-model optgroup { background: #1a1a2e; color: rgba(255, 255, 255, 0.55); font-style: normal; }
+
 #chat-messages {
     flex: 1;
     overflow-y: auto;

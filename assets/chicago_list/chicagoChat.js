@@ -4,11 +4,15 @@
    reply back token by token.
 
    The model is reached through the Cloudflare Worker in ./worker, never directly. That
-   is not indirection for its own sake — a Gemini API key in a static page is a public
+   is not indirection for its own sake — a model API key in a static page is a public
    key, so it stays a Worker secret. The Worker also builds the prompt (it fetches the
    same Google Sheet the map uses and sends the model all 552 places grouped by
    neighborhood), which is why this file needs no place data at all and does not wait on
    ChicagoData.load().
+
+   The Model dropdown picks between Gemini and Groq models; the Worker validates the choice
+   against its own allowlist and normalises both providers to one SSE shape, so nothing here
+   depends on which one answered.
 
    Location questions ("what food spots are near me") are the one thing a prompt cannot
    answer alone, so NEAR_ME_RE spots them, the browser asks for permission, and the
@@ -18,11 +22,11 @@
     'use strict';
 
     /* The deployed Worker in ./worker. Re-deploying keeps this URL; it only changes if the
-       Worker's `name` in wrangler.toml does. Gemini is the model; the key stays server-side. */
+       Worker's `name` in wrangler.toml does. The API keys stay server-side. */
     const WORKER_URL = 'https://chicago-chat.chicagochat.workers.dev';
-    const DEV_WORKER_URL = 'http://127.0.0.1:8787';       // deploy.sh in worker/
+    const DEV_WORKER_URL = 'http://127.0.0.1:8787';       // wrangler dev in worker/
 
-    const REQUEST_TIMEOUT_MS = 90000;   // a 550B model on a free endpoint can be slow
+    const REQUEST_TIMEOUT_MS = 90000;   // a large model on a free endpoint can be slow
     const SLOW_HINT_MS = 9000;          // when to admit it is taking a while
     const MAX_QUESTION_CHARS = 500;     // matches the Worker's own cap
     const HISTORY_TURNS = 6;            // messages kept so follow-ups make sense
@@ -42,6 +46,9 @@
     const sugBox   = document.getElementById('chat-suggestions');
     const input    = document.getElementById('chat-input');
     const sendBtn  = document.getElementById('chat-send');
+    const modelSel = document.getElementById('chat-model');
+
+    const MODEL_KEY = 'chicagoChat.model';   // remembers the picker across reloads
 
     const OPENING_CHIPS = [
         'What food spots are in South Loop?',
@@ -75,6 +82,24 @@
         }
     });
     closeBtn.addEventListener('click', () => { panel.hidden = true; });
+
+    /* The model is the visitor's choice, remembered per browser. The Worker validates it
+       against its own allowlist, so a stale or hand-edited value costs nothing — it just
+       falls back to the server default. A value no longer in the list is ignored here too,
+       so the select never ends up blank. */
+    try {
+        const saved = localStorage.getItem(MODEL_KEY);
+        if (saved && Array.from(modelSel.options).some(o => o.value === saved)) {
+            modelSel.value = saved;
+        }
+    } catch (err) { /* storage blocked — the default selection stands */ }
+
+    modelSel.addEventListener('change', () => {
+        try { localStorage.setItem(MODEL_KEY, modelSel.value); }
+        catch (err) { /* storage blocked — the choice still applies for this visit */ }
+    });
+
+    function chosenModel() { return modelSel ? modelSel.value : ''; }
 
     sendBtn.addEventListener('click', submit);
     input.addEventListener('keydown', e => { if (e.key === 'Enter' && !e.shiftKey) submit(); });
@@ -158,9 +183,9 @@
         return WORKER_URL;
     }
 
-    /* Read the Worker's event stream. It normalises whatever Ollama Cloud sends into one
-       shape — {"delta"} for text, {"error"} for a generation that failed halfway, and a
-       trailing [DONE] — so this side only has to accumulate. */
+    /* Read the Worker's event stream. It normalises whatever the model provider sends into
+       one shape — {"delta"} for text, {"error"} for a generation that failed halfway, and a
+       trailing [DONE] — so this side only has to accumulate, whichever model is selected. */
     async function stream(question, coords, onText) {
         const controller = new AbortController();
         const timer = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
@@ -169,7 +194,12 @@
             const res = await fetch(endpoint(), {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ question, history, coords: coords || undefined }),
+                body: JSON.stringify({
+                    question,
+                    history,
+                    coords: coords || undefined,
+                    model: chosenModel() || undefined
+                }),
                 signal: controller.signal
             });
             if (!res.ok) throw new ChatError(await failureMessage(res));

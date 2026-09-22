@@ -1,7 +1,10 @@
 /* ── Chicago Assistant API — Cloudflare Worker ─────────────────────────────
-   The chat widget on a static GitHub Pages site cannot hold a Gemini API key: any
-   key shipped to the browser is public. So the key lives here as a Worker secret and
+   The chat widget on a static GitHub Pages site cannot hold a model API key: any
+   key shipped to the browser is public. So the keys live here as Worker secrets and
    the page talks to this endpoint instead.
+
+   Answers can come from Gemini or from Groq. The page picks a model and the provider
+   follows from its id — but only ids in ALLOWED_MODELS are honoured, see below.
 
    This Worker does more than forward requests. It builds the entire prompt itself —
    fetching the Google Sheet, grouping every saved place by neighborhood, and computing
@@ -12,20 +15,24 @@
    key behind a public URL.
 
    Deploy:
-     bash assets/chicago_list/worker/deploy.sh      # sets GEMINI_API_KEY secret and deploys
+     bash assets/chicago_list/worker/deploy.sh      # sets the API key secrets and deploys
    Then put the deployed URL in WORKER_URL at the top of ../chicagoChat.js.
 
    Local development:
-     cp .dev.vars.example .dev.vars                 # paste your GEMINI_API_KEY into .dev.vars
-     bash assets/chicago_list/worker/deploy.sh      # serves http://127.0.0.1:8787
+     cp .dev.vars.example .dev.vars                 # paste your API keys into .dev.vars
+     npx wrangler dev --config wrangler.toml        # serves http://127.0.0.1:8787
+                                                    # (the flag matters: without it
+                                                    #  wrangler finds the repo-root
+                                                    #  wrangler.jsonc instead)
 
-   GET / returns a health summary (place count, neighborhoods, data source, model), so
-   a deployment can be verified without spending a model call. */
+   GET / returns a health summary (place count, neighborhoods, data source, the default
+   model and allowlist, which keys are set), so a deployment can be verified without
+   spending a model call. */
 
-/* Overridable in wrangler.toml [vars]. The model is pinned server-side on purpose:
-   the browser never chooses it, so nobody can swap in a paid model on this key. */
+/* Overridable in wrangler.toml [vars]. MODEL is the default the page gets when it asks
+   for nothing, or asks for something not on the allowlist below. */
 const DEFAULTS = {
-    MODEL: 'gemini-3.8-flash',
+    MODEL: 'openai/gpt-oss-120b',
     ALLOWED_ORIGINS: [
         'https://allendufort.github.io',
         'http://localhost:8000', 'http://127.0.0.1:8000',
@@ -34,6 +41,27 @@ const DEFAULTS = {
     SNAPSHOT_URL: 'https://allendufort.github.io/portfolio/assets/chicago_list/chicago_layers.geojson',
     COORDS_URL: 'https://allendufort.github.io/portfolio/assets/chicago_list/geocode_cache.json'
 };
+
+/* The page chooses a model, so this endpoint would otherwise be a way to spend the keys
+   on whatever model a scripted caller names. It is not: an id that is not on this list
+   is discarded and DEFAULTS.MODEL is used instead, so the worst a caller can do is pick
+   another cheap model. Everything here is flash-tier or a small Groq model — no pro
+   models, which is what keeps a public URL on a paid key affordable.
+
+   Keep in sync with the <select id="chat-model"> options in ../../../chicagoMap.html. */
+const ALLOWED_MODELS = [
+    // Groq
+    'openai/gpt-oss-120b',
+    'openai/gpt-oss-20b',
+    'qwen/qwen3.8-27b',
+    // Gemini (flash tier only)
+    'gemini-3.8-flash',
+    'gemini-3.7-flash',
+    'gemini-3.6-flash',
+    'gemini-3.5-flash',
+    'gemini-3.5-flash-lite',
+    'gemini-3.1-flash-lite'
+];
 
 // Same sheet chicagoData.js reads, so the chat and the map never disagree.
 const SHEET_ID  = '18rG-azfyKrziKuDm3WBHD2UyMeeD5T8BMugFG7j5fw4';
@@ -83,6 +111,37 @@ const COLUMNS = {
 let catalogCache = null;
 const rateLog = new Map();   // ip -> recent request timestamps
 
+/* ── Providers ─────────────────────────────────────────────────────────────
+   Two upstreams, chosen by model id: every Groq id is namespaced ("openai/…",
+   "qwen/…") or bare, and Groq serves no "gemini-*" model, so the prefix decides.
+
+   These few helpers are deliberately duplicated in ../../travel/worker/worker.js
+   rather than shared: each worker deploys as one standalone file with no bundler,
+   and a shared module would mean a build step for ~40 lines. */
+
+const GROQ_URL = 'https://api.groq.com/openai/v1/chat/completions';
+
+/* Groq's gpt-oss and qwen models reason before answering and those hidden tokens are
+   billed against the same budget as the reply, so a 700-token cap can be spent entirely
+   on thinking. Groq requests ask for minimal reasoning and get extra room on top. */
+const GROQ_REASONING_EFFORT   = 'low';
+const GROQ_REASONING_HEADROOM = 1024;
+
+function providerFor(model) {
+    return String(model).startsWith('gemini-') ? 'gemini' : 'groq';
+}
+
+function apiKeyFor(provider, env) {
+    return provider === 'gemini' ? env.GEMINI_API_KEY : env.GROQ_API_KEY;
+}
+
+/* Only an allowlisted id is honoured; anything else falls back to the default. */
+function resolveModel(requested, env) {
+    const asked = String(requested || '').trim();
+    if (ALLOWED_MODELS.includes(asked)) return asked;
+    return env.MODEL || DEFAULTS.MODEL;
+}
+
 function geminiUrl(model, stream, apiKey) {
     const action = stream ? 'streamGenerateContent?alt=sse&' : 'generateContent?';
     return `https://generativelanguage.googleapis.com/v1beta/models/${model}:${action}key=${apiKey}`;
@@ -109,10 +168,6 @@ export default {
             return fail(429, 'That is a lot of questions at once — give it a minute.', cors, 60);
         }
 
-        if (!env.GEMINI_API_KEY) {
-            return fail(500, 'The assistant is missing its API key. Run: wrangler secret put GEMINI_API_KEY', cors);
-        }
-
         let body;
         try {
             body = await request.json();
@@ -122,6 +177,14 @@ export default {
 
         const question = String(body && body.question || '').trim().slice(0, MAX_QUESTION_CHARS);
         if (!question) return fail(400, 'Ask a question first.', cors);
+
+        // The page may ask for a model, but only an allowlisted one is honoured.
+        const model    = resolveModel(body && body.model, env);
+        const provider = providerFor(model);
+        if (!apiKeyFor(provider, env)) {
+            const keyName = provider === 'gemini' ? 'GEMINI_API_KEY' : 'GROQ_API_KEY';
+            return fail(500, `The assistant is missing its ${keyName}. Run: bash deploy.sh`, cors);
+        }
 
         let catalog;
         try {
@@ -135,22 +198,25 @@ export default {
         const systemText = systemPrompt(catalog, near, Boolean(point));
         const historyTurns = history(body && body.history);
 
-        // Build Gemini contents array from history + current question
-        const contents = [
+        /* Provider-neutral transcript — converted into each API's own shape only when a
+           request is built, so the tool loop below stays single-threaded. */
+        const turns = [
             ...historyTurns.map(m => ({
-                role:  m.role === 'assistant' ? 'model' : 'user',
-                parts: [{ text: m.content }]
+                role: m.role === 'assistant' ? 'assistant' : 'user',
+                text: m.content
             })),
-            { role: 'user', parts: [{ text: question }] }
+            { role: 'user', text: question }
         ];
 
-        return askModel(env, catalog, point, systemText, contents, cors);
+        return askModel(env, { model, provider, catalog, point, systemText, turns, cors });
     }
 };
 
-/* ── Gemini — function calling + agentic loop ────────────────────────────── */
+/* ── Function calling + agentic loop ─────────────────────────────────────── */
 
-/* Tool declarations in Gemini's functionDeclarations format. */
+/* The canonical tool schema, written in Gemini's functionDeclarations format. Groq's
+   OpenAI-style declarations are mapped from this in buildBody(), so the JSON Schema for
+   each tool is written once here and never duplicated per provider. */
 const TOOL_DECLARATIONS = [
     {
         name: 'search_places',
@@ -260,41 +326,165 @@ function formatPlace(p, full = false) {
     return lines.join('\n');
 }
 
-/* Agentic loop: call Gemini, handle any function calls it makes, then call again
-   until it produces a plain text reply. Function calls are not streamed —
+/* ── Provider adapters ─────────────────────────────────────────────────────
+   The transcript and TOOL_DECLARATIONS are the canonical forms; these translate them
+   into whichever shape the provider speaks. Transcript turns are:
+
+     {role:'user',      text}
+     {role:'assistant', text, toolCalls:[{id, name, args, signature?}]}
+     {role:'tool',      results:[{id, name, result}]}
+
+   `signature` is provider-opaque and only Gemini sets it; see parseTurn().           */
+
+function buildBody(provider, { model, systemText, turns, stream }) {
+    if (provider === 'gemini') {
+        const contents = [];
+        turns.forEach(turn => {
+            if (turn.role === 'tool') {
+                // Gemini takes all results as one "user" turn and ignores call ids.
+                contents.push({
+                    role: 'user',
+                    parts: turn.results.map(r => ({
+                        functionResponse: { name: r.name, response: { result: r.result } }
+                    }))
+                });
+                return;
+            }
+            const parts = [];
+            if (turn.text) parts.push({ text: turn.text });
+            (turn.toolCalls || []).forEach(c => parts.push({
+                functionCall: { name: c.name, args: c.args },
+                ...(c.signature ? { thoughtSignature: c.signature } : {})
+            }));
+            contents.push({ role: turn.role === 'assistant' ? 'model' : 'user', parts });
+        });
+
+        return JSON.stringify({
+            systemInstruction: { parts: [{ text: systemText }] },
+            contents,
+            tools: [{ functionDeclarations: TOOL_DECLARATIONS }],
+            generationConfig: {
+                maxOutputTokens: MODEL_MAX_TOKENS,
+                temperature:     MODEL_TEMPERATURE
+            }
+        });
+    }
+
+    const messages = [{ role: 'system', content: systemText }];
+    turns.forEach(turn => {
+        if (turn.role === 'tool') {
+            // Groq wants one message per result, each tied back by tool_call_id.
+            turn.results.forEach(r => messages.push({
+                role: 'tool', tool_call_id: r.id, content: r.result
+            }));
+            return;
+        }
+        if (turn.role === 'assistant') {
+            const msg = { role: 'assistant', content: turn.text || null };
+            if (turn.toolCalls?.length) {
+                msg.tool_calls = turn.toolCalls.map(c => ({
+                    id:   c.id,
+                    type: 'function',
+                    function: { name: c.name, arguments: JSON.stringify(c.args || {}) }
+                }));
+            }
+            messages.push(msg);
+            return;
+        }
+        messages.push({ role: 'user', content: turn.text });
+    });
+
+    return JSON.stringify({
+        model,
+        messages,
+        tools: TOOL_DECLARATIONS.map(d => ({
+            type: 'function',
+            function: { name: d.name, description: d.description, parameters: d.parameters }
+        })),
+        max_completion_tokens: MODEL_MAX_TOKENS + GROQ_REASONING_HEADROOM,
+        temperature:           MODEL_TEMPERATURE,
+        reasoning_effort:      GROQ_REASONING_EFFORT,
+        ...(stream ? { stream: true } : {})
+    });
+}
+
+/* Normalise one non-streaming response to {text, toolCalls}.
+
+   Gemini:  candidates[0].content.parts[] — each part is {text} or {functionCall:{name,args}}
+   Groq:    choices[0].message — {content, tool_calls:[{id,function:{name,arguments}}]}   */
+function parseTurn(provider, data) {
+    if (provider === 'gemini') {
+        const parts = data?.candidates?.[0]?.content?.parts || [];
+        return {
+            text: parts.filter(p => typeof p.text === 'string').map(p => p.text).join(''),
+            toolCalls: parts.filter(p => p.functionCall).map((p, i) => ({
+                // Gemini 3 sends an id; older models do not, so fall back to a stable one.
+                id:   p.functionCall.id || `call_${i}`,
+                name: p.functionCall.name,
+                args: p.functionCall.args || {},
+                /* Opaque to us, but Gemini 3 requires the signature it issued with a
+                   functionCall to come back alongside that call in the next request, or it
+                   rejects the turn. Carried through the neutral transcript untouched. */
+                signature: p.thoughtSignature
+            }))
+        };
+    }
+
+    const message = data?.choices?.[0]?.message || {};
+    return {
+        text: message.content || '',
+        toolCalls: (message.tool_calls || []).map(c => {
+            // Groq sends arguments as a JSON string, where Gemini sends a real object.
+            let args = {};
+            try { args = JSON.parse(c.function?.arguments || '{}'); }
+            catch (err) { /* malformed — run the tool with no arguments */ }
+            return { id: c.id, name: c.function?.name, args };
+        })
+    };
+}
+
+function upstreamRequest(provider, { model, apiKey, systemText, turns, stream }) {
+    const body = buildBody(provider, { model, systemText, turns, stream });
+    if (provider === 'gemini') {
+        return [geminiUrl(model, stream, apiKey), {
+            method:  'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body
+        }];
+    }
+    return [GROQ_URL, {
+        method: 'POST',
+        headers: {
+            'Content-Type':  'application/json',
+            'Authorization': `Bearer ${apiKey}`
+        },
+        body
+    }];
+}
+
+/* Agentic loop: call the model, run any tool calls it makes, then call again
+   until it produces a plain text reply. Tool rounds are not streamed —
    only the final text turn is, so we buffer the intermediate rounds and stream
    just the last one back to the browser. */
 const MAX_TOOL_ROUNDS = 5;   // guard against a runaway loop
 
-async function askModel(env, catalog, point, systemText, contents, cors) {
-    const model = env.MODEL || DEFAULTS.MODEL;
+async function askModel(env, { model, provider, catalog, point, systemText, turns, cors }) {
+    const apiKey = apiKeyFor(provider, env);
 
-    const buildBody = (msgs, stream) => JSON.stringify({
-        systemInstruction: { parts: [{ text: systemText }] },
-        contents: msgs,
-        tools: [{ functionDeclarations: TOOL_DECLARATIONS }],
-        generationConfig: {
-            maxOutputTokens: MODEL_MAX_TOKENS,
-            temperature:     MODEL_TEMPERATURE
-        }
-    });
-
-    const callGemini = async (msgs, stream) => {
-        const res = await fetch(geminiUrl(model, stream, env.GEMINI_API_KEY), {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: buildBody(msgs, stream)
+    const call = (msgs, stream) => {
+        const [url, init] = upstreamRequest(provider, {
+            model, apiKey, systemText, turns: msgs, stream
         });
-        return res;
+        return fetch(url, init);
     };
 
-    let msgs = contents;
+    let msgs = turns;
 
-    // Tool-call rounds (not streamed — we need the full JSON to parse function calls).
+    // Tool-call rounds (not streamed — we need the full JSON to parse tool calls).
     for (let round = 0; round < MAX_TOOL_ROUNDS; round++) {
         let upstream;
         try {
-            upstream = await callGemini(msgs, false);
+            upstream = await call(msgs, false);
         } catch (err) {
             return fail(502, 'I could not reach the model just now — try again shortly.', cors);
         }
@@ -308,43 +498,39 @@ async function askModel(env, catalog, point, systemText, contents, cors) {
             return fail(502, 'Unexpected response from the model.', cors);
         }
 
-        /* Gemini response shape:
-             { "candidates": [{ "content": { "role": "model", "parts": [...] }, "finishReason": "..." }] }
-           A part is either { "text": "..." }
-                         or { "functionCall": { "name": "...", "args": {...} } } */
-        const candidate  = data?.candidates?.[0];
-        const finishReason = candidate?.finishReason;
-        const parts      = candidate?.content?.parts || [];
-        const funcCalls  = parts.filter(p => p.functionCall);
+        const { text, toolCalls } = parseTurn(provider, data);
 
-        // No function calls — this is the final answer. Re-request with streaming.
-        if (!funcCalls.length || finishReason === 'STOP') {
-            // Add the model turn so the final streaming request has full context.
-            msgs = [...msgs, { role: 'model', parts }];
-            break;
-        }
+        /* No tool calls — the model is answering, so stop here and re-request this same
+           turn with streaming. The buffered `text` is deliberately thrown away rather than
+           appended to the transcript: the streaming request has to end on a user or tool
+           turn (Gemini rejects one ending in a model turn outright), and appending the
+           answer would ask the model to continue past it instead of producing it.
 
-        // Append the model turn (with functionCall parts) to the conversation.
-        msgs = [...msgs, { role: 'model', parts }];
+           finishReason deliberately plays no part in this test. Gemini reports "STOP" on
+           the tool-call turn itself (verified against the live API), so the older
+           `|| finishReason === 'STOP'` check here meant a tool was never actually run on
+           the Gemini path. Groq is unambiguous — it reports "tool_calls" — but the tool
+           calls themselves are the reliable signal for both. */
+        if (!toolCalls.length) break;
 
-        // Execute each function call and build the functionResponse turn (role: "user").
-        const responseParts = funcCalls.map(part => {
-            const { name, args } = part.functionCall;
-            const result = executeTool(name, args || {}, catalog, point);
-            return {
-                functionResponse: {
-                    name,
-                    response: { result }
-                }
-            };
-        });
-        msgs = [...msgs, { role: 'user', parts: responseParts }];
+        msgs = [
+            ...msgs,
+            { role: 'assistant', text, toolCalls },
+            {
+                role: 'tool',
+                results: toolCalls.map(c => ({
+                    id:     c.id,
+                    name:   c.name,
+                    result: executeTool(c.name, c.args || {}, catalog, point)
+                }))
+            }
+        ];
     }
 
     // Stream the final model reply back to the browser.
     let upstream;
     try {
-        upstream = await callGemini(msgs, true);
+        upstream = await call(msgs, true);
     } catch (err) {
         return fail(502, 'I could not reach the model just now — try again shortly.', cors);
     }
@@ -353,7 +539,7 @@ async function askModel(env, catalog, point, systemText, contents, cors) {
             upstream.headers.get('Retry-After'));
     }
 
-    return new Response(upstream.body.pipeThrough(geminiSseTransform()), {
+    return new Response(upstream.body.pipeThrough(sseTransform(provider)), {
         headers: {
             ...cors,
             'Content-Type': 'text/event-stream; charset=utf-8',
@@ -363,7 +549,8 @@ async function askModel(env, catalog, point, systemText, contents, cors) {
     });
 }
 
-/* Turn a Gemini API error response into something worth showing a visitor. */
+/* Turn a provider API error response into something worth showing a visitor.
+   Gemini and Groq both nest the human-readable text at error.message. */
 async function upstreamMessage(res) {
     let detail = '';
     try {
@@ -385,6 +572,29 @@ async function upstreamMessage(res) {
     }
 }
 
+/* Both providers stream SSE in their own shape; the browser only ever sees ours
+   ({"delta":"..."} frames, an optional {"error":"..."}, then [DONE]), so switching
+   models never changes the transport chicagoChat.js reads. */
+function sseTransform(provider) {
+    return provider === 'gemini' ? geminiSseTransform() : groqSseTransform();
+}
+
+/* SSE event blocks are blank-line separated, but the two providers disagree on the line
+   ending: Gemini sends CRLF (so its blocks end "\r\n\r\n") and Groq sends bare LF. Splitting
+   on "\n\n" alone therefore finds no boundary at all in a Gemini stream — the whole reply
+   accumulates in the buffer and is thrown away at flush. Match either. */
+const SSE_BLOCK_SPLIT = /\r?\n\r?\n/;
+
+/* Pull the payload out of one event block, tolerating CRLF line endings inside it too.
+   Returns null for a comment/keepalive block, a block with no data line, or [DONE]. */
+function sseData(block) {
+    const dataLine = block.split(/\r?\n/).find(l => l.startsWith('data:'));
+    if (!dataLine) return null;
+    const payload = dataLine.slice(5).trim();
+    if (!payload || payload === '[DONE]') return null;
+    try { return JSON.parse(payload); } catch (err) { return null; }
+}
+
 /* Upstream Gemini SSE -> our SSE.
    Gemini streams SSE events like:
      data: {"candidates":[{"content":{"parts":[{"text":"Hello"}],...}}]}
@@ -395,53 +605,77 @@ function geminiSseTransform() {
     const encoder = new TextEncoder();
     let buffer = '';
 
-    const send = (controller, payload) =>
-        controller.enqueue(encoder.encode(`data: ${JSON.stringify(payload)}\n\n`));
+    const send = (ctrl, payload) =>
+        ctrl.enqueue(encoder.encode(`data: ${JSON.stringify(payload)}\n\n`));
+
+    const handleBlock = (block, ctrl) => {
+        const data = sseData(block);
+        if (!data) return;
+
+        /* Every text part, not just parts[0]: a chunk can carry a thought part alongside
+           the answer, in which case the answer is not the first one. */
+        (data?.candidates?.[0]?.content?.parts || []).forEach(part => {
+            if (part.thought) return;     // the model thinking out loud, not the answer
+            if (typeof part.text === 'string' && part.text) send(ctrl, { delta: part.text });
+        });
+
+        if (data?.error) {
+            send(ctrl, { error: (data.error && data.error.message) || 'The model stopped early.' });
+        }
+    };
 
     return new TransformStream({
-        transform(chunk, controller) {
+        transform(chunk, ctrl) {
             buffer += decoder.decode(chunk, { stream: true });
-            // Gemini SSE uses blank-line-separated event blocks.
-            const blocks = buffer.split('\n\n');
+            const blocks = buffer.split(SSE_BLOCK_SPLIT);
             buffer = blocks.pop() || '';   // keep the unfinished block
-
-            blocks.forEach(block => {
-                // Extract the data line from the event block.
-                const dataLine = block.split('\n').find(l => l.startsWith('data:'));
-                if (!dataLine) return;
-                const payload = dataLine.slice(5).trim();
-                if (!payload || payload === '[DONE]') return;
-
-                let data;
-                try { data = JSON.parse(payload); } catch (err) { return; }
-
-                const text = data?.candidates?.[0]?.content?.parts?.[0]?.text;
-                if (typeof text === 'string' && text) {
-                    send(controller, { delta: text });
-                }
-
-                if (data?.error) {
-                    send(controller, { error: (data.error && data.error.message) || 'The model stopped early.' });
-                }
-            });
+            blocks.forEach(block => handleBlock(block, ctrl));
         },
-        flush(controller) {
-            // Process any remaining buffered block.
-            if (buffer.trim()) {
-                const dataLine = buffer.split('\n').find(l => l.startsWith('data:'));
-                if (dataLine) {
-                    const payload = dataLine.slice(5).trim();
-                    if (payload && payload !== '[DONE]') {
-                        try {
-                            const data = JSON.parse(payload);
-                            if (data?.error) {
-                                send(controller, { error: (data.error && data.error.message) || 'The model stopped early.' });
-                            }
-                        } catch (err) { /* ignore */ }
-                    }
-                }
-            }
-            controller.enqueue(encoder.encode('data: [DONE]\n\n'));
+        flush(ctrl) {
+            if (buffer.trim()) handleBlock(buffer, ctrl);
+            ctrl.enqueue(encoder.encode('data: [DONE]\n\n'));
+        }
+    });
+}
+
+/* Upstream Groq SSE -> our SSE.
+   Groq streams OpenAI-style blocks:
+     data: {"choices":[{"delta":{"content":"Hello"}}]}
+     data: [DONE]
+   Its reasoning models also stream {"delta":{"reasoning":"..."}} blocks. That is
+   the model thinking out loud rather than answering, so those are dropped and
+   never reach the page. */
+function groqSseTransform() {
+    const decoder = new TextDecoder();
+    const encoder = new TextEncoder();
+    let buffer = '';
+
+    const send = (ctrl, payload) =>
+        ctrl.enqueue(encoder.encode(`data: ${JSON.stringify(payload)}\n\n`));
+
+    const handleBlock = (block, ctrl) => {
+        const data = sseData(block);
+        if (!data) return;
+
+        const text = data?.choices?.[0]?.delta?.content;
+        if (typeof text === 'string' && text) {
+            send(ctrl, { delta: text });
+        }
+        if (data?.error) {
+            send(ctrl, { error: (data.error && data.error.message) || 'The model stopped early.' });
+        }
+    };
+
+    return new TransformStream({
+        transform(chunk, ctrl) {
+            buffer += decoder.decode(chunk, { stream: true });
+            const blocks = buffer.split(SSE_BLOCK_SPLIT);
+            buffer = blocks.pop() || '';   // keep the unfinished block
+            blocks.forEach(block => handleBlock(block, ctrl));
+        },
+        flush(ctrl) {
+            if (buffer.trim()) handleBlock(buffer, ctrl);
+            ctrl.enqueue(encoder.encode('data: [DONE]\n\n'));
         }
     });
 }
@@ -850,8 +1084,12 @@ async function health(env, cors) {
             neighborhoods: catalog.hoods.length,
             source: catalog.source,
             promptChars: catalog.text.length,
-            model: env.MODEL || DEFAULTS.MODEL,
-            keyConfigured: Boolean(env.GEMINI_API_KEY)
+            defaultModel: env.MODEL || DEFAULTS.MODEL,
+            allowedModels: ALLOWED_MODELS,
+            keyConfigured: {
+                gemini: Boolean(env.GEMINI_API_KEY),
+                groq:   Boolean(env.GROQ_API_KEY)
+            }
         };
     } catch (err) {
         info = { ok: false, error: 'could not load place data' };
