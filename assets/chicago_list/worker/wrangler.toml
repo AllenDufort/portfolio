@@ -1,8 +1,7 @@
 # Cloudflare Worker behind the Chicago map's chat widget. It holds the Anthropic API key
 # so the static page never has to, and builds the whole prompt from the sheet itself.
 #
-#   npx wrangler secret put ANTHROPIC_API_KEY       # from console.anthropic.com
-#   npx wrangler deploy
+#   bash assets/chicago_list/worker/deploy.sh       # sets the secret and deploys
 #
 # The deployed URL goes in WORKER_URL at the top of ../chicagoChat.js.
 

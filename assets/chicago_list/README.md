@@ -28,10 +28,10 @@ commit, no build, and no pipeline run.
 
 | File | Description |
 |------|-------------|
-| `worker/worker.js` | Cloudflare Worker. Holds the Ollama Cloud key as a server-side secret, builds the whole prompt from the sheet itself, and streams the model's reply back as SSE. See [Chat assistant](#chat-assistant). |
+| `worker/worker.js` | Cloudflare Worker. Holds the Anthropic API key as a server-side secret, builds the whole prompt from the sheet itself, and streams the model's reply back as SSE. See [Chat assistant](#chat-assistant). |
 | `worker/wrangler.toml` | Deploy config: Worker name, model, allowed origins, snapshot URL. Everything here is public — the key is not in it. |
-| `worker/deploy.sh` | One-shot deploy script. Loads `.env` from the repo root, pushes `OLLAMA_API_KEY` as a Worker secret, then runs `wrangler deploy`. See [Deploying the Worker](#deploying-the-worker). |
-| `worker/.dev.vars.example` | Template for local runs. Copy to `.dev.vars` (gitignored) and paste your key in for `wrangler dev`. |
+| `worker/deploy.sh` | One-shot deploy script. Loads `.env` from the repo root, pushes `ANTHROPIC_API_KEY` as a Worker secret, then deploys the Worker. See [Deploying the Worker](#deploying-the-worker). |
+| `worker/.dev.vars.example` | Template for local runs. Copy to `.dev.vars` (gitignored) and paste your key in, then run `deploy.sh` for dev. |
 
 ### Front-end
 
@@ -42,15 +42,15 @@ commit, no build, and no pipeline run.
 
 ## Chat assistant
 
-Every answer comes from an LLM on [Ollama Cloud](https://ollama.com). There is no local retrieval
+Every answer comes from [Anthropic Claude](https://www.anthropic.com). There is no local retrieval
 layer and no fallback answer: if the model cannot be reached, the widget says so rather than showing a
 quiet substitute that would read like a bad reply.
 
-The browser never talks to Ollama Cloud. **A key shipped to a static page is a public key**, so it lives
-only as a Cloudflare Worker secret and the page talks to the Worker:
+The browser never talks to Anthropic directly. **A key shipped to a static page is a public key**, so it
+lives only as a Cloudflare Worker secret and the page talks to the Worker:
 
 ```
-browser ──POST {question, history, coords?}──> Worker ──> Ollama Cloud ──SSE──> browser
+browser ──POST {question, history, coords?}──> Worker ──> Anthropic Claude ──SSE──> browser
                                                  │
                                                  └── Google Sheet + geocode_cache.json (prompt)
 ```
@@ -61,7 +61,7 @@ lets a caller use it as a general LLM proxy.
 
 | Concern | How the Worker handles it |
 |---------|---------------------------|
-| The key | `OLLAMA_API_KEY`, set with `wrangler secret put`. Never in `wrangler.toml`, the repo, or a response. |
+| The key | `ANTHROPIC_API_KEY`, pushed by `deploy.sh`. Never in `wrangler.toml`, the repo, or a response. |
 | Who may call it | `ALLOWED_ORIGINS` in `wrangler.toml`. A foreign origin gets `403` with no CORS header. |
 | Abuse | 12 requests/minute per IP (`429` + `Retry-After`). The model, temperature, and token cap are pinned server-side. |
 | Prompt injection through history | Only `user` and `assistant` turns are forwarded; an injected `system` turn is dropped. History is capped at 6 turns and 600 chars, the question at 500. |
@@ -69,12 +69,12 @@ lets a caller use it as a general LLM proxy.
 | A dead endpoint | `GET /` returns a health JSON — place count, neighborhood count, whether the data came from the sheet or the snapshot, prompt size, model, and whether the key is configured. It never reveals the key itself. |
 
 **The prompt is the whole map.** All 552 places with their notes come to ~34 KB (~8.5k tokens) against
-the model's 1M-token context, so nothing is pre-selected and no place can be hidden from a question
+the model's context window, so nothing is pre-selected and no place can be hidden from a question
 that asks for it. Places are grouped under `## Neighborhood (count)` headings, which is what makes
 *"what food spots are in South Loop?"* reliable — the answer is one contiguous, counted block instead
 of 552 rows to filter — and lets the model answer "how many" from a heading rather than by counting.
 
-Replies stream. The Worker normalises Ollama Cloud's SSE into one shape (`{"delta"}`, `{"error"}`,
+Replies stream. The Worker normalises Claude's SSE into one shape (`{"delta"}`, `{"error"}`,
 `[DONE]`) and maps upstream status codes (401/429/5xx) to sentences a visitor can act on. Streaming
 is not cosmetic here: the model can take seconds to start, and the client also shows a "still
 thinking" note at 9s and gives up at 90s.
@@ -117,8 +117,8 @@ Worker running alongside it, in a second terminal:
 
 ```sh
 cd assets/chicago_list/worker
-cp .dev.vars.example .dev.vars   # gitignored; paste the key here
-npx wrangler dev                 # http://127.0.0.1:8787
+cp .dev.vars.example .dev.vars   # gitignored; paste your ANTHROPIC_API_KEY here
+bash deploy.sh                   # sets the secret and starts the Worker at http://127.0.0.1:8787
 ```
 
 `chicagoChat.js` switches to the dev URL by itself when the page's hostname is `localhost` or
@@ -129,26 +129,25 @@ there. Skipping the Worker leaves the map fully working and the chat saying it i
 ### Deploying the Worker
 
 **Prerequisites:** a free [Cloudflare account](https://dash.cloudflare.com/sign-up), an
-[Ollama Cloud](https://ollama.com) API key, and `OLLAMA_API_KEY` / `WRANGLER_WORKER_NAME` set in the
-repo-root `.env` (see `.env.example`).
+[Anthropic API key](https://console.anthropic.com), and `ANTHROPIC_API_KEY` / `WRANGLER_WORKER_NAME`
+set in the repo-root `.env` (see `.env.example`).
 
-Log in once, then run the deploy script from anywhere in the repo:
+Log in to Cloudflare once (opens a browser tab), then run the deploy script from anywhere in the repo:
 
 ```sh
-npx wrangler login                           # one-time; opens a browser tab
 bash assets/chicago_list/worker/deploy.sh
 ```
 
 `deploy.sh` does three things in order:
 
 1. Loads `.env` from the repo root (`set -a; source .env; set +a`).
-2. Pushes `OLLAMA_API_KEY` as a Cloudflare Worker secret via `wrangler secret put` — the value pipes
-   in directly and never touches shell history or the repo.
-3. `cd`s into `worker/` and runs `wrangler deploy --config wrangler.toml --name $WRANGLER_WORKER_NAME`,
-   which prints the live URL (e.g. `https://chicago-chat.chicagochat.workers.dev`).
+2. Pushes `ANTHROPIC_API_KEY` as a Cloudflare Worker secret — the value pipes in directly and never
+   touches shell history or the repo.
+3. `cd`s into `worker/` and deploys the Worker, which prints the live URL
+   (e.g. `https://chicago-chat.chicagochat.workers.dev`).
 
 The script exits immediately on any failure (`set -euo pipefail`) and prints a clear message if
-`OLLAMA_API_KEY` or `WRANGLER_WORKER_NAME` is missing from `.env`.
+`ANTHROPIC_API_KEY` or `WRANGLER_WORKER_NAME` is missing from `.env`.
 
 > **Why run from `worker/`, not the repo root?** With no config file in sight, wrangler treats the
 > current directory as a static-assets Worker, scans everything including `.git`, and fails —
@@ -169,7 +168,8 @@ secret push did not land — re-run `deploy.sh`. `"source":"snapshot"` means the
 answers are coming from the committed GeoJSON instead.
 
 **Subsequent deploys** (model change, code change): just re-run `bash assets/chicago_list/worker/deploy.sh`.
-To rotate the key only, `wrangler secret put` alone is enough — no redeploy needed.
+To rotate the key only, re-run `deploy.sh` — it pushes the secret first then deploys, so the new key
+is live atomically.
 
 ## Data flow
 
@@ -178,8 +178,8 @@ Google Sheet ──gviz CSV──> chicagoData.js ────> chicagoMap.js   
  (source of truth)     │    (per page load) │
                        │                    └── sheet unreachable? ──> chicago_layers.geojson
                        │
-                       └──gviz CSV──> worker/worker.js ──> Ollama Cloud ──> chicagoChat.js
-                                       (prompt, 5-min cache)                  (streamed reply)
+                       └──gviz CSV──> worker/worker.js ──> Anthropic Claude ──> chicagoChat.js
+                                       (prompt, 5-min cache)                     (streamed reply)
 ```
 
 Two independent readers of the same sheet. The map reads it in the browser; the Worker reads it

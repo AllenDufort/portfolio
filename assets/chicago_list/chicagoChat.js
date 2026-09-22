@@ -20,7 +20,7 @@
     /* The deployed Worker in ./worker. Re-deploying keeps this URL; it only changes if the
        Worker's `name` in wrangler.toml does. Claude is the model; the key stays server-side. */
     const WORKER_URL = 'https://chicago-chat.chicagochat.workers.dev';
-    const DEV_WORKER_URL = 'http://127.0.0.1:8787';       // npx wrangler dev
+    const DEV_WORKER_URL = 'http://127.0.0.1:8787';       // deploy.sh in worker/
 
     const REQUEST_TIMEOUT_MS = 90000;   // a 550B model on a free endpoint can be slow
     const SLOW_HINT_MS = 9000;          // when to admit it is taking a while

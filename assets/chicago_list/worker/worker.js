@@ -12,14 +12,12 @@
    key behind a public URL.
 
    Deploy:
-     cd assets/chicago_list/worker
-     npx wrangler secret put ANTHROPIC_API_KEY      # from console.anthropic.com — never commit it
-     npx wrangler deploy
+     bash assets/chicago_list/worker/deploy.sh      # sets ANTHROPIC_API_KEY secret and deploys
    Then put the deployed URL in WORKER_URL at the top of ../chicagoChat.js.
 
    Local development:
-     cp .dev.vars.example .dev.vars                 # paste the key into .dev.vars
-     npx wrangler dev                               # serves http://127.0.0.1:8787
+     cp .dev.vars.example .dev.vars                 # paste your ANTHROPIC_API_KEY into .dev.vars
+     bash assets/chicago_list/worker/deploy.sh      # serves http://127.0.0.1:8787
 
    GET / returns a health summary (place count, neighborhoods, data source, model), so
    a deployment can be verified without spending a model call. */
