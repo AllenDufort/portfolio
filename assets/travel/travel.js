@@ -28,102 +28,94 @@
             : WORKER_URL;
     }
 
-    /* ── localStorage DB ──────────────────────────────────────────────────── */
+    /* ── KV-backed DB (via Worker) ─────────────────────────────────────────
+       Every method returns a Promise. Callers that previously used sync DB.*
+       calls now await them. A lightweight in-memory cache avoids redundant
+       round-trips within a single page-load; it is invalidated on every write.  */
+
+    const _cache = { trips: null, prefs: null };
+
+    async function dbCall(op, extra = {}) {
+        const res = await fetch(workerEndpoint(), {
+            method:  'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body:    JSON.stringify({ type: 'db', op, ...extra })
+        });
+        if (!res.ok) {
+            const d = await res.json().catch(() => ({}));
+            throw new Error(d.error || `DB error (HTTP ${res.status})`);
+        }
+        const json = await res.json();
+        return json.data;          // Worker always wraps in { ok, data }
+    }
+
     const DB = {
-        _key: k => `tp_${k}`,
-        get(k)       { try { return JSON.parse(localStorage.getItem(DB._key(k))); } catch { return null; } },
-        set(k, v)    { localStorage.setItem(DB._key(k), JSON.stringify(v)); },
+        /* ── Preferences ───────────────────────────────────────────────── */
+        async prefs() {
+            if (_cache.prefs) return _cache.prefs;
+            _cache.prefs = await dbCall('get_prefs');
+            return _cache.prefs;
+        },
+        async savePrefs(p) {
+            _cache.prefs = null;
+            return dbCall('save_prefs', { data: p });
+        },
 
-        prefs() {
-            return DB.get('prefs') || {
-                initialized: false,
-                travel_style: '',
-                budget_level: 'mid-range',
-                accommodation_preference: [],
-                interests: ['history', 'food', 'photography'],
-                dietary_restrictions: [],
-                pace_preference: 'moderate',
-                travel_companions: 'Solo / Partner',
-                language_skills: ['English'],
-                previous_destinations: [],
-                bucket_list: []
-            };
+        /* ── Trips ─────────────────────────────────────────────────────── */
+        async trips() {
+            if (_cache.trips) return _cache.trips;
+            _cache.trips = await dbCall('get_trips');
+            return _cache.trips;
         },
-        savePrefs(p)  { DB.set('prefs', { ...p, initialized: true, last_updated: new Date().toISOString() }); },
-
-        trips() {
-            return DB.get('trips') || { current_trips: [], past_trips: [], trip_ideas: [] };
+        async addTrip(trip, status) {
+            _cache.trips = null;
+            const result = await dbCall('add_trip', { trip, status });
+            return result.id;
         },
-        saveTrips(t) { DB.set('trips', t); },
-
-        addTrip(trip, status) {
-            const t = DB.trips();
-            const id = String(Date.now());
-            trip = { ...trip, id, created_at: new Date().toISOString() };
-            if      (status === 'current') t.current_trips.push(trip);
-            else if (status === 'past')    t.past_trips.push(trip);
-            else                            t.trip_ideas.push(trip);
-            DB.saveTrips(t);
-            return id;
+        async updateTrip(id, updates) {
+            _cache.trips = null;
+            return dbCall('update_trip', { id, updates });
         },
-        updateTrip(id, updates) {
-            const t = DB.trips();
-            for (const list of [t.current_trips, t.past_trips, t.trip_ideas]) {
-                const trip = list.find(x => x.id === id);
-                if (trip) { Object.assign(trip, updates, { updated_at: new Date().toISOString() }); DB.saveTrips(t); return; }
-            }
-        },
-        getTrip(id) {
-            const t = DB.trips();
+        async getTrip(id) {
+            const t = await DB.trips();
             for (const list of [t.current_trips, t.past_trips, t.trip_ideas]) {
                 const trip = list.find(x => x.id === id);
                 if (trip) return trip;
             }
             return null;
         },
-        deleteTrip(id) {
-            const t = DB.trips();
-            for (const key of ['current_trips', 'past_trips', 'trip_ideas']) {
-                const i = t[key].findIndex(x => x.id === id);
-                if (i !== -1) { t[key].splice(i, 1); DB.saveTrips(t); return; }
-            }
+        async deleteTrip(id) {
+            _cache.trips = null;
+            return dbCall('delete_trip', { id });
         },
-        completeTip(id) {
-            const t = DB.trips();
-            const i = t.current_trips.findIndex(x => x.id === id);
-            if (i !== -1) {
-                const [trip] = t.current_trips.splice(i, 1);
-                trip.completed_at = new Date().toISOString();
-                t.past_trips.push(trip);
-                DB.saveTrips(t);
-            }
+        async completeTip(id) {
+            _cache.trips = null;
+            return dbCall('complete_trip', { id });
         },
-        addExpense(tripId, exp) {
-            const t = DB.trips();
-            for (const list of [t.current_trips, t.past_trips]) {
-                const trip = list.find(x => x.id === tripId);
-                if (trip) {
-                    if (!trip.expenses) trip.expenses = [];
-                    trip.expenses.push({ ...exp, id: String(Date.now()) });
-                    trip.budget = trip.budget || {};
-                    trip.budget.spent = trip.expenses.reduce((s, e) => s + (e.amount || 0), 0);
-                    DB.saveTrips(t);
-                    return;
-                }
-            }
+        async addExpense(tripId, exp) {
+            _cache.trips = null;
+            return dbCall('add_expense', { trip_id: tripId, expense: exp });
         },
-        stats() {
-            const t = DB.trips();
-            const p = DB.prefs();
-            const past = t.past_trips || [];
-            const countries = new Set(past.map(x => x.destination?.country).filter(Boolean));
-            return {
-                total_trips:       past.length,
-                current_trips:     (t.current_trips || []).length,
-                countries_visited: countries.size,
-                total_days_traveled: past.reduce((s, x) => s + (x.duration_days || 0), 0),
-                total_spent:       past.reduce((s, x) => s + (x.budget?.spent || 0), 0)
-            };
+        async stats() {
+            return dbCall('stats');
+        },
+
+        /* ── Bucket list & visited ─────────────────────────────────────── */
+        async addBucket(destination, notes) {
+            _cache.prefs = null;
+            return dbCall('add_bucket', { destination, notes });
+        },
+        async removeBucket(destination) {
+            _cache.prefs = null;
+            return dbCall('remove_bucket', { destination });
+        },
+        async addVisited(destination) {
+            _cache.prefs = null;
+            return dbCall('add_visited', { destination });
+        },
+        async removeVisited(destination) {
+            _cache.prefs = null;
+            return dbCall('remove_visited', { destination });
         }
     };
 
@@ -292,15 +284,14 @@
     function hideMsg(el) { setVisible(el, false); }
 
     /* ── Dashboard ─────────────────────────────────────────────────────────── */
-    function renderDashboard() {
-        const s = DB.stats();
+    async function renderDashboard() {
+        const [s, t] = await Promise.all([DB.stats(), DB.trips()]);
         document.getElementById('stat-trips').textContent     = s.total_trips;
         document.getElementById('stat-active').textContent    = s.current_trips;
         document.getElementById('stat-countries').textContent = s.countries_visited;
         document.getElementById('stat-days').textContent      = s.total_days_traveled;
         document.getElementById('stat-spent').textContent     = fmt$(s.total_spent);
 
-        const t = DB.trips();
         renderTripList('current-trips-list', t.current_trips, 'current');
         renderTripList('past-trips-list',    t.past_trips,    'past');
         renderTripList('ideas-list',         t.trip_ideas,    'idea');
@@ -349,8 +340,8 @@
     depInput.value = def.toISOString().slice(0, 10);
 
     // Load prefs into form
-    function loadPrefsIntoForm() {
-        const p = DB.prefs();
+    async function loadPrefsIntoForm() {
+        const p = await DB.prefs();
         const si = (id, v) => { const el = document.getElementById(id); if (el && v) el.value = v; };
         si('plan-budget-tier', p.budget_level);
         si('plan-pace',        p.pace_preference);
@@ -392,7 +383,7 @@
 
         if (!city || !country) { showMsg(document.getElementById('plan-status-msg'), 'Please enter a city and country.', 'error'); return; }
 
-        const prefs = DB.prefs();
+        const prefs = await DB.prefs();
         const statusMsg = document.getElementById('plan-status-msg');
         const btn = document.getElementById('plan-generate-btn');
         btn.disabled = true;
@@ -426,7 +417,7 @@
                 budget:        { total: totalBudget, spent: 0 },
                 expenses:      []
             };
-            const tripId = DB.addTrip(tripData, status);
+            const tripId = await DB.addTrip(tripData, status);
             lastGeneratedTripId = tripId;
 
             // Persist AI results into the trip
@@ -441,7 +432,7 @@
             const fallbackPack    = fallbackPacking(climate, duration, activities);
             const fallbackTime    = fallbackTimeline(country, depDate);
 
-            DB.updateTrip(tripId, {
+            await DB.updateTrip(tripId, {
                 itinerary:         result.daily_itinerary || [],
                 ai_recommendations:aiRec,
                 budget_breakdown:  fallbackBudget,
@@ -459,8 +450,8 @@
         }
     });
 
-    function renderPlanResults(tripId) {
-        const trip = DB.getTrip(tripId);
+    async function renderPlanResults(tripId) {
+        const trip = await DB.getTrip(tripId);
         if (!trip) return;
         const ai  = trip.ai_recommendations || {};
 
@@ -629,7 +620,7 @@
         }, SLOW_HINT_MS);
 
         const model  = document.getElementById('model-select').value;
-        const prefs  = DB.prefs();
+        const prefs  = await DB.prefs();
         const hist   = conciergeHistory.slice(-HISTORY_TURNS);
 
         try {
@@ -673,8 +664,8 @@
     }
 
     /* ── Budget Tracker ────────────────────────────────────────────────────── */
-    function renderBudgetPage() {
-        const t  = DB.trips();
+    async function renderBudgetPage() {
+        const t   = await DB.trips();
         const all = [...(t.current_trips || []), ...(t.past_trips || [])];
         const sel = document.getElementById('budget-trip-select');
         sel.innerHTML = all.length
@@ -690,8 +681,8 @@
         else document.getElementById('budget-summary').innerHTML = '';
     }
 
-    function renderBudgetSummary(tripId) {
-        const trip = DB.getTrip(tripId);
+    async function renderBudgetSummary(tripId) {
+        const trip = await DB.getTrip(tripId);
         if (!trip) return;
         const expenses  = trip.expenses || [];
         const total     = trip.budget?.total || 0;
@@ -725,7 +716,7 @@
     // Set default expense date to today
     document.getElementById('exp-date').value = new Date().toISOString().slice(0, 10);
 
-    document.getElementById('exp-add-btn').addEventListener('click', () => {
+    document.getElementById('exp-add-btn').addEventListener('click', async () => {
         const tripId = document.getElementById('budget-trip-select').value;
         if (!tripId) { alert('No trip selected.'); return; }
         const exp = {
@@ -734,24 +725,25 @@
             category:    document.getElementById('exp-category').value,
             date:        document.getElementById('exp-date').value
         };
-        DB.addExpense(tripId, exp);
+        await DB.addExpense(tripId, exp);
         renderBudgetSummary(tripId);
         // Reset amount
         document.getElementById('exp-amount').value = '35';
     });
 
     /* ── Profile / Preferences ─────────────────────────────────────────────── */
-    function renderProfilePage() {
-        loadPrefsIntoForm();
-        const p = DB.prefs();
+    async function renderProfilePage() {
+        await loadPrefsIntoForm();
+        const p = await DB.prefs();
         renderBucketList(p.bucket_list || []);
         renderPrevDest(p.previous_destinations || []);
     }
 
-    document.getElementById('pref-save-btn').addEventListener('click', () => {
+    document.getElementById('pref-save-btn').addEventListener('click', async () => {
         const csv = s => s.split(',').map(x => x.trim()).filter(Boolean);
-        DB.savePrefs({
-            ...DB.prefs(),
+        const existing = await DB.prefs();
+        await DB.savePrefs({
+            ...existing,
             travel_style:         document.getElementById('pref-style').value,
             budget_level:         document.getElementById('pref-budget').value,
             pace_preference:      document.getElementById('pref-pace').value,
@@ -785,27 +777,19 @@
             : '<p class="tp-empty">No visited places logged.</p>';
     }
 
-    document.getElementById('bucket-add-btn').addEventListener('click', () => {
+    document.getElementById('bucket-add-btn').addEventListener('click', async () => {
         const dest  = document.getElementById('bucket-dest').value.trim();
         const notes = document.getElementById('bucket-notes').value.trim();
         if (!dest) return;
-        const p = DB.prefs();
-        if (!p.bucket_list) p.bucket_list = [];
-        p.bucket_list.push({ destination: dest, notes, added_at: new Date().toISOString() });
-        DB.savePrefs(p);
-        renderBucketList(p.bucket_list);
+        const list = await DB.addBucket(dest, notes);
+        renderBucketList(list);
     });
 
-    document.getElementById('prev-dest-add-btn').addEventListener('click', () => {
+    document.getElementById('prev-dest-add-btn').addEventListener('click', async () => {
         const dest = document.getElementById('prev-dest-input').value.trim();
         if (!dest) return;
-        const p = DB.prefs();
-        if (!p.previous_destinations) p.previous_destinations = [];
-        if (!p.previous_destinations.includes(dest)) {
-            p.previous_destinations.push(dest);
-            DB.savePrefs(p);
-        }
-        renderPrevDest(p.previous_destinations);
+        const list = await DB.addVisited(dest);
+        renderPrevDest(list);
         document.getElementById('prev-dest-input').value = '';
     });
 
@@ -827,13 +811,13 @@
 
     /* ── Global callbacks (called from inline onclick in rendered HTML) ─────── */
     window.TravelApp = {
-        deleteTrip(id) {
+        async deleteTrip(id) {
             if (!confirm('Delete this trip?')) return;
-            DB.deleteTrip(id);
+            await DB.deleteTrip(id);
             renderDashboard();
         },
-        completeTrip(id) {
-            DB.completeTip(id);
+        async completeTrip(id) {
+            await DB.completeTip(id);
             renderDashboard();
         },
         viewPlan(id) {
@@ -841,17 +825,13 @@
             showPage('plan');
             renderPlanResults(id);
         },
-        removeBucket(dest) {
-            const p = DB.prefs();
-            p.bucket_list = (p.bucket_list || []).filter(b => b.destination !== dest);
-            DB.savePrefs(p);
-            renderBucketList(p.bucket_list);
+        async removeBucket(dest) {
+            const list = await DB.removeBucket(dest);
+            renderBucketList(list);
         },
-        removePrevDest(dest) {
-            const p = DB.prefs();
-            p.previous_destinations = (p.previous_destinations || []).filter(d => d !== dest);
-            DB.savePrefs(p);
-            renderPrevDest(p.previous_destinations);
+        async removePrevDest(dest) {
+            const list = await DB.removeVisited(dest);
+            renderPrevDest(list);
         }
     };
 

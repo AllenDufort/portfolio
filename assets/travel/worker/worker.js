@@ -54,19 +54,22 @@ export default {
             return fail(429, 'Too many requests — give it a minute.', cors, 60);
         }
 
-        if (!env.ANTHROPIC_API_KEY) {
-            return fail(500, 'API key not configured. Run: bash deploy.sh', cors);
-        }
-
         let body;
         try { body = await request.json(); }
         catch { return fail(400, 'Expected JSON body.', cors); }
 
         const type = String(body?.type || '');
 
-        if (type === 'generate') return handleGenerate(body, env, cors);
+        // DB operations do not require the Anthropic key.
+        if (type === 'db') return handleDb(body, env, cors);
+
+        if (!env.ANTHROPIC_API_KEY) {
+            return fail(500, 'API key not configured. Run: bash deploy.sh', cors);
+        }
+
+        if (type === 'generate')  return handleGenerate(body, env, cors);
         if (type === 'concierge') return handleConcierge(body, env, cors);
-        return fail(400, 'Unknown request type. Use "generate" or "concierge".', cors);
+        return fail(400, 'Unknown request type. Use "generate", "concierge", or "db".', cors);
     }
 };
 
@@ -275,6 +278,244 @@ function claudeSseTransform() {
             }
             ctrl.enqueue(encoder.encode('data: [DONE]\n\n'));
         }
+    });
+}
+
+/* ── KV-backed database ──────────────────────────────────────────────────── */
+
+/*  KV keys:
+ *    "prefs"  → preferences object  (same shape as travel_db.py PREFERENCES_FILE)
+ *    "trips"  → trips object        (same shape as travel_db.py TRIPS_FILE)
+ *
+ *  All mutations are read-modify-write because KV has no atomic sub-key updates.
+ *  Trip lists are small (personal use), so this is fine.
+ */
+
+const DEFAULT_PREFS = () => ({
+    initialized: false,
+    travel_style: '',
+    budget_level: 'mid-range',
+    accommodation_preference: [],
+    interests: ['history', 'food', 'photography'],
+    dietary_restrictions: [],
+    accessibility_needs: [],
+    preferred_activities: [],
+    pace_preference: 'moderate',
+    travel_companions: 'Solo / Partner',
+    language_skills: ['English'],
+    previous_destinations: [],
+    bucket_list: []
+});
+
+const DEFAULT_TRIPS = () => ({ current_trips: [], past_trips: [], trip_ideas: [] });
+
+async function kvGetPrefs(env) {
+    if (!env.TRAVEL_DB) return DEFAULT_PREFS();
+    const raw = await env.TRAVEL_DB.get('prefs');
+    return raw ? JSON.parse(raw) : DEFAULT_PREFS();
+}
+
+async function kvPutPrefs(env, prefs) {
+    if (!env.TRAVEL_DB) return;
+    await env.TRAVEL_DB.put('prefs', JSON.stringify(prefs));
+}
+
+async function kvGetTrips(env) {
+    if (!env.TRAVEL_DB) return DEFAULT_TRIPS();
+    const raw = await env.TRAVEL_DB.get('trips');
+    return raw ? JSON.parse(raw) : DEFAULT_TRIPS();
+}
+
+async function kvPutTrips(env, trips) {
+    if (!env.TRAVEL_DB) return;
+    await env.TRAVEL_DB.put('trips', JSON.stringify(trips));
+}
+
+function tripById(trips, id) {
+    for (const list of [trips.current_trips, trips.past_trips, trips.trip_ideas]) {
+        const t = list.find(x => x.id === id);
+        if (t) return t;
+    }
+    return null;
+}
+
+function computeStats(trips, prefs) {
+    const past    = trips.past_trips    || [];
+    const current = trips.current_trips || [];
+    const countries = new Set(past.map(x => x.destination?.country).filter(Boolean));
+    return {
+        total_trips:          past.length,
+        current_trips:        current.length,
+        countries_visited:    countries.size,
+        countries_list:       [...countries].sort(),
+        total_days_traveled:  past.reduce((s, x) => s + (x.duration_days || 0), 0),
+        total_spent:          past.reduce((s, x) => s + (x.budget?.spent  || 0), 0),
+        bucket_list_size:     (prefs.bucket_list || []).length,
+        average_trip_duration: past.length ? past.reduce((s, x) => s + (x.duration_days || 0), 0) / past.length : 0
+    };
+}
+
+async function handleDb(body, env, cors) {
+    const op = String(body?.op || '');
+
+    // ── Preferences ───────────────────────────────────────────────────────
+    if (op === 'get_prefs') {
+        return ok(await kvGetPrefs(env), cors);
+    }
+
+    if (op === 'save_prefs') {
+        const prefs = await kvGetPrefs(env);
+        Object.assign(prefs, body.data || {});
+        prefs.initialized  = true;
+        prefs.last_updated = new Date().toISOString();
+        await kvPutPrefs(env, prefs);
+        return ok(prefs, cors);
+    }
+
+    // ── Trips ─────────────────────────────────────────────────────────────
+    if (op === 'get_trips') {
+        const trips = await kvGetTrips(env);
+        const status = String(body.status || 'all');
+        if (status === 'current') return ok({ current_trips: trips.current_trips }, cors);
+        if (status === 'past')    return ok({ past_trips:    trips.past_trips    }, cors);
+        if (status === 'ideas')   return ok({ trip_ideas:    trips.trip_ideas    }, cors);
+        return ok(trips, cors);
+    }
+
+    if (op === 'add_trip') {
+        const trips  = await kvGetTrips(env);
+        const status = String(body.status || 'current');
+        const trip   = { ...(body.trip || {}), id: String(Date.now()), created_at: new Date().toISOString() };
+        if      (status === 'current') trips.current_trips.push(trip);
+        else if (status === 'past')    trips.past_trips.push(trip);
+        else                           trips.trip_ideas.push(trip);
+        await kvPutTrips(env, trips);
+        return ok({ id: trip.id }, cors);
+    }
+
+    if (op === 'update_trip') {
+        const trips  = await kvGetTrips(env);
+        const id     = String(body.id || '');
+        let found    = false;
+        for (const list of [trips.current_trips, trips.past_trips, trips.trip_ideas]) {
+            const t = list.find(x => x.id === id);
+            if (t) { Object.assign(t, body.updates || {}, { updated_at: new Date().toISOString() }); found = true; break; }
+        }
+        if (!found) return fail(404, `Trip ${id} not found.`, cors);
+        await kvPutTrips(env, trips);
+        return ok(tripById(trips, id), cors);
+    }
+
+    if (op === 'delete_trip') {
+        const trips = await kvGetTrips(env);
+        const id    = String(body.id || '');
+        let found   = false;
+        for (const key of ['current_trips', 'past_trips', 'trip_ideas']) {
+            const i = trips[key].findIndex(x => x.id === id);
+            if (i !== -1) { trips[key].splice(i, 1); found = true; break; }
+        }
+        if (!found) return fail(404, `Trip ${id} not found.`, cors);
+        await kvPutTrips(env, trips);
+        return ok(null, cors);
+    }
+
+    if (op === 'complete_trip') {
+        const trips = await kvGetTrips(env);
+        const id    = String(body.id || '');
+        const i     = trips.current_trips.findIndex(x => x.id === id);
+        if (i === -1) return fail(404, `Trip ${id} not found in current trips.`, cors);
+        const [trip] = trips.current_trips.splice(i, 1);
+        trip.completed_at = new Date().toISOString();
+        trips.past_trips.push(trip);
+        await kvPutTrips(env, trips);
+        return ok(null, cors);
+    }
+
+    // ── Expenses ──────────────────────────────────────────────────────────
+    if (op === 'add_expense') {
+        const trips  = await kvGetTrips(env);
+        const tripId = String(body.trip_id || '');
+        let found    = false;
+        for (const list of [trips.current_trips, trips.past_trips]) {
+            const t = list.find(x => x.id === tripId);
+            if (t) {
+                if (!t.expenses) t.expenses = [];
+                t.expenses.push({ ...(body.expense || {}), id: String(Date.now()) });
+                t.budget        = t.budget || {};
+                t.budget.spent  = t.expenses.reduce((s, e) => s + (e.amount || 0), 0);
+                found = true;
+                break;
+            }
+        }
+        if (!found) return fail(404, `Trip ${tripId} not found.`, cors);
+        await kvPutTrips(env, trips);
+        return ok(tripById(trips, tripId), cors);
+    }
+
+    // ── Stats ─────────────────────────────────────────────────────────────
+    if (op === 'stats') {
+        const [trips, prefs] = await Promise.all([kvGetTrips(env), kvGetPrefs(env)]);
+        return ok(computeStats(trips, prefs), cors);
+    }
+
+    // ── Bucket list & visited ─────────────────────────────────────────────
+    if (op === 'add_bucket') {
+        const prefs = await kvGetPrefs(env);
+        if (!prefs.bucket_list) prefs.bucket_list = [];
+        prefs.bucket_list.push({
+            destination: String(body.destination || ''),
+            notes:       String(body.notes || ''),
+            added_at:    new Date().toISOString()
+        });
+        await kvPutPrefs(env, prefs);
+        return ok(prefs.bucket_list, cors);
+    }
+
+    if (op === 'remove_bucket') {
+        const prefs = await kvGetPrefs(env);
+        const dest  = String(body.destination || '');
+        prefs.bucket_list = (prefs.bucket_list || []).filter(b => b.destination !== dest);
+        await kvPutPrefs(env, prefs);
+        return ok(prefs.bucket_list, cors);
+    }
+
+    if (op === 'add_visited') {
+        const prefs = await kvGetPrefs(env);
+        if (!prefs.previous_destinations) prefs.previous_destinations = [];
+        const dest = String(body.destination || '');
+        if (!prefs.previous_destinations.includes(dest)) prefs.previous_destinations.push(dest);
+        await kvPutPrefs(env, prefs);
+        return ok(prefs.previous_destinations, cors);
+    }
+
+    if (op === 'remove_visited') {
+        const prefs = await kvGetPrefs(env);
+        const dest  = String(body.destination || '');
+        prefs.previous_destinations = (prefs.previous_destinations || []).filter(d => d !== dest);
+        await kvPutPrefs(env, prefs);
+        return ok(prefs.previous_destinations, cors);
+    }
+
+    // ── Export / Reset ────────────────────────────────────────────────────
+    if (op === 'export') {
+        const [trips, prefs] = await Promise.all([kvGetTrips(env), kvGetPrefs(env)]);
+        return ok({ preferences: prefs, trips, stats: computeStats(trips, prefs), exported_at: new Date().toISOString() }, cors);
+    }
+
+    if (op === 'reset') {
+        await Promise.all([
+            env.TRAVEL_DB ? env.TRAVEL_DB.delete('prefs') : Promise.resolve(),
+            env.TRAVEL_DB ? env.TRAVEL_DB.delete('trips') : Promise.resolve()
+        ]);
+        return ok(null, cors);
+    }
+
+    return fail(400, `Unknown db op: "${op}".`, cors);
+}
+
+function ok(data, cors) {
+    return new Response(JSON.stringify({ ok: true, data }), {
+        headers: { ...cors, 'Content-Type': 'application/json' }
     });
 }
 

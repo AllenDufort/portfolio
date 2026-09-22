@@ -1,12 +1,17 @@
 #!/usr/bin/env bash
 # Deploy the Travel Planner Worker from the repo root.
 # Run as: bash assets/travel/worker/deploy.sh
+#
+# On first run, this script creates the KV namespace "travel-planner-db" and
+# writes its id back into wrangler.toml automatically so subsequent deploys
+# use the same namespace.
 set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "$0")/../../.." && pwd)"
 WORKER_DIR="$(cd "$(dirname "$0")" && pwd)"
+TOML="$WORKER_DIR/wrangler.toml"
 
-# Load .env from the repo root so ANTHROPIC_API_KEY and WRANGLER_WORKER_NAME are available.
+# Load .env from the repo root so ANTHROPIC_API_KEY is available.
 set -a
 # shellcheck source=../../../.env
 source "$REPO_ROOT/.env"
@@ -17,12 +22,53 @@ if [[ -z "${ANTHROPIC_API_KEY:-}" ]]; then
     exit 1
 fi
 
-# Use a separate worker name for the travel planner, defaulting to "travel-planner"
 TRAVEL_WORKER_NAME="${TRAVEL_WORKER_NAME:-travel-planner}"
+KV_NAMESPACE_TITLE="${TRAVEL_WORKER_NAME}-db"
 
+# ── KV namespace bootstrap ────────────────────────────────────────────────
+# Read the current id from wrangler.toml (blank = not yet created).
+CURRENT_ID=$(grep -A2 'binding = "TRAVEL_DB"' "$TOML" | grep 'id = ' | sed 's/.*id = "\(.*\)".*/\1/' | tr -d '[:space:]')
+
+if [[ -z "$CURRENT_ID" ]]; then
+    echo "==> Creating KV namespace '$KV_NAMESPACE_TITLE'..."
+    # wrangler kv namespace create prints a line like:
+    #   { id: "abc123" }
+    KV_OUTPUT=$(cd "$WORKER_DIR" && npx wrangler kv namespace create "$KV_NAMESPACE_TITLE" 2>&1)
+    echo "$KV_OUTPUT"
+    KV_ID=$(echo "$KV_OUTPUT" | grep -oE '"id":\s*"[^"]+"' | grep -oE '"[^"]+"$' | tr -d '"')
+
+    if [[ -z "$KV_ID" ]]; then
+        echo "error: could not parse KV namespace id from wrangler output." >&2
+        echo "  Output was: $KV_OUTPUT" >&2
+        exit 1
+    fi
+    echo "==> KV namespace created: $KV_ID"
+
+    # Create a preview namespace too (used by wrangler dev).
+    PREVIEW_OUTPUT=$(cd "$WORKER_DIR" && npx wrangler kv namespace create "${KV_NAMESPACE_TITLE}_preview" --preview 2>&1)
+    PREVIEW_ID=$(echo "$PREVIEW_OUTPUT" | grep -oE '"id":\s*"[^"]+"' | grep -oE '"[^"]+"$' | tr -d '"')
+    [[ -z "$PREVIEW_ID" ]] && PREVIEW_ID="$KV_ID"   # fallback: share the prod namespace
+
+    # Patch wrangler.toml in-place.
+    # macOS sed needs a backup extension; we delete it afterwards.
+    sed -i.bak \
+        -e "s|^id *= *\"\".*|id = \"$KV_ID\"|" \
+        -e "s|^preview_id *= *\"\".*|preview_id = \"$PREVIEW_ID\"|" \
+        "$TOML"
+    rm -f "$TOML.bak"
+    echo "==> wrangler.toml updated with KV namespace id."
+else
+    echo "==> KV namespace already configured: $CURRENT_ID"
+fi
+
+# ── Secret ────────────────────────────────────────────────────────────────
 echo "==> Setting ANTHROPIC_API_KEY secret on Worker '$TRAVEL_WORKER_NAME'..."
 echo "$ANTHROPIC_API_KEY" | npx wrangler secret put ANTHROPIC_API_KEY --name "$TRAVEL_WORKER_NAME"
 
+# ── Deploy ────────────────────────────────────────────────────────────────
 echo "==> Deploying Worker '$TRAVEL_WORKER_NAME'..."
 cd "$WORKER_DIR"
 npx wrangler deploy --config wrangler.toml --name "$TRAVEL_WORKER_NAME"
+
+echo ""
+echo "✅  Done. Data is stored in KV namespace '$KV_NAMESPACE_TITLE'."

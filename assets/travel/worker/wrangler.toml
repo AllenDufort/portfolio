@@ -18,3 +18,10 @@ MODEL = "claude-haiku-4-5"
 
 # Origins allowed to POST. Add localhost ports you use locally.
 ALLOWED_ORIGINS = "https://allendufort.github.io,http://localhost:8000,http://127.0.0.1:8000,http://localhost:5500,http://127.0.0.1:5500"
+
+# KV namespace for persistent trip and preference storage.
+# Run deploy.sh once to create this namespace; it will fill in the id below.
+[[kv_namespaces]]
+binding = "TRAVEL_DB"
+id = ""                 # filled in by deploy.sh on first run
+preview_id = ""         # filled in by deploy.sh on first run
