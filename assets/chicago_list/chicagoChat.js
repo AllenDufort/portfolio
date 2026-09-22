@@ -4,7 +4,7 @@
    reply back token by token.
 
    The model is reached through the Cloudflare Worker in ./worker, never directly. That
-   is not indirection for its own sake — an Anthropic API key in a static page is a public
+   is not indirection for its own sake — a Gemini API key in a static page is a public
    key, so it stays a Worker secret. The Worker also builds the prompt (it fetches the
    same Google Sheet the map uses and sends the model all 552 places grouped by
    neighborhood), which is why this file needs no place data at all and does not wait on
@@ -18,7 +18,7 @@
     'use strict';
 
     /* The deployed Worker in ./worker. Re-deploying keeps this URL; it only changes if the
-       Worker's `name` in wrangler.toml does. Claude is the model; the key stays server-side. */
+       Worker's `name` in wrangler.toml does. Gemini is the model; the key stays server-side. */
     const WORKER_URL = 'https://chicago-chat.chicagochat.workers.dev';
     const DEV_WORKER_URL = 'http://127.0.0.1:8787';       // deploy.sh in worker/
 

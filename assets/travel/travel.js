@@ -166,7 +166,7 @@
         return list;
     }
 
-    /* ── Claude streaming helper (concierge chat) ─────────────────────────── */
+    /* ── Gemini streaming helper (concierge chat) ─────────────────────────── */
     async function streamConcierge(question, history, prefs, model, onChunk) {
         const controller = new AbortController();
         const timer = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
@@ -205,7 +205,7 @@
         }
     }
 
-    /* ── Non-streaming Claude call (itinerary generation) ─────────────────── */
+    /* ── Non-streaming Gemini call (itinerary generation) ─────────────────── */
     async function callWorkerJSON(payload) {
         const controller = new AbortController();
         const timer = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
@@ -391,7 +391,7 @@
         setVisible(document.getElementById('plan-results'), false);
 
         const slowHint = setTimeout(() => {
-            if (btn.disabled) showMsg(statusMsg, 'Still thinking — Claude is building your full itinerary…', 'loading');
+            if (btn.disabled) showMsg(statusMsg, 'Still thinking — Gemini is building your full itinerary…', 'loading');
         }, SLOW_HINT_MS);
 
         try {

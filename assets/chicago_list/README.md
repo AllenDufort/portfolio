@@ -28,9 +28,9 @@ commit, no build, and no pipeline run.
 
 | File | Description |
 |------|-------------|
-| `worker/worker.js` | Cloudflare Worker. Holds the Anthropic API key as a server-side secret, builds the whole prompt from the sheet itself, and streams the model's reply back as SSE. See [Chat assistant](#chat-assistant). |
+| `worker/worker.js` | Cloudflare Worker. Holds the Gemini API key as a server-side secret, builds the whole prompt from the sheet itself, and streams the model's reply back as SSE. See [Chat assistant](#chat-assistant). |
 | `worker/wrangler.toml` | Deploy config: Worker name, model, allowed origins, snapshot URL. Everything here is public — the key is not in it. |
-| `worker/deploy.sh` | One-shot deploy script. Loads `.env` from the repo root, pushes `ANTHROPIC_API_KEY` as a Worker secret, then deploys the Worker. See [Deploying the Worker](#deploying-the-worker). |
+| `worker/deploy.sh` | One-shot deploy script. Loads `.env` from the repo root, pushes `GEMINI_API_KEY` as a Worker secret, then deploys the Worker. See [Deploying the Worker](#deploying-the-worker). |
 | `worker/.dev.vars.example` | Template for local runs. Copy to `.dev.vars` (gitignored) and paste your key in, then run `deploy.sh` for dev. |
 
 ### Front-end
@@ -42,15 +42,15 @@ commit, no build, and no pipeline run.
 
 ## Chat assistant
 
-Every answer comes from [Anthropic Claude](https://www.anthropic.com). There is no local retrieval
+Every answer comes from [Google Gemini](https://ai.google.dev/gemini-api/docs). There is no local retrieval
 layer and no fallback answer: if the model cannot be reached, the widget says so rather than showing a
 quiet substitute that would read like a bad reply.
 
-The browser never talks to Anthropic directly. **A key shipped to a static page is a public key**, so it
+The browser never talks to Google directly. **A key shipped to a static page is a public key**, so it
 lives only as a Cloudflare Worker secret and the page talks to the Worker:
 
 ```
-browser ──POST {question, history, coords?}──> Worker ──> Anthropic Claude ──SSE──> browser
+browser ──POST {question, history, coords?}──> Worker ──> Google Gemini ──SSE──> browser
                                                  │
                                                  └── Google Sheet + geocode_cache.json (prompt)
 ```
@@ -61,7 +61,7 @@ lets a caller use it as a general LLM proxy.
 
 | Concern | How the Worker handles it |
 |---------|---------------------------|
-| The key | `ANTHROPIC_API_KEY`, pushed by `deploy.sh`. Never in `wrangler.toml`, the repo, or a response. |
+| The key | `GEMINI_API_KEY`, pushed by `deploy.sh`. Never in `wrangler.toml`, the repo, or a response. |
 | Who may call it | `ALLOWED_ORIGINS` in `wrangler.toml`. A foreign origin gets `403` with no CORS header. |
 | Abuse | 12 requests/minute per IP (`429` + `Retry-After`). The model, temperature, and token cap are pinned server-side. |
 | Prompt injection through history | Only `user` and `assistant` turns are forwarded; an injected `system` turn is dropped. History is capped at 6 turns and 600 chars, the question at 500. |
@@ -74,7 +74,7 @@ that asks for it. Places are grouped under `## Neighborhood (count)` headings, w
 *"what food spots are in South Loop?"* reliable — the answer is one contiguous, counted block instead
 of 552 rows to filter — and lets the model answer "how many" from a heading rather than by counting.
 
-Replies stream. The Worker normalises Claude's SSE into one shape (`{"delta"}`, `{"error"}`,
+Replies stream. The Worker normalises Gemini's SSE into one shape (`{"delta"}`, `{"error"}`,
 `[DONE]`) and maps upstream status codes (401/429/5xx) to sentences a visitor can act on. Streaming
 is not cosmetic here: the model can take seconds to start, and the client also shows a "still
 thinking" note at 9s and gives up at 90s.
@@ -117,7 +117,7 @@ Worker running alongside it, in a second terminal:
 
 ```sh
 cd assets/chicago_list/worker
-cp .dev.vars.example .dev.vars   # gitignored; paste your ANTHROPIC_API_KEY here
+cp .dev.vars.example .dev.vars   # gitignored; paste your GEMINI_API_KEY here
 bash deploy.sh                   # sets the secret and starts the Worker at http://127.0.0.1:8787
 ```
 
@@ -129,7 +129,7 @@ there. Skipping the Worker leaves the map fully working and the chat saying it i
 ### Deploying the Worker
 
 **Prerequisites:** a free [Cloudflare account](https://dash.cloudflare.com/sign-up), an
-[Anthropic API key](https://console.anthropic.com), and `ANTHROPIC_API_KEY` / `WRANGLER_WORKER_NAME`
+[Gemini API key](https://aistudio.google.com/apikey), and `GEMINI_API_KEY` / `WRANGLER_WORKER_NAME`
 set in the repo-root `.env` (see `.env.example`).
 
 Log in to Cloudflare once (opens a browser tab), then run the deploy script from anywhere in the repo:
@@ -141,13 +141,13 @@ bash assets/chicago_list/worker/deploy.sh
 `deploy.sh` does three things in order:
 
 1. Loads `.env` from the repo root (`set -a; source .env; set +a`).
-2. Pushes `ANTHROPIC_API_KEY` as a Cloudflare Worker secret — the value pipes in directly and never
+2. Pushes `GEMINI_API_KEY` as a Cloudflare Worker secret — the value pipes in directly and never
    touches shell history or the repo.
 3. `cd`s into `worker/` and deploys the Worker, which prints the live URL
    (e.g. `https://chicago-chat.chicagochat.workers.dev`).
 
 The script exits immediately on any failure (`set -euo pipefail`) and prints a clear message if
-`ANTHROPIC_API_KEY` or `WRANGLER_WORKER_NAME` is missing from `.env`.
+`GEMINI_API_KEY` or `WRANGLER_WORKER_NAME` is missing from `.env`.
 
 > **Why run from `worker/`, not the repo root?** With no config file in sight, wrangler treats the
 > current directory as a static-assets Worker, scans everything including `.git`, and fails —
@@ -178,8 +178,8 @@ Google Sheet ──gviz CSV──> chicagoData.js ────> chicagoMap.js   
  (source of truth)     │    (per page load) │
                        │                    └── sheet unreachable? ──> chicago_layers.geojson
                        │
-                       └──gviz CSV──> worker/worker.js ──> Anthropic Claude ──> chicagoChat.js
-                                       (prompt, 5-min cache)                     (streamed reply)
+                       └──gviz CSV──> worker/worker.js ──> Google Gemini ──> chicagoChat.js
+                                       (prompt, 5-min cache)                  (streamed reply)
 ```
 
 Two independent readers of the same sheet. The map reads it in the browser; the Worker reads it
