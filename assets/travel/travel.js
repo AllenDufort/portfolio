@@ -1,13 +1,14 @@
 /* ── AI Travel Planner — browser app ──────────────────────────────────────
    All data lives in localStorage (no server needed for the data layer).
-   AI calls go to the Cloudflare Worker in ./worker, which holds the
-   Gemini API key as a server-side secret. The Worker streams the reply
+   AI calls go to the Cloudflare Worker in ./worker, which holds the Gemini
+   and Groq API keys as server-side secrets and routes to whichever provider
+   the model picked in the sidebar belongs to. The Worker streams the reply
    back as SSE and this side renders it token by token.
 
    Five pages:
      dashboard  — stats, current/past trips, ideas
-     plan       — form → Gemini → day-by-day itinerary + budget + packing + timeline
-     concierge  — open chat backed by Gemini, primed with saved preferences
+     plan       — form → model → day-by-day itinerary + budget + packing + timeline
+     concierge  — open chat backed by the model, primed with saved preferences
      budget     — expense logger + per-trip spending tracker
      profile    — preferences, bucket list, previously visited destinations     */
 
@@ -166,7 +167,7 @@
         return list;
     }
 
-    /* ── Gemini streaming helper (concierge chat) ─────────────────────────── */
+    /* ── Streaming helper (concierge chat) ────────────────────────────────── */
     async function streamConcierge(question, history, prefs, model, onChunk) {
         const controller = new AbortController();
         const timer = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
@@ -205,7 +206,7 @@
         }
     }
 
-    /* ── Non-streaming Gemini call (itinerary generation) ─────────────────── */
+    /* ── Non-streaming model call (itinerary generation) ──────────────────── */
     async function callWorkerJSON(payload) {
         const controller = new AbortController();
         const timer = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
@@ -391,7 +392,7 @@
         setVisible(document.getElementById('plan-results'), false);
 
         const slowHint = setTimeout(() => {
-            if (btn.disabled) showMsg(statusMsg, 'Still thinking — Gemini is building your full itinerary…', 'loading');
+            if (btn.disabled) showMsg(statusMsg, 'Still thinking — the model is building your full itinerary…', 'loading');
         }, SLOW_HINT_MS);
 
         try {

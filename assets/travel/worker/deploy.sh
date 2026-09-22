@@ -11,14 +11,15 @@ REPO_ROOT="$(cd "$(dirname "$0")/../../.." && pwd)"
 WORKER_DIR="$(cd "$(dirname "$0")" && pwd)"
 TOML="$WORKER_DIR/wrangler.toml"
 
-# Load .env from the repo root so GEMINI_API_KEY is available.
+# Load .env from the repo root so the model API keys are available.
 set -a
 # shellcheck source=../../../.env
 source "$REPO_ROOT/.env"
 set +a
 
-if [[ -z "${GEMINI_API_KEY:-}" ]]; then
-    echo "error: GEMINI_API_KEY is not set in $REPO_ROOT/.env" >&2
+# Either provider alone is enough to run the app; only both missing is fatal.
+if [[ -z "${GEMINI_API_KEY:-}" && -z "${GROQ_API_KEY:-}" ]]; then
+    echo "error: neither GEMINI_API_KEY nor GROQ_API_KEY is set in $REPO_ROOT/.env" >&2
     exit 1
 fi
 
@@ -68,10 +69,17 @@ echo "==> Deploying Worker '$TRAVEL_WORKER_NAME'..."
 cd "$WORKER_DIR"
 npx wrangler deploy worker.js --config wrangler.toml
 
-# ── Secret (set after deploy so the worker exists) ────────────────────────
-echo "==> Setting GEMINI_API_KEY secret on Worker '$TRAVEL_WORKER_NAME'..."
-echo "$GEMINI_API_KEY" | npx wrangler secret put GEMINI_API_KEY \
-    --config wrangler.toml
+# ── Secrets (set after deploy so the worker exists) ───────────────────────
+# Whichever key is absent is skipped; its models then return a clear 500.
+for KEY_NAME in GEMINI_API_KEY GROQ_API_KEY; do
+    KEY_VALUE="${!KEY_NAME:-}"
+    if [[ -z "$KEY_VALUE" ]]; then
+        echo "==> Skipping $KEY_NAME (not set in .env)"
+        continue
+    fi
+    echo "==> Setting $KEY_NAME secret on Worker '$TRAVEL_WORKER_NAME'..."
+    echo "$KEY_VALUE" | npx wrangler secret put "$KEY_NAME" --config wrangler.toml
+done
 
 echo ""
 echo "✅  Done. Data is stored in KV namespace '$KV_NAMESPACE_TITLE'."

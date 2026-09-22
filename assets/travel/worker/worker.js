@@ -1,22 +1,28 @@
 /* ── Travel Planner API — Cloudflare Worker ─────────────────────────────────
-   Holds the Gemini API key as a server-side secret so the static page on
-   GitHub Pages never exposes it. Two request types:
+   Holds the model API keys as server-side secrets so the static page on
+   GitHub Pages never exposes them. Two request types:
 
      type: "generate"   — build a full JSON itinerary (non-streaming)
      type: "concierge"  — open travel Q&A chat (SSE streaming)
 
+   Either can run on Gemini or on Groq. The page sends a model id with every
+   request and the provider is derived from it — see providerFor() below.
+
    Deploy:
-     bash assets/travel/worker/deploy.sh        # sets the secret and deploys
+     bash assets/travel/worker/deploy.sh        # sets the secrets and deploys
    Then put the deployed URL in WORKER_URL at the top of ../travel.js.
 
    Local development:
-     cp .dev.vars.example .dev.vars             # paste your GEMINI_API_KEY
-     bash assets/travel/worker/deploy.sh        # serves http://127.0.0.1:8788
+     cp .dev.vars.example .dev.vars             # paste your API keys
+     npx wrangler dev --config wrangler.toml    # serves http://127.0.0.1:8788
+                                                # (the flag matters: without it
+                                                #  wrangler finds the repo-root
+                                                #  wrangler.jsonc instead)
 
-   GET / returns a health JSON (model, keyConfigured). */
+   GET / returns a health JSON (model, provider, keyConfigured). */
 
 const DEFAULTS = {
-    MODEL: 'gemini-3.8-flash',
+    MODEL: 'openai/gpt-oss-120b',
     ALLOWED_ORIGINS: [
         'https://allendufort.github.io',
         'http://localhost:8000', 'http://127.0.0.1:8000',
@@ -29,14 +35,102 @@ const MAX_TOKENS_GENERATE  = 4096;   // itinerary JSON can be large
 const MAX_TOKENS_CONCIERGE = 700;
 const TEMPERATURE          = 0.4;
 
+/* Groq's gpt-oss and qwen models reason before answering, and those hidden
+   tokens are billed against the same budget as the reply. Left alone, a 700
+   token concierge cap can be spent entirely on thinking, so Groq requests ask
+   for minimal reasoning and get this much extra room on top of the caps. */
+const GROQ_REASONING_EFFORT   = 'low';
+const GROQ_REASONING_HEADROOM = 1024;
+
 const RATE_LIMIT_MAX       = 15;
 const RATE_LIMIT_WINDOW_MS = 60 * 1000;
 
 const rateLog = new Map();
 
+/* ── Providers ───────────────────────────────────────────────────────────────
+   Two upstreams, chosen by model id. Every Groq id is either namespaced
+   ("openai/gpt-oss-120b", "qwen/qwen3.8-27b") or bare, and Groq serves no
+   "gemini-*" model, so the prefix is enough to route on. */
+
+const GROQ_URL = 'https://api.groq.com/openai/v1/chat/completions';
+
+function providerFor(model) {
+    return String(model).startsWith('gemini-') ? 'gemini' : 'groq';
+}
+
+function apiKeyFor(provider, env) {
+    return provider === 'gemini' ? env.GEMINI_API_KEY : env.GROQ_API_KEY;
+}
+
+function missingKeyMessage(provider) {
+    const key = provider === 'gemini' ? 'GEMINI_API_KEY' : 'GROQ_API_KEY';
+    return `${key} is not configured, so ${provider} models are unavailable. Run: bash deploy.sh`;
+}
+
 function geminiUrl(model, stream, apiKey) {
     const action = stream ? 'streamGenerateContent?alt=sse&' : 'generateContent?';
     return `https://generativelanguage.googleapis.com/v1beta/models/${model}:${action}key=${apiKey}`;
+}
+
+/* One chat request in whichever shape the provider wants.
+
+   system    — system instruction text
+   turns     — [{role: "user" | "assistant", content}], oldest first
+   jsonMode  — ask the provider to emit a JSON object. Groq-only: Gemini keeps
+               the prompt-based JSON contract it already ships with, since the
+               fence-stripping in handleGenerate is written around it.  */
+function upstreamRequest(provider, { model, apiKey, system, turns, maxTokens, stream, jsonMode }) {
+    if (provider === 'gemini') {
+        return {
+            url: geminiUrl(model, stream, apiKey),
+            init: {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    systemInstruction: { parts: [{ text: system }] },
+                    contents: turns.map(t => ({
+                        role:  t.role === 'assistant' ? 'model' : 'user',
+                        parts: [{ text: t.content }]
+                    })),
+                    generationConfig: {
+                        maxOutputTokens: maxTokens,
+                        temperature:     TEMPERATURE
+                    }
+                })
+            }
+        };
+    }
+
+    return {
+        url: GROQ_URL,
+        init: {
+            method: 'POST',
+            headers: {
+                'Content-Type':  'application/json',
+                'Authorization': `Bearer ${apiKey}`
+            },
+            body: JSON.stringify({
+                model,
+                messages: [{ role: 'system', content: system }, ...turns],
+                max_completion_tokens: maxTokens + GROQ_REASONING_HEADROOM,
+                temperature:           TEMPERATURE,
+                reasoning_effort:      GROQ_REASONING_EFFORT,
+                ...(stream   ? { stream: true } : {}),
+                ...(jsonMode ? { response_format: { type: 'json_object' } } : {})
+            })
+        }
+    };
+}
+
+/* Pull the reply text out of a non-streaming response. */
+function extractText(provider, data) {
+    return provider === 'gemini'
+        ? (data?.candidates?.[0]?.content?.parts?.[0]?.text || '')
+        : (data?.choices?.[0]?.message?.content || '');
+}
+
+function sseTransform(provider) {
+    return provider === 'gemini' ? geminiSseTransform() : groqSseTransform();
 }
 
 export default {
@@ -63,13 +157,10 @@ export default {
 
         const type = String(body?.type || '');
 
-        // DB operations do not require the Gemini key.
+        // DB operations do not require a model key.
         if (type === 'db') return handleDb(body, env, cors);
 
-        if (!env.GEMINI_API_KEY) {
-            return fail(500, 'API key not configured. Run: bash deploy.sh', cors);
-        }
-
+        // The AI paths check the key for whichever provider the model implies.
         if (type === 'generate')  return handleGenerate(body, env, cors);
         if (type === 'concierge') return handleConcierge(body, env, cors);
         return fail(400, 'Unknown request type. Use "generate", "concierge", or "db".', cors);
@@ -79,7 +170,10 @@ export default {
 /* ── /generate — build a full vacation JSON ──────────────────────────────── */
 
 async function handleGenerate(body, env, cors) {
-    const model = env.MODEL || DEFAULTS.MODEL;
+    const model    = String(body?.model || env.MODEL || DEFAULTS.MODEL).slice(0, 80);
+    const provider = providerFor(model);
+    const apiKey   = apiKeyFor(provider, env);
+    if (!apiKey) return fail(500, missingKeyMessage(provider), cors);
 
     const city       = String(body.city       || '').trim().slice(0, 100);
     const country    = String(body.country    || '').trim().slice(0, 100);
@@ -134,22 +228,18 @@ Output ONLY a JSON object (no markdown, no extra commentary) matching this schem
 }
 Provide daily_itinerary with all ${days} days using real, specific locations in ${city}.`;
 
+    const { url, init } = upstreamRequest(provider, {
+        model, apiKey,
+        system:    'You are an expert travel concierge. Provide rich, specific, realistic, culturally tailored travel recommendations in valid JSON only.',
+        turns:     [{ role: 'user', content: prompt }],
+        maxTokens: MAX_TOKENS_GENERATE,
+        stream:    false,
+        jsonMode:  true
+    });
+
     let upstream;
     try {
-        upstream = await fetch(geminiUrl(model, false, env.GEMINI_API_KEY), {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                systemInstruction: {
-                    parts: [{ text: 'You are an expert travel concierge. Provide rich, specific, realistic, culturally tailored travel recommendations in valid JSON only.' }]
-                },
-                contents: [{ role: 'user', parts: [{ text: prompt }] }],
-                generationConfig: {
-                    maxOutputTokens: MAX_TOKENS_GENERATE,
-                    temperature:     TEMPERATURE
-                }
-            })
-        });
+        upstream = await fetch(url, init);
     } catch (err) {
         return fail(502, 'Could not reach the model — try again shortly.', cors);
     }
@@ -159,8 +249,7 @@ Provide daily_itinerary with all ${days} days using real, specific locations in 
     let data;
     try { data = await upstream.json(); } catch { return fail(502, 'Unexpected model response.', cors); }
 
-    // Extract text from Gemini's response
-    const raw = data?.candidates?.[0]?.content?.parts?.[0]?.text || '';
+    const raw = extractText(provider, data);
 
     // Strip any markdown fences the model might have added
     let cleaned = raw.trim();
@@ -182,6 +271,10 @@ Provide daily_itinerary with all ${days} days using real, specific locations in 
 
 async function handleConcierge(body, env, cors) {
     const model    = String(body?.model || env.MODEL || DEFAULTS.MODEL).slice(0, 80);
+    const provider = providerFor(model);
+    const apiKey   = apiKeyFor(provider, env);
+    if (!apiKey) return fail(500, missingKeyMessage(provider), cors);
+
     const question = String(body?.question || '').trim().slice(0, 600);
     if (!question) return fail(400, 'question is required.', cors);
 
@@ -197,29 +290,18 @@ async function handleConcierge(body, env, cors) {
         'Use bullet lists where helpful. Keep replies concise and practical.'
     ].filter(Boolean).join(' ');
 
-    // Convert history into Gemini's contents format
-    const contents = [
-        ...history.map(m => ({
-            role:  m.role === 'assistant' ? 'model' : 'user',
-            parts: [{ text: m.content }]
-        })),
-        { role: 'user', parts: [{ text: question }] }
-    ];
+    const { url, init } = upstreamRequest(provider, {
+        model, apiKey,
+        system:    systemText,
+        turns:     [...history, { role: 'user', content: question }],
+        maxTokens: MAX_TOKENS_CONCIERGE,
+        stream:    true,
+        jsonMode:  false
+    });
 
     let upstream;
     try {
-        upstream = await fetch(geminiUrl(model, true, env.GEMINI_API_KEY), {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                systemInstruction: { parts: [{ text: systemText }] },
-                contents,
-                generationConfig: {
-                    maxOutputTokens: MAX_TOKENS_CONCIERGE,
-                    temperature:     TEMPERATURE
-                }
-            })
-        });
+        upstream = await fetch(url, init);
     } catch (err) {
         return fail(502, 'Could not reach the model — try again shortly.', cors);
     }
@@ -228,7 +310,7 @@ async function handleConcierge(body, env, cors) {
         return fail(upstream.status || 502, await upstreamMsg(upstream), cors);
     }
 
-    return new Response(upstream.body.pipeThrough(geminiSseTransform()), {
+    return new Response(upstream.body.pipeThrough(sseTransform(provider)), {
         headers: {
             ...cors,
             'Content-Type': 'text/event-stream; charset=utf-8',
@@ -238,7 +320,9 @@ async function handleConcierge(body, env, cors) {
     });
 }
 
-/* ── Gemini SSE passthrough ──────────────────────────────────────────────── */
+/* ── SSE passthrough ─────────────────────────────────────────────────────────
+   Both providers are normalised to the one envelope the page understands:
+   {"delta":"..."} per token, {"error":"..."} on failure, then [DONE]. */
 
 /* Gemini streams SSE lines like:
      data: {"candidates":[{"content":{"parts":[{"text":"Hello"}],...}}]}
@@ -285,6 +369,51 @@ function geminiSseTransform() {
                     } catch { /* ignore */ }
                 }
             }
+            ctrl.enqueue(encoder.encode('data: [DONE]\n\n'));
+        }
+    });
+}
+
+/* Groq streams OpenAI-style blocks:
+     data: {"choices":[{"delta":{"content":"Hello"}}]}
+     data: [DONE]
+   Its reasoning models also stream {"delta":{"reasoning":"..."}} blocks. That is
+   the model thinking out loud rather than answering, so those are dropped and
+   never reach the page. */
+function groqSseTransform() {
+    const decoder = new TextDecoder();
+    const encoder = new TextEncoder();
+    let buffer = '';
+
+    const send = (ctrl, payload) =>
+        ctrl.enqueue(encoder.encode(`data: ${JSON.stringify(payload)}\n\n`));
+
+    const handleBlock = (block, ctrl) => {
+        const dataLine = block.split('\n').find(l => l.startsWith('data:'));
+        if (!dataLine) return;
+        const payload = dataLine.slice(5).trim();
+        if (!payload || payload === '[DONE]') return;
+        let data;
+        try { data = JSON.parse(payload); } catch { return; }
+
+        const text = data?.choices?.[0]?.delta?.content;
+        if (typeof text === 'string' && text) {
+            send(ctrl, { delta: text });
+        }
+        if (data?.error) {
+            send(ctrl, { error: data.error?.message || 'Model error.' });
+        }
+    };
+
+    return new TransformStream({
+        transform(chunk, ctrl) {
+            buffer += decoder.decode(chunk, { stream: true });
+            const blocks = buffer.split('\n\n');
+            buffer = blocks.pop() || '';
+            blocks.forEach(block => handleBlock(block, ctrl));
+        },
+        flush(ctrl) {
+            if (buffer.trim()) handleBlock(buffer, ctrl);
             ctrl.enqueue(encoder.encode('data: [DONE]\n\n'));
         }
     });
@@ -582,10 +711,15 @@ function corsHeaders(origin, env) {
 }
 
 async function health(env, cors) {
+    const model = env.MODEL || DEFAULTS.MODEL;
     return new Response(JSON.stringify({
         ok:            true,
-        model:         env.MODEL || DEFAULTS.MODEL,
-        keyConfigured: Boolean(env.GEMINI_API_KEY)
+        model,
+        provider:      providerFor(model),
+        keyConfigured: {
+            gemini: Boolean(env.GEMINI_API_KEY),
+            groq:   Boolean(env.GROQ_API_KEY)
+        }
     }, null, 2), {
         headers: { ...cors, 'Content-Type': 'application/json' }
     });
