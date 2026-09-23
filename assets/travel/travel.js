@@ -377,6 +377,7 @@
         const totalBudget= parseFloat(document.getElementById('plan-budget').value) || 2500;
         const pace       = document.getElementById('plan-pace').value;
         const depDate    = document.getElementById('plan-dep').value;
+        const notes      = document.getElementById('plan-notes').value.trim();
         const retDate    = (() => { const d = new Date(depDate); d.setDate(d.getDate() + duration); return d.toISOString().slice(0, 10); })();
         const activities = [...document.querySelectorAll('#activity-checkboxes input:checked')].map(i => i.value);
         const status     = document.querySelector('[name="plan-status"]:checked').value;
@@ -415,6 +416,7 @@
                 duration_days: duration,
                 climate:       climate.toLowerCase(),
                 activities,
+                notes:         notes || '',
                 budget:        { total: totalBudget, spent: 0 },
                 expenses:      []
             };
@@ -833,6 +835,112 @@
         async removePrevDest(dest) {
             const list = await DB.removeVisited(dest);
             renderPrevDest(list);
+        },
+
+        /* ── PDF export for a single plan section ─────────────────────── */
+        async exportSection(tabId) {
+            const TITLES = {
+                'suggestions':     'AI Suggestions',
+                'itinerary':       'Day-by-Day Itinerary',
+                'budget-breakdown':'Budget Breakdown',
+                'packing':         'Packing Checklist',
+                'timeline':        'Pre-Trip Timeline'
+            };
+
+            const panelEl = document.getElementById(`tab-${tabId}`);
+            if (!panelEl) return;
+
+            // Build a destination label for the heading
+            let destLabel = '';
+            if (lastGeneratedTripId) {
+                const trip = await DB.getTrip(lastGeneratedTripId).catch(() => null);
+                if (trip?.destination) {
+                    const { city, country } = trip.destination;
+                    destLabel = [city, country].filter(Boolean).join(', ');
+                }
+            }
+
+            const title    = TITLES[tabId] || tabId;
+            const heading  = destLabel ? `${title} — ${destLabel}` : title;
+            const bodyHTML = panelEl.innerHTML;
+
+            // Open a minimal print window with the section content
+            const win = window.open('', '_blank', 'width=900,height=700');
+            win.document.write(`<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"/>
+  <title>${heading}</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; }
+    body {
+      font-family: -apple-system, "Segoe UI", system-ui, sans-serif;
+      font-size: 13px; line-height: 1.6;
+      color: #1f2328; background: #fff;
+      margin: 2cm 2.2cm; max-width: 18cm;
+    }
+    h1 { font-size: 1.25rem; margin: 0 0 0.25rem; }
+    .print-meta { font-size: 0.78rem; color: #57606a; margin-bottom: 1.5rem; border-bottom: 1px solid #e5e7eb; padding-bottom: 0.6rem; }
+    /* strip export bar button */
+    .tp-export-bar { display: none !important; }
+    /* result items */
+    .tp-result-item { border: 1px solid #e5e7eb; border-radius: 6px; padding: 0.5rem 0.7rem; margin-bottom: 0.5rem; }
+    .tp-result-item strong { display: block; }
+    .tp-meta { color: #57606a; font-size: 0.82rem; }
+    /* two-col → single col for print */
+    .tp-two-col { display: block; }
+    .tp-two-col > div { margin-bottom: 1rem; }
+    /* day cards */
+    .tp-day-card { border: 1px solid #e5e7eb; border-radius: 6px; margin-bottom: 0.6rem; overflow: hidden; }
+    .tp-day-header { display: flex; justify-content: space-between; background: #f7f8fa; padding: 0.45rem 0.8rem; font-weight: 600; font-size: 0.88rem; width: 100%; border: none; cursor: default; }
+    .tp-day-body { display: block !important; padding: 0.5rem 0.8rem; }
+    .tp-day-body.open, .tp-day-body { display: block !important; }
+    .tp-chevron { display: none; }
+    .tp-day-slots { display: grid; grid-template-columns: repeat(3, 1fr); gap: 0.5rem; font-size: 0.82rem; }
+    .tp-slot-label { font-weight: 600; color: #57606a; }
+    .tp-slot-activity { margin: 0.1rem 0; }
+    .tp-slot-note { color: #57606a; font-size: 0.78rem; }
+    .tp-meals-row { font-size: 0.78rem; color: #57606a; margin-top: 0.4rem; border-top: 1px solid #f0f0f0; padding-top: 0.35rem; }
+    /* table */
+    .tp-table { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
+    .tp-table th { background: #f7f8fa; text-align: left; padding: 0.35rem 0.5rem; border-bottom: 2px solid #e5e7eb; }
+    .tp-table td { padding: 0.3rem 0.5rem; border-bottom: 1px solid #f0f0f0; }
+    /* packing */
+    .tp-pack-section { margin-bottom: 1rem; }
+    .tp-pack-section h4 { font-size: 0.88rem; text-transform: capitalize; margin-bottom: 0.35rem; }
+    .tp-pack-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 0.15rem 0.6rem; }
+    .tp-pack-item { font-size: 0.82rem; display: flex; align-items: flex-start; gap: 0.35rem; }
+    .tp-pack-item input[type="checkbox"] { margin-top: 2px; flex-shrink: 0; }
+    /* timeline */
+    .tp-timeline-section { margin-bottom: 1rem; }
+    .tp-timeline-label { font-weight: 600; font-size: 0.85rem; margin-bottom: 0.3rem; color: #1f2328; }
+    /* empty state */
+    .tp-empty { color: #57606a; font-style: italic; }
+    /* headings inside panel */
+    h3 { font-size: 1rem; margin: 0.8rem 0 0.4rem; }
+    /* footer */
+    .print-footer { margin-top: 2rem; padding-top: 0.6rem; border-top: 1px solid #e5e7eb; font-size: 0.72rem; color: #57606a; display: flex; justify-content: space-between; }
+    @media print {
+      body { margin: 1cm 1.5cm; }
+      .tp-day-body { display: block !important; }
+    }
+  </style>
+</head>
+<body>
+  <h1>${heading}</h1>
+  <div class="print-meta">Generated by AI Travel Planner &ensp;·&ensp; ${new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}</div>
+  ${bodyHTML}
+  <div class="print-footer">
+    <span>AI Travel Planner</span>
+    <span>${new Date().toLocaleString()}</span>
+  </div>
+</body>
+</html>`);
+            win.document.close();
+            // Give fonts/layout a moment then trigger print dialog
+            win.onload = () => { win.focus(); win.print(); };
+            // Fallback if onload already fired
+            setTimeout(() => { try { win.focus(); win.print(); } catch (_) {} }, 600);
         }
     };
 

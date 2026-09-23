@@ -199,6 +199,11 @@
                         </div>
                     </div>
 
+                    <div class="tp-field tp-field-full">
+                        <label class="tp-label">Notes / Special Requests</label>
+                        <textarea id="plan-notes" class="tp-input tp-textarea" rows="3" placeholder="e.g. We have a toddler, prefer early dinners, interested in lesser-known neighbourhoods…"></textarea>
+                    </div>
+
                     <div class="tp-field">
                         <label class="tp-label">Activity Types</label>
                         <div class="tp-checkboxes" id="activity-checkboxes">
@@ -241,6 +246,9 @@
                         </div>
 
                         <div id="tab-suggestions" class="tp-tab-panel active">
+                            <div class="tp-export-bar">
+                                <button class="tp-btn tp-btn-ghost tp-export-btn" onclick="TravelApp.exportSection('suggestions')"><i class="bi bi-file-earmark-pdf me-1"></i> Export as PDF</button>
+                            </div>
                             <div class="tp-two-col">
                                 <div>
                                     <h3>🏛️ Top Attractions</h3>
@@ -264,18 +272,30 @@
                         </div>
 
                         <div id="tab-itinerary" class="tp-tab-panel">
+                            <div class="tp-export-bar">
+                                <button class="tp-btn tp-btn-ghost tp-export-btn" onclick="TravelApp.exportSection('itinerary')"><i class="bi bi-file-earmark-pdf me-1"></i> Export as PDF</button>
+                            </div>
                             <div id="res-itinerary"></div>
                         </div>
 
                         <div id="tab-budget-breakdown" class="tp-tab-panel">
+                            <div class="tp-export-bar">
+                                <button class="tp-btn tp-btn-ghost tp-export-btn" onclick="TravelApp.exportSection('budget-breakdown')"><i class="bi bi-file-earmark-pdf me-1"></i> Export as PDF</button>
+                            </div>
                             <div id="res-budget"></div>
                         </div>
 
                         <div id="tab-packing" class="tp-tab-panel">
+                            <div class="tp-export-bar">
+                                <button class="tp-btn tp-btn-ghost tp-export-btn" onclick="TravelApp.exportSection('packing')"><i class="bi bi-file-earmark-pdf me-1"></i> Export as PDF</button>
+                            </div>
                             <div id="res-packing"></div>
                         </div>
 
                         <div id="tab-timeline" class="tp-tab-panel">
+                            <div class="tp-export-bar">
+                                <button class="tp-btn tp-btn-ghost tp-export-btn" onclick="TravelApp.exportSection('timeline')"><i class="bi bi-file-earmark-pdf me-1"></i> Export as PDF</button>
+                            </div>
                             <div id="res-timeline"></div>
                         </div>
                     </div>

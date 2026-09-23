@@ -165,6 +165,37 @@
     padding: 0.3rem 0.5rem;
 }
 
+/* ── Textarea ───────────────────────────────────────────────────── */
+.tp-textarea {
+    resize: vertical;
+    min-height: 5rem;
+    line-height: 1.55;
+}
+
+/* ── Full-width field (spans both grid columns) ─────────────────── */
+.tp-field-full {
+    grid-column: 1 / -1;
+}
+
+/* ── Export bar (above each result tab panel) ───────────────────── */
+.tp-export-bar {
+    display: flex;
+    justify-content: flex-end;
+    margin-bottom: 0.75rem;
+}
+
+.tp-export-btn {
+    font-size: 0.78rem;
+    padding: 0.3rem 0.75rem;
+    color: rgba(255, 255, 255, 0.55);
+    border-color: rgba(255, 255, 255, 0.12);
+}
+
+.tp-export-btn:hover {
+    color: #4fc3f7;
+    border-color: rgba(79, 195, 247, 0.4);
+}
+
 /* ── Checkboxes / Radios ────────────────────────────────────────── */
 .tp-checkboxes,
 .tp-radios {
