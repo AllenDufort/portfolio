@@ -125,8 +125,13 @@
         msgs.appendChild(bubble);
         setStatus(bubble, 'Thinking…');
 
+        /* A note from the Worker says something this timer cannot — why the wait is
+           happening, and how long it is — so it stops the generic hint overwriting it. */
+        let noticed = false;
         const slowHint = setTimeout(() => {
-            if (!bubble.dataset.streaming) setStatus(bubble, 'Still thinking — the free model is slow…');
+            if (!bubble.dataset.streaming && !noticed) {
+                setStatus(bubble, 'Still thinking — the free model is slow…');
+            }
         }, SLOW_HINT_MS);
 
         try {
@@ -135,6 +140,10 @@
                 bubble.dataset.streaming = '1';
                 bubble.innerHTML = renderMarkdown(visible(text)) + '<span class="chat-cursor">▋</span>';
                 msgs.scrollTop = msgs.scrollHeight;
+            }, note => {
+                if (bubble.dataset.streaming) return;   // never write over a reply in progress
+                noticed = true;
+                setStatus(bubble, note);
             });
 
             const answer = visible(reply).trim();
@@ -184,9 +193,10 @@
     }
 
     /* Read the Worker's event stream. It normalises whatever the model provider sends into
-       one shape — {"delta"} for text, {"error"} for a generation that failed halfway, and a
-       trailing [DONE] — so this side only has to accumulate, whichever model is selected. */
-    async function stream(question, coords, onText) {
+       one shape — {"delta"} for text, {"notice"} for progress the visitor should see before
+       the answer, {"error"} for a generation that failed halfway, and a trailing [DONE] — so
+       this side only has to accumulate, whichever model is selected. */
+    async function stream(question, coords, onText, onNotice) {
         const controller = new AbortController();
         const timer = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
 
@@ -207,7 +217,7 @@
             // No streaming body (an old browser, or a proxy that buffered it): the SSE
             // text is all there at once, and the same parser handles it.
             if (!res.body || !res.body.getReader) {
-                const whole = consume(await res.text(), '');
+                const whole = consume(await res.text(), '', onNotice);
                 onText(whole);
                 return whole;
             }
@@ -223,7 +233,7 @@
                 buffer += decoder.decode(value, { stream: true });
                 const blocks = buffer.split('\n\n');
                 buffer = blocks.pop() || '';          // keep the unfinished block for later
-                const next = consume(blocks.join('\n\n'), text);
+                const next = consume(blocks.join('\n\n'), text, onNotice);
                 if (next !== text) {
                     text = next;
                     onText(text);
@@ -241,8 +251,10 @@
         }
     }
 
-    // Fold SSE blocks onto the text so far, raising anything the Worker flagged.
-    function consume(chunk, seed) {
+    /* Fold SSE blocks onto the text so far, raising anything the Worker flagged. A notice
+       is status, not content: it goes to the caller and never into the text, so it cannot
+       end up in the rendered answer or in the history sent with the next question. */
+    function consume(chunk, seed, onNotice) {
         let text = seed;
         chunk.split('\n').forEach(rawLine => {
             const line = rawLine.trim();
@@ -253,6 +265,7 @@
             let data;
             try { data = JSON.parse(payload); } catch (err) { return; }
             if (data.error) throw new ChatError(data.error);
+            if (typeof data.notice === 'string' && onNotice) onNotice(data.notice);
             if (typeof data.delta === 'string') text += data.delta;
         });
         return text;

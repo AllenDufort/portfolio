@@ -49,6 +49,7 @@ body can turn it into a general LLM proxy — the main risk of a paid key behind
 | The keys | `GEMINI_API_KEY` and `GROQ_API_KEY`, pushed by `deploy.sh`. Never in `wrangler.toml`, the repo, or a response. |
 | Who may call it | `ALLOWED_ORIGINS` in `wrangler.toml`. A foreign origin gets `403` with no CORS header. |
 | Abuse | 12 requests/minute per IP (`429` + `Retry-After`). Temperature and the token cap are pinned server-side. |
+| The provider's own rate limit | A Groq/Gemini `429` is retried once, waiting as long as its `Retry-After` asks (1–20s; 5s if it sends none), and the visitor is told so mid-wait. Total waiting per question is capped at 45s, under the client's 90s. Never applied to the Worker's own `429` above — that one is meant to slow a caller down. |
 | Which model a caller may pick | `ALLOWED_MODELS` in `worker.js`. Anything else, including a hand-edited request, silently falls back to the default, so a leaked endpoint cannot be pointed at an expensive model. |
 | Prompt injection through history | Only `user` and `assistant` turns are forwarded; an injected `system` turn is dropped. History is capped at 6 turns and 600 chars, the question at 500. |
 | Sheet outages | Same fallback the map uses: the sheet, then `chicago_layers.geojson`. The catalog is cached 5 minutes, so a burst of questions is one sheet fetch. |
@@ -82,6 +83,15 @@ and re-frames it as the SSE the page already reads (`{"delta"}` frames, an optio
 `stream: true` to get provider SSE instead costs a second full-prompt call and can return nothing at
 all — a fresh sample of an already-answered turn sometimes calls a tool. Upstream status codes
 (401/429/5xx) map to sentences a visitor can act on; the client warns at 9s and gives up at 90s.
+
+The one thing that has to be said before the answer is a rate-limit wait. Groq answers a
+token-budget `429` with `Retry-After: 12`, and twelve silent seconds are indistinguishable from
+a hung widget — so the first wait opens the stream early and sends a `{"notice"}` frame, which
+the page shows in the status line and never folds into the reply or the history. That trade is
+why the channel stays shut otherwise: a buffered response can still carry a real status code,
+and once a byte is out the status line is spent. Measured over a burst that rate-limited every
+question, honouring `Retry-After` answered all five; a fixed 5s wait, spent before Groq was
+ready, had failed two of them.
 
 ### "Near me"
 

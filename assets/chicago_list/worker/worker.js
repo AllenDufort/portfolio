@@ -610,6 +610,59 @@ function upstreamRequest(provider, { model, apiKey, systemText, turns }) {
     }];
 }
 
+/* A 429 from the provider is transient in a way the visitor cannot act on: Groq's free tier
+   caps tokens per minute, and one question that runs several tool rounds can exhaust the
+   window mid-loop and then be fine seconds later. So wait once and try again — two attempts
+   in all, which is about as long as someone watching a spinner will sit through.
+
+   How long to wait comes from the provider, not from here. Groq answers a token-budget 429
+   with `Retry-After: 12` and a body asking for 11.625s, so a shorter fixed wait just spends
+   the retry too early and fails anyway. RETRY_WAIT_MS is only the fallback for a 429 that
+   says nothing, and RETRY_WAIT_MAX_MS keeps an outsized ask from parking the request.
+
+   Deliberately not the same thing as this Worker's own 429 (see the per-IP limit above),
+   which is meant to slow a caller down and is never retried here.
+
+   RETRY_BUDGET_MS caps the time one request may spend waiting, shared across every round,
+   so a question that 429s round after round cannot sleep past the 90s at which
+   chicagoChat.js gives up and turn a slow answer into no answer at all. */
+const RETRY_ATTEMPTS    = 2;       // the first try, plus one retry
+const RETRY_WAIT_MS     = 5000;    // only for a 429 that carries no Retry-After
+const RETRY_WAIT_MAX_MS = 20000;
+const RETRY_BUDGET_MS   = 45000;
+
+const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
+
+/* Retry-After is either seconds or an HTTP date; both land inside our own bounds. */
+function retryDelay(res) {
+    const header  = (res.headers.get('Retry-After') || '').trim();
+    const seconds = Number(header);
+    const ms = header && Number.isFinite(seconds)
+        ? seconds * 1000
+        : Date.parse(header) - Date.now();
+
+    if (!Number.isFinite(ms) || ms <= 0) return RETRY_WAIT_MS;
+    return Math.min(Math.max(ms, 1000), RETRY_WAIT_MAX_MS);
+}
+
+/* `announce` is what makes the wait worth having: a twelve-second pause nobody explained is
+   indistinguishable from a hung widget, so the visitor is told before the sleep, not after. */
+async function fetchRetrying429(url, init, retryUntil, announce) {
+    for (let attempt = 1; ; attempt++) {
+        const res = await fetch(url, init);
+        if (res.status !== 429 || attempt >= RETRY_ATTEMPTS) return res;
+
+        const wait = retryDelay(res);
+        if (Date.now() + wait > retryUntil) return res;
+
+        // Nothing will read this one; let the connection go rather than leaving it dangling.
+        try { await res.body?.cancel(); } catch (err) { /* already discarded */ }
+
+        await announce(Math.round(wait / 1000));
+        await sleep(wait);
+    }
+}
+
 /* Agentic loop: call the model, run any tool calls it makes, then call again until it
    produces a plain text reply — which is also the answer the visitor gets, streamed back
    from the buffer rather than re-requested. No round is streamed from upstream: a tool
@@ -626,12 +679,84 @@ function upstreamRequest(provider, { model, apiKey, systemText, turns }) {
    full-prompt call per question, which matters against a per-minute token budget. */
 const MAX_TOOL_ROUNDS = 5;   // guard against a runaway loop
 
-async function askModel(env, { model, provider, catalog, point, systemText, turns, cors }) {
+async function askModel(env, options) {
+    const live = liveChannel(options.cors);
+
+    /* Two ways this ends, and whichever happens first wins the race: the loop finishes and
+       the answer goes out in one piece, or the loop hits a 429, tells the visitor it is
+       waiting, and by saying so commits to a reply that is already streaming.
+
+       Only that second path gives up the real HTTP status on a later failure — once a byte
+       is out the status line is spent — so the common path and every fast failure (a bad
+       key, a rejected request) keep theirs, and the page's `!res.ok` handling with them. */
+    const settled = runToolLoop(env, options, live).then(outcome => live.settle(outcome));
+    return await Promise.race([live.response, settled]);
+}
+
+/* An SSE channel that stays shut unless something needs saying before the answer is ready.
+   Shut is the normal case, and it is the better one: a whole response can still carry a
+   status code, so nothing is spent on the chance that a wait might happen. */
+function liveChannel(cors) {
+    const encoder = new TextEncoder();
+    const { readable, writable } = new TransformStream();
+    const writer = writable.getWriter();
+    const frame  = obj => writer.write(encoder.encode(`data: ${JSON.stringify(obj)}\n\n`));
+
+    let open = false;
+    let handOver;
+    const response = new Promise(resolve => { handOver = resolve; });
+
+    return {
+        response,
+
+        /* Say why the answer is late. The first call hands the page its response, so the
+           note reaches the visitor during the wait rather than after it. */
+        async notice(text) {
+            if (!open) {
+                open = true;
+                handOver(sseResponse(readable, cors));
+            }
+            await frame({ notice: text });
+        },
+
+        /* Deliver the outcome: as a whole response if nothing has gone out yet, otherwise
+           as frames on the stream already in flight. */
+        async settle(outcome) {
+            if (!open) {
+                return outcome.answer
+                    ? streamAnswer(outcome.answer, cors)
+                    : fail(outcome.status, outcome.message, cors, outcome.retryAfter);
+            }
+
+            if (outcome.answer) {
+                for (const chunk of chunkText(outcome.answer, STREAM_CHUNK_CHARS)) {
+                    await frame({ delta: chunk });
+                }
+            } else {
+                await frame({ error: outcome.message });
+            }
+            await writer.write(encoder.encode('data: [DONE]\n\n'));
+            await writer.close();
+            return response;          // already resolved; the race is long over
+        }
+    };
+}
+
+/* Returns what happened rather than a Response — `{ answer }`, or a status and a sentence —
+   because by the time it finishes the caller may already be mid-stream, and only the caller
+   knows which of the two shapes is still available to it. */
+async function runToolLoop(env, { model, provider, catalog, point, systemText, turns }, live) {
     const apiKey = apiKeyFor(provider, env);
+
+    /* Shared by every round, so a question cannot spend the whole retry allowance twice. */
+    const retryUntil = Date.now() + RETRY_BUDGET_MS;
+
+    const announce = seconds => live.notice(
+        `Hit the model's rate limit — waiting ${seconds}s and trying once more…`);
 
     const call = msgs => {
         const [url, init] = upstreamRequest(provider, { model, apiKey, systemText, turns: msgs });
-        return fetch(url, init);
+        return fetchRetrying429(url, init, retryUntil, announce);
     };
 
     let msgs   = turns;
@@ -644,16 +769,19 @@ async function askModel(env, { model, provider, catalog, point, systemText, turn
         try {
             upstream = await call(msgs);
         } catch (err) {
-            return fail(502, 'I could not reach the model just now — try again shortly.', cors);
+            return { status: 502, message: 'I could not reach the model just now — try again shortly.' };
         }
         if (!upstream.ok) {
-            return fail(upstream.status || 502, await upstreamMessage(upstream), cors,
-                upstream.headers.get('Retry-After'));
+            return {
+                status:     upstream.status || 502,
+                message:    await upstreamMessage(upstream),
+                retryAfter: upstream.headers.get('Retry-After')
+            };
         }
 
         let data;
         try { data = await upstream.json(); } catch (err) {
-            return fail(502, 'Unexpected response from the model.', cors);
+            return { status: 502, message: 'Unexpected response from the model.' };
         }
 
         const { text, toolCalls } = parseTurn(provider, data);
@@ -687,10 +815,10 @@ async function askModel(env, { model, provider, catalog, point, systemText, turn
     /* Only reachable if the model spent every round on tools and still wrote nothing.
        An empty 200 reads as a broken widget, so say something a visitor can act on. */
     if (!answer.trim()) {
-        return fail(502, 'The model kept searching without answering — try a simpler question.', cors);
+        return { status: 502, message: 'The model kept searching without answering — try a simpler question.' };
     }
 
-    return streamAnswer(answer, cors);
+    return { answer };
 }
 
 /* The reply is already complete, so this is the SSE envelope the page expects rather than
@@ -710,7 +838,11 @@ function streamAnswer(text, cors) {
         }
     });
 
-    return new Response(stream, {
+    return sseResponse(stream, cors);
+}
+
+function sseResponse(body, cors) {
+    return new Response(body, {
         headers: {
             ...cors,
             'Content-Type': 'text/event-stream; charset=utf-8',
