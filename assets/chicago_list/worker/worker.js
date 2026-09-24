@@ -80,6 +80,7 @@ const CATALOG_TTL_MS   = 5 * 60 * 1000;   // rebuild the prompt from the sheet t
 const MAX_QUESTION_CHARS = 500;
 const MAX_HISTORY_TURNS  = 6;             // last N messages kept for follow-ups
 const MAX_HISTORY_CHARS  = 600;
+const MAX_RESULTS         = 20;             // most places to return in a list answer
 
 const RATE_LIMIT_MAX      = 12;           // requests per IP per window
 const RATE_LIMIT_WINDOW_MS = 60 * 1000;
@@ -933,7 +934,7 @@ function systemPrompt(catalog, _near, hasPoint) {
         '- Always call a tool before answering. Never invent or guess any detail — all facts come from tool results.',
         '- For a specific place question (phone, rating, address, website, description), call get_place_details and quote the result exactly. If a field is absent in the result, say it is not listed.',
         '- For "near me" questions, call find_nearby. If no location is available, tell the visitor to allow location access or name a neighborhood.',
-        '- For list questions, call search_places. Use "- " bullets, at most 8 results, note the total when there are more.',
+        `- For list questions, call search_places. Use "- " bullets, at most ${MAX_RESULTS} results, note the total when there are more.`,
         '- Always include Type and neighborhood in your reply. Add the address when the visitor is heading somewhere.',
         '- After interpreting a broad ask, open with one short line saying what you took it to mean, e.g. "Latin American spots on the map — Mexican, Cuban, Peruvian and Colombian:".',
         '- Plain text only, no markdown headings or tables. Skip preamble and pleasantries.'
