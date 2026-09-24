@@ -73,19 +73,45 @@ lets a caller use it as a general LLM proxy.
 | Which model a caller may pick | `ALLOWED_MODELS` in `worker.js` — the cheap Groq models, Gemini's flash tier, and Gemma 4. Anything else, including a hand-edited request, silently falls back to the default, so a leaked endpoint cannot be pointed at an expensive model. |
 | Prompt injection through history | Only `user` and `assistant` turns are forwarded; an injected `system` turn is dropped. History is capped at 6 turns and 600 chars, the question at 500. |
 | Sheet outages | Same fallback the map uses: the sheet, then `chicago_layers.geojson`. The built catalog is cached for 5 minutes, so a burst of questions is one sheet fetch. |
-| A dead endpoint | `GET /` returns a health JSON — place count, neighborhood count, whether the data came from the sheet or the snapshot, prompt size, the default model and allowlist, and which keys are configured. It never reveals a key itself. |
+| A dead endpoint | `GET /` returns a health JSON — place count, neighborhood count, whether the data came from the sheet or the snapshot, the counted `Type` vocabulary and sub-category count the prompt is built from, prompt size, the default model and allowlist, and which keys are configured. It never reveals a key itself. |
 
-**The prompt is the whole map.** All 552 places with their notes come to ~34 KB (~8.5k tokens) against
-the model's context window, so nothing is pre-selected and no place can be hidden from a question
-that asks for it. Places are grouped under `## Neighborhood (count)` headings, which is what makes
-*"what food spots are in South Loop?"* reliable — the answer is one contiguous, counted block instead
-of 552 rows to filter — and lets the model answer "how many" from a heading rather than by counting.
+**The prompt is the map's vocabulary, not the map.** Place data reaches the model through three tools
+— `search_places`, `get_place_details`, `find_nearby` — so the system prompt carries no rows. What it
+does carry is the two vocabularies `buildCatalog` counts out of the sheet: every value in the `Type`
+column, and every sub-category at the head of a `description` ("Mexican restaurant", "Comic book
+store"). Both are the sheet author's own words and neither is guessable from outside it, which is the
+whole reason they are in the prompt. A visitor asks for *"bookstores"* and the column says `Books`; a
+visitor asks for *"latino restaurants"* and the sheet records no such thing — only `Mexican
+restaurant`, `Cuban restaurant`, `Peruvian restaurant`, `Colombian restaurant`, one `Latin American
+restaurant`, and a `Taco restaurant` filed under `Bar`. Handed the real vocabulary, the model
+translates; without it, it searched for the visitor's word, missed, and reported that a map holding
+41 Latin American places had none.
 
-Replies stream. The Worker normalises both providers' SSE into one shape (`{"delta"}`, `{"error"}`,
-`[DONE]`) — Groq's reasoning deltas are dropped, since that is the model thinking rather than
-answering — and maps upstream status codes (401/429/5xx) to sentences a visitor can act on. Streaming
-is not cosmetic here: the model can take seconds to start, and the client also shows a "still
-thinking" note at 9s and gives up at 90s.
+So that the translation is one call rather than a dozen, `search_places` takes `query` as a
+comma-separated list matched as **OR** across each place's name, type, sub-category and notes — one
+cuisine family in a single search — and `type` is resolved against the counted vocabulary rather than
+matched literally, so *bookstores*, *coffee shops* and *things to do* land on `Books`, `Cafe` and
+`Activity`. A `type` outside the vocabulary (*barbecue*, *speakeasy*) narrows as a keyword instead of
+emptying the result. Counts ride along in the prompt because they set expectations: `Colombian
+restaurant (1)` makes a single hit a complete answer rather than a failed search. They are counted per
+refresh, so a new `Type` in the sheet reaches the prompt within the 5-minute cache window with no code
+change.
+
+**No upstream round is streamed, but the browser's transport still is.** Every call to the provider
+is a buffered one, because a tool call can only be parsed out of a whole JSON body — and the round
+where the model finally stops calling tools is the round where it writes the reply. The Worker keeps
+that text and re-frames it as the SSE the page already reads (`{"delta"}` frames, an optional
+`{"error"}`, then `[DONE]`), chunked on whitespace so a long answer still paints in reading order.
+
+It used to discard the finished reply and ask for the same turn again with `stream: true`, purely to
+get SSE from the provider. That was a second full-prompt call per question, and it was the source of
+an intermittently empty reply: the re-request is a fresh sample, so a model that answered the first
+time sometimes called a tool the second time and streamed no text at all. Forbidding the call only
+moved the failure — with `tool_choice: 'none'` Groq's gpt-oss called a tool anyway and the API
+rejected the request outright. Keeping the text the model already wrote fixes it and halves the
+token spend, which is what a free tier's per-minute budget actually limits. Upstream status codes
+(401/429/5xx) still map to sentences a visitor can act on, and the client shows a "still thinking"
+note at 9s and gives up at 90s.
 
 ### "Near me"
 

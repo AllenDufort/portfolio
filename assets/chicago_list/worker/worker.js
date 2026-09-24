@@ -7,12 +7,12 @@
    follows from its id — but only ids in ALLOWED_MODELS are honoured, see below.
 
    This Worker does more than forward requests. It builds the entire prompt itself —
-   fetching the Google Sheet, grouping every saved place by neighborhood, and computing
-   real distances when the visitor shares their location. The page only ever sends a
-   question, a little chat history, and optional coordinates, which means this endpoint
-   can *only* answer questions about the Chicago map. It is not a general LLM relay
-   somebody can point at their own prompts, which is the main risk of putting a paid
-   key behind a public URL.
+   fetching the Google Sheet, counting out the vocabulary the model has to translate the
+   visitor's words into, running the searches it asks for, and computing real distances
+   when the visitor shares their location. The page only ever sends a question, a little
+   chat history, and optional coordinates, which means this endpoint can *only* answer
+   questions about the Chicago map. It is not a general LLM relay somebody can point at
+   their own prompts, which is the main risk of putting a paid key behind a public URL.
 
    Deploy:
      bash assets/chicago_list/worker/deploy.sh      # sets the API key secrets and deploys
@@ -25,9 +25,9 @@
                                                     #  wrangler finds the repo-root
                                                     #  wrangler.jsonc instead)
 
-   GET / returns a health summary (place count, neighborhoods, data source, the default
-   model and allowlist, which keys are set), so a deployment can be verified without
-   spending a model call. */
+   GET / returns a health summary (place count, neighborhoods, data source, the counted
+   Type vocabulary the prompt is built from, the default model and allowlist, which keys
+   are set), so a deployment can be verified without spending a model call. */
 
 /* Overridable in wrangler.toml [vars]. MODEL is the default the page gets when it asks
    for nothing, or asks for something not on the allowlist below. */
@@ -161,9 +161,10 @@ function resolveModel(requested, env) {
     return env.MODEL || DEFAULTS.MODEL;
 }
 
-function geminiUrl(model, stream, apiKey) {
-    const action = stream ? 'streamGenerateContent?alt=sse&' : 'generateContent?';
-    return `https://generativelanguage.googleapis.com/v1beta/models/${model}:${action}key=${apiKey}`;
+/* Always the non-streaming endpoint: the reply is buffered here so the tool calls can be
+   parsed out of it, and streamAnswer re-frames the finished text as SSE for the browser. */
+function geminiUrl(model, apiKey) {
+    return `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
 }
 
 export default {
@@ -239,12 +240,18 @@ export default {
 const TOOL_DECLARATIONS = [
     {
         name: 'search_places',
-        description: 'Search saved places by name, type, or neighborhood. Returns matching places with all their details.',
+        description: 'Search saved places by keyword, type, or neighborhood. Keywords are matched against ' +
+            'each place\'s name, type, sub-category, and notes, so one call can cover a whole theme. ' +
+            'Returns matching places with all their details, and the total when there are more than shown.',
         parameters: {
             type: 'object',
             properties: {
-                query:        { type: 'string',  description: 'Name, partial name, or keyword to search for.' },
-                type:         { type: 'string',  description: 'Filter by place type, e.g. Restaurant, Bar, Museum.' },
+                query:        { type: 'string',  description: 'One keyword, or a comma-separated list matched as OR — ' +
+                                                              'a place is returned if it matches ANY term. Use stems so one ' +
+                                                              'term covers variants ("argentin" catches Argentine and Argentinian). ' +
+                                                              'Example: "mexican, cuban, peruvian, colombian, taco, arepa".' },
+                type:         { type: 'string',  description: 'Filter by place type from the Type list in your instructions. ' +
+                                                              'Everyday words are accepted ("bookstore" finds Books).' },
                 neighborhood: { type: 'string',  description: 'Filter by neighborhood name.' },
                 limit:        { type: 'integer', description: 'Max results to return (default 10, max 20).' }
             }
@@ -281,22 +288,37 @@ function executeTool(name, args, catalog, point) {
     const cap = n => Math.min(Math.max(1, n || 10), 20);
 
     if (name === 'search_places') {
-        const q     = String(args.query        || '').toLowerCase();
-        const type  = String(args.type         || '').toLowerCase();
-        const hood  = String(args.neighborhood || '').toLowerCase();
+        const terms = keywords(args.query);
+        const type  = String(args.type         || '').toLowerCase().trim();
+        const hood  = String(args.neighborhood || '').toLowerCase().trim();
         const limit = cap(args.limit);
 
+        /* A type word that is not in the vocabulary at all ("barbecue", "speakeasy") is
+           narrowed with instead of filtered on, so a near-miss trims the result rather
+           than emptying it — "barbecue" then finds the barbecue sub-category. */
+        const wanted   = type ? resolveTypes(type, catalog.types) : [];
+        const typeWord = type && !wanted.length ? type : '';
+
         const hits = catalog.places.filter(p => {
-            if (q    && !p.name.toLowerCase().includes(q) &&
-                        !(p.notes       || '').toLowerCase().includes(q) &&
-                        !(p.description || '').toLowerCase().includes(q)) return false;
-            if (type && !(p.type         || '').toLowerCase().includes(type)) return false;
+            if (terms.length && !terms.some(term => haystack(p).includes(term))) return false;
+            if (wanted.length && !wanted.includes(p.type)) return false;
+            if (typeWord && !haystack(p).includes(typeWord)) return false;
             if (hood && !(p.neighborhood || '').toLowerCase().includes(hood)) return false;
             return true;
-        }).slice(0, limit);
+        });
 
-        if (!hits.length) return 'No places found matching those criteria.';
-        return hits.map(p => formatPlace(p)).join('\n\n');
+        if (!hits.length) {
+            return 'No places found matching those criteria. Try more keywords, shorter stems, or ' +
+                'drop the type or neighborhood filter before telling the visitor there are none.';
+        }
+
+        // The total matters even when the list is cut: "8 of 41" is the difference between
+        // "here are a few" and a wrong "that is all the map has".
+        const shown  = hits.slice(0, limit);
+        const header = hits.length > shown.length
+            ? `${hits.length} places match; showing the first ${shown.length}:`
+            : `${hits.length} place${hits.length === 1 ? '' : 's'} match:`;
+        return [header, ...shown.map(p => formatPlace(p))].join('\n\n');
     }
 
     if (name === 'get_place_details') {
@@ -309,13 +331,20 @@ function executeTool(name, args, catalog, point) {
 
     if (name === 'find_nearby') {
         if (!point) return 'No visitor location available. Ask the visitor to share their location.';
-        const type   = String(args.type || '').toLowerCase();
+        const type   = String(args.type || '').toLowerCase().trim();
         const radius = args.radius_miles || 1;
         const limit  = cap(args.limit);
 
+        // Resolved the same way as in search_places, so "bookstores near me" reaches Books.
+        const wanted = type ? resolveTypes(type, catalog.types) : [];
+        const near   = place => {
+            if (!type) return true;
+            return wanted.length ? wanted.includes(place.type) : haystack(place).includes(type);
+        };
+
         const ranked = catalog.places
             .filter(p => p.lon != null)
-            .filter(p => !type || (p.type || '').toLowerCase().includes(type))
+            .filter(near)
             .map(p => ({ p, miles: haversineMiles(point.lon, point.lat, p.lon, p.lat) }))
             .filter(hit => hit.miles <= radius)
             .sort((a, b) => a.miles - b.miles)
@@ -328,6 +357,103 @@ function executeTool(name, args, catalog, point) {
     }
 
     return `Unknown tool: ${name}`;
+}
+
+/* ── Matching the visitor's words to the sheet's words ─────────────────────
+   The two rarely agree. The Type column says "Books" where people say "bookstores",
+   and a cuisine is never a Type at all — "Colombian" lives in the description, under
+   whatever Google called the place. Both gaps used to read back as "the map has none",
+   so the query is ORed across keywords and the type is matched loosely. */
+
+/* query is a comma-separated list matched as OR: "mexican, peruvian, taco" returns a
+   place matching any one term. A theme like "latino restaurants" has no single word to
+   search for — it is a list of cuisines — so ORing turns what would be a dozen one-term
+   calls, or one call that finds nothing, into a single search. */
+function keywords(query) {
+    return String(query || '')
+        .split(',')
+        .map(term => term.trim().toLowerCase())
+        .filter(Boolean);
+}
+
+/* Keywords are matched against the whole card, type and sub-category included, because
+   that is where a cuisine actually is: "Colombian" is in the description, not the name.
+   Neighborhood is left out on purpose — it has its own filter, and including it would
+   make a search for "park" return everything in Lincoln Park. */
+function haystack(place) {
+    return [place.name, place.type, place.description, place.notes]
+        .join(' ')
+        .toLowerCase();
+}
+
+/* Everyday words for each Type value, kept singular. Only aliases that no amount of
+   stemming would reach belong here: "bookstore" never becomes "Books" on its own. */
+const TYPE_SYNONYMS = {
+    books:      ['book', 'bookstore', 'bookshop', 'comic', 'library', 'reading'],
+    cafe:       ['coffee', 'coffeeshop', 'espresso', 'tea', 'latte'],
+    brunch:     ['breakfast', 'pancake', 'diner', 'morning'],
+    restaurant: ['food', 'eatery', 'dining', 'dinner', 'lunch', 'cuisine', 'place to eat'],
+    snack:      ['dessert', 'sweet', 'treat', 'bakery', 'donut', 'doughnut', 'ice cream'],
+    bar:        ['pub', 'tavern', 'cocktail', 'drink', 'brewery', 'brewpub', 'lounge', 'wine'],
+    club:       ['nightclub', 'nightlife', 'dancing', 'dance', 'live music'],
+    retail:     ['shop', 'shopping', 'store', 'clothing', 'thrift', 'vintage', 'boutique'],
+    market:     ['grocery', 'grocerie', 'farmer market', 'food hall'],
+    museum:     ['gallery', 'exhibit', 'art', 'aquarium', 'planetarium', 'zoo'],
+    landmark:   ['sight', 'attraction', 'monument', 'tourist', 'architecture'],
+    park:       ['garden', 'green space', 'outdoor'],
+    beach:      ['lake', 'lakefront', 'shore', 'swim'],
+    activity:   ['thing to do', 'entertainment', 'fun', 'game']
+};
+
+/* Plural stripping, enough to let "bookstores" reach "bookstore", "beaches" reach
+   "beach", and "Restaurant" answer to "restaurants". Not a real stemmer, and does not
+   need to be. */
+function singular(word) {
+    if (word.endsWith('ies')) return `${word.slice(0, -3)}y`;
+    if (/(ch|sh|s|x|z)es$/.test(word)) return word.slice(0, -2);
+    if (word.endsWith('s') && !word.endsWith('ss')) return word.slice(0, -1);
+    return word;
+}
+
+/* Which Type values the visitor's word refers to, resolved against the vocabulary as a
+   whole rather than one place at a time — that is what lets a direct hit outrank an
+   alias. "coffee shops" is Cafe, and without the preference the Retail alias "shop"
+   would drag in every clothing store alongside it.
+
+   Matching is word by word, never a bare substring: "barbecue" contains "bar", and
+   substring matching would hand back all 96 bars. */
+function resolveTypes(asked, types) {
+    const words  = asked.split(/[^a-z]+/).filter(Boolean).map(singular);
+    const phrase = words.join(' ');
+    const direct = [];
+    const viaAlias = [];   // { label, at } — which word in the phrase the alias matched
+
+    types.forEach(({ label }) => {
+        const key = label.toLowerCase();
+        if (key === asked || words.includes(singular(key))) {
+            direct.push(label);
+            return;
+        }
+        // Multi-word aliases ("ice cream") are not in the word list, so they are matched
+        // against the singularized phrase and scored by their first word.
+        let at = -1;
+        (TYPE_SYNONYMS[key] || []).forEach(alias => {
+            const found = alias.includes(' ')
+                ? (phrase.includes(alias) ? words.indexOf(alias.split(' ')[0]) : -1)
+                : words.indexOf(alias);
+            if (found !== -1 && (at === -1 || found < at)) at = found;
+        });
+        if (at !== -1) viaAlias.push({ label, at });
+    });
+
+    if (direct.length)   return direct;
+    if (!viaAlias.length) return [];
+
+    /* In a compound like "coffee shop" or "book store" the modifier is the specific half.
+       Keeping only the earliest match returns Cafe and Books, rather than adding every
+       Retail place that also answers to "shop" and "store". */
+    const earliest = Math.min(...viaAlias.map(hit => hit.at));
+    return viaAlias.filter(hit => hit.at === earliest).map(hit => hit.label);
 }
 
 /* Format a single place as a readable block for tool results. */
@@ -355,7 +481,7 @@ function formatPlace(p, full = false) {
 
    `signature` is provider-opaque and only Gemini sets it; see parseTurn().           */
 
-function buildBody(provider, { model, systemText, turns, stream }) {
+function buildBody(provider, { model, systemText, turns }) {
     if (provider === 'gemini') {
         const contents = [];
         turns.forEach(turn => {
@@ -422,8 +548,7 @@ function buildBody(provider, { model, systemText, turns, stream }) {
         })),
         max_completion_tokens: MODEL_MAX_TOKENS + REASONING_HEADROOM,
         temperature:           MODEL_TEMPERATURE,
-        reasoning_effort:      GROQ_REASONING_EFFORT,
-        ...(stream ? { stream: true } : {})
+        reasoning_effort:      GROQ_REASONING_EFFORT
     });
 }
 
@@ -435,7 +560,7 @@ function parseTurn(provider, data) {
     if (provider === 'gemini') {
         const parts = data?.candidates?.[0]?.content?.parts || [];
         return {
-            /* Thought parts dropped, as in geminiSseTransform. On a tool round this text
+            /* Thought parts dropped. On a tool round this text
                becomes the assistant turn in the transcript, so keeping them would feed a
                thinking model's own reasoning back to it as something it had said. */
             text: parts.filter(p => !p.thought && typeof p.text === 'string')
@@ -466,10 +591,10 @@ function parseTurn(provider, data) {
     };
 }
 
-function upstreamRequest(provider, { model, apiKey, systemText, turns, stream }) {
-    const body = buildBody(provider, { model, systemText, turns, stream });
+function upstreamRequest(provider, { model, apiKey, systemText, turns }) {
+    const body = buildBody(provider, { model, systemText, turns });
     if (provider === 'gemini') {
-        return [geminiUrl(model, stream, apiKey), {
+        return [geminiUrl(model, apiKey), {
             method:  'POST',
             headers: { 'Content-Type': 'application/json' },
             body
@@ -485,29 +610,39 @@ function upstreamRequest(provider, { model, apiKey, systemText, turns, stream })
     }];
 }
 
-/* Agentic loop: call the model, run any tool calls it makes, then call again
-   until it produces a plain text reply. Tool rounds are not streamed —
-   only the final text turn is, so we buffer the intermediate rounds and stream
-   just the last one back to the browser. */
+/* Agentic loop: call the model, run any tool calls it makes, then call again until it
+   produces a plain text reply — which is also the answer the visitor gets, streamed back
+   from the buffer rather than re-requested. No round is streamed from upstream: a tool
+   call has to be parsed out of a whole JSON body, and by the time the model stops calling
+   tools it has already written the reply.
+
+   It used to throw that reply away and ask the same turn again with `stream: true`, purely
+   to get SSE out of the provider. That cost an extra call per question and was the source
+   of the empty-reply bug: the re-request is a fresh sample, and a model that answered the
+   first time sometimes calls a tool the second time, streaming no text at all. Forbidding
+   the call (`tool_choice: 'none'`) only moved the failure — Groq's gpt-oss called a tool
+   anyway and the API rejected the request with "Tool choice is none, but model called a
+   tool". Keeping the text the model already produced fixes it outright, and saves a
+   full-prompt call per question, which matters against a per-minute token budget. */
 const MAX_TOOL_ROUNDS = 5;   // guard against a runaway loop
 
 async function askModel(env, { model, provider, catalog, point, systemText, turns, cors }) {
     const apiKey = apiKeyFor(provider, env);
 
-    const call = (msgs, stream) => {
-        const [url, init] = upstreamRequest(provider, {
-            model, apiKey, systemText, turns: msgs, stream
-        });
+    const call = msgs => {
+        const [url, init] = upstreamRequest(provider, { model, apiKey, systemText, turns: msgs });
         return fetch(url, init);
     };
 
-    let msgs = turns;
+    let msgs   = turns;
+    let answer = '';
 
-    // Tool-call rounds (not streamed — we need the full JSON to parse tool calls).
-    for (let round = 0; round < MAX_TOOL_ROUNDS; round++) {
+    /* One extra pass beyond MAX_TOOL_ROUNDS: the last one reads the model's reply but
+       runs no tools, so five rounds of searching still get a turn to write an answer. */
+    for (let round = 0; round <= MAX_TOOL_ROUNDS; round++) {
         let upstream;
         try {
-            upstream = await call(msgs, false);
+            upstream = await call(msgs);
         } catch (err) {
             return fail(502, 'I could not reach the model just now — try again shortly.', cors);
         }
@@ -523,18 +658,17 @@ async function askModel(env, { model, provider, catalog, point, systemText, turn
 
         const { text, toolCalls } = parseTurn(provider, data);
 
-        /* No tool calls — the model is answering, so stop here and re-request this same
-           turn with streaming. The buffered `text` is deliberately thrown away rather than
-           appended to the transcript: the streaming request has to end on a user or tool
-           turn (Gemini rejects one ending in a model turn outright), and appending the
-           answer would ask the model to continue past it instead of producing it.
+        /* No tool calls — the model is answering, so this text IS the answer.
 
            finishReason deliberately plays no part in this test. Gemini reports "STOP" on
            the tool-call turn itself (verified against the live API), so the older
            `|| finishReason === 'STOP'` check here meant a tool was never actually run on
            the Gemini path. Groq is unambiguous — it reports "tool_calls" — but the tool
            calls themselves are the reliable signal for both. */
-        if (!toolCalls.length) break;
+        if (!toolCalls.length || round === MAX_TOOL_ROUNDS) {
+            answer = text;
+            break;
+        }
 
         msgs = [
             ...msgs,
@@ -550,19 +684,33 @@ async function askModel(env, { model, provider, catalog, point, systemText, turn
         ];
     }
 
-    // Stream the final model reply back to the browser.
-    let upstream;
-    try {
-        upstream = await call(msgs, true);
-    } catch (err) {
-        return fail(502, 'I could not reach the model just now — try again shortly.', cors);
-    }
-    if (!upstream.ok || !upstream.body) {
-        return fail(upstream.status || 502, await upstreamMessage(upstream), cors,
-            upstream.headers.get('Retry-After'));
+    /* Only reachable if the model spent every round on tools and still wrote nothing.
+       An empty 200 reads as a broken widget, so say something a visitor can act on. */
+    if (!answer.trim()) {
+        return fail(502, 'The model kept searching without answering — try a simpler question.', cors);
     }
 
-    return new Response(upstream.body.pipeThrough(sseTransform(provider)), {
+    return streamAnswer(answer, cors);
+}
+
+/* The reply is already complete, so this is the SSE envelope the page expects rather than
+   a relay of an upstream stream: same `{"delta"}` frames and `[DONE]`, emitted in one pass.
+   Chunked on whitespace so a long answer paints in reading order instead of one block, and
+   with no artificial delay — the text is in hand, and pacing it out would only add latency. */
+const STREAM_CHUNK_CHARS = 90;
+
+function streamAnswer(text, cors) {
+    const encoder = new TextEncoder();
+    const stream  = new ReadableStream({
+        start(controller) {
+            const send = obj => controller.enqueue(encoder.encode(`data: ${JSON.stringify(obj)}\n\n`));
+            for (const chunk of chunkText(text, STREAM_CHUNK_CHARS)) send({ delta: chunk });
+            controller.enqueue(encoder.encode('data: [DONE]\n\n'));
+            controller.close();
+        }
+    });
+
+    return new Response(stream, {
         headers: {
             ...cors,
             'Content-Type': 'text/event-stream; charset=utf-8',
@@ -570,6 +718,22 @@ async function askModel(env, { model, provider, catalog, point, systemText, turn
             'Connection': 'keep-alive'
         }
     });
+}
+
+/* Split on whitespace runs, keeping the whitespace, so joining the chunks reproduces the
+   text exactly — newlines and blank lines included, which the widget renders as markdown. */
+function chunkText(text, size) {
+    const chunks = [];
+    let current  = '';
+    for (const piece of String(text).split(/(\s+)/)) {
+        if (current && current.length + piece.length > size) {
+            chunks.push(current);
+            current = '';
+        }
+        current += piece;
+    }
+    if (current) chunks.push(current);
+    return chunks;
 }
 
 /* Turn a provider API error response into something worth showing a visitor.
@@ -595,135 +759,51 @@ async function upstreamMessage(res) {
     }
 }
 
-/* Both providers stream SSE in their own shape; the browser only ever sees ours
-   ({"delta":"..."} frames, an optional {"error":"..."}, then [DONE]), so switching
-   models never changes the transport chicagoChat.js reads. */
-function sseTransform(provider) {
-    return provider === 'gemini' ? geminiSseTransform() : groqSseTransform();
-}
-
-/* SSE event blocks are blank-line separated, but the two providers disagree on the line
-   ending: Gemini sends CRLF (so its blocks end "\r\n\r\n") and Groq sends bare LF. Splitting
-   on "\n\n" alone therefore finds no boundary at all in a Gemini stream — the whole reply
-   accumulates in the buffer and is thrown away at flush. Match either. */
-const SSE_BLOCK_SPLIT = /\r?\n\r?\n/;
-
-/* Pull the payload out of one event block, tolerating CRLF line endings inside it too.
-   Returns null for a comment/keepalive block, a block with no data line, or [DONE]. */
-function sseData(block) {
-    const dataLine = block.split(/\r?\n/).find(l => l.startsWith('data:'));
-    if (!dataLine) return null;
-    const payload = dataLine.slice(5).trim();
-    if (!payload || payload === '[DONE]') return null;
-    try { return JSON.parse(payload); } catch (err) { return null; }
-}
-
-/* Upstream Gemini SSE -> our SSE.
-   Gemini streams SSE events like:
-     data: {"candidates":[{"content":{"parts":[{"text":"Hello"}],...}}]}
-
-   We extract text parts and forward them as {"delta":"..."}, then emit [DONE]. */
-function geminiSseTransform() {
-    const decoder = new TextDecoder();
-    const encoder = new TextEncoder();
-    let buffer = '';
-
-    const send = (ctrl, payload) =>
-        ctrl.enqueue(encoder.encode(`data: ${JSON.stringify(payload)}\n\n`));
-
-    const handleBlock = (block, ctrl) => {
-        const data = sseData(block);
-        if (!data) return;
-
-        /* Every text part, not just parts[0]: a chunk can carry a thought part alongside
-           the answer, in which case the answer is not the first one. */
-        (data?.candidates?.[0]?.content?.parts || []).forEach(part => {
-            if (part.thought) return;     // the model thinking out loud, not the answer
-            if (typeof part.text === 'string' && part.text) send(ctrl, { delta: part.text });
-        });
-
-        if (data?.error) {
-            send(ctrl, { error: (data.error && data.error.message) || 'The model stopped early.' });
-        }
-    };
-
-    return new TransformStream({
-        transform(chunk, ctrl) {
-            buffer += decoder.decode(chunk, { stream: true });
-            const blocks = buffer.split(SSE_BLOCK_SPLIT);
-            buffer = blocks.pop() || '';   // keep the unfinished block
-            blocks.forEach(block => handleBlock(block, ctrl));
-        },
-        flush(ctrl) {
-            if (buffer.trim()) handleBlock(buffer, ctrl);
-            ctrl.enqueue(encoder.encode('data: [DONE]\n\n'));
-        }
-    });
-}
-
-/* Upstream Groq SSE -> our SSE.
-   Groq streams OpenAI-style blocks:
-     data: {"choices":[{"delta":{"content":"Hello"}}]}
-     data: [DONE]
-   Its reasoning models also stream {"delta":{"reasoning":"..."}} blocks. That is
-   the model thinking out loud rather than answering, so those are dropped and
-   never reach the page. */
-function groqSseTransform() {
-    const decoder = new TextDecoder();
-    const encoder = new TextEncoder();
-    let buffer = '';
-
-    const send = (ctrl, payload) =>
-        ctrl.enqueue(encoder.encode(`data: ${JSON.stringify(payload)}\n\n`));
-
-    const handleBlock = (block, ctrl) => {
-        const data = sseData(block);
-        if (!data) return;
-
-        const text = data?.choices?.[0]?.delta?.content;
-        if (typeof text === 'string' && text) {
-            send(ctrl, { delta: text });
-        }
-        if (data?.error) {
-            send(ctrl, { error: (data.error && data.error.message) || 'The model stopped early.' });
-        }
-    };
-
-    return new TransformStream({
-        transform(chunk, ctrl) {
-            buffer += decoder.decode(chunk, { stream: true });
-            const blocks = buffer.split(SSE_BLOCK_SPLIT);
-            buffer = blocks.pop() || '';   // keep the unfinished block
-            blocks.forEach(block => handleBlock(block, ctrl));
-        },
-        flush(ctrl) {
-            if (buffer.trim()) handleBlock(buffer, ctrl);
-            ctrl.enqueue(encoder.encode('data: [DONE]\n\n'));
-        }
-    });
-}
-
 /* ── Prompt ──────────────────────────────────────────────────────────────── */
 
-/* With tools available, the model no longer needs the whole catalog in the prompt.
-   The system message tells it what it is, what tools it has, and how to behave.
-   Actual place data comes back through tool results, which are precise and complete. */
+/* With tools available, the model no longer needs the whole catalog in the prompt. What
+   it does need is the sheet's vocabulary — the Type values and the description
+   sub-categories, both counted in buildCatalog. Without them the model searches for the
+   words a visitor used ("bookstores", "latino") rather than the words the sheet uses
+   ("Books", "Colombian restaurant"), finds nothing, and reports that the map is empty on
+   a subject where it holds dozens of places. Actual place data still comes back only
+   through tool results, which are precise and complete. */
 function systemPrompt(catalog, _near, hasPoint) {
     const lines = [
         'You are Chicago Assistant, a guide to a personal Chicago TODO map of saved places.',
         `The map holds ${catalog.places.length} saved places across ${catalog.hoods.length} neighborhoods.`,
         '',
-        'You have three tools:',
-        '- search_places: find places by name, type, or neighborhood.',
-        '- get_place_details: get every available field for one specific place (address, rating, review count, description, notes, phone, website).',
-        '- find_nearby: find places closest to the visitor\'s current location, sorted by distance.',
+        'Tools:',
+        '- search_places: find places by keyword, type, or neighborhood. query takes a comma-separated list and matches ANY term against a place\'s name, type, sub-category, and notes, so one call can cover a whole theme.',
+        '- get_place_details: every available field for one specific place (address, rating, review count, description, notes, phone, website).',
+        '- find_nearby: places closest to the visitor\'s current location, sorted by distance.',
         '',
-        'Rules:',
+        'TYPE is a closed set. These are the only values in the map, with counts:',
+        vocabLine(catalog.types),
+        '',
+        'Most places also carry a finer sub-category, which search_places matches. Those present:',
+        vocabLine(catalog.tags),
+        '',
+        'Reading the question — do this before calling anything:',
+        '- Decide whether the ask names a Type, a sub-category, or a theme spanning several, then translate it into the vocabulary above. The visitor will not use the sheet\'s words.',
+        '- Everyday words for a Type: bookstores are Books, coffee is Cafe, breakfast is Brunch, shops are Retail or Market, nightlife is Bar and Club, desserts and ice cream are Snack, sights are Landmark.',
+        '- A theme is not a search term. Expand it into every sub-category, country, and dish that belongs to it and send them as ONE comma-separated query. Use stems so a term covers variants — "argentin" catches Argentine and Argentinian, "taco" catches tacos and taqueria.',
+        '  "latino restaurants" or "hispanic food" — every Latin American country counts, not just Mexican: query "mexican, latin, cuban, puerto ric, peruvian, colombian, venezuel, argentin, chilean, bolivi, ecuador, salvador, guatemal, honduran, nicaragu, dominican, brazil, taco, taqueria, arepa, empanada, birria, ceviche, mole".',
+        '  "asian food": query "chinese, japanese, korean, thai, vietnamese, filipino, malaysian, nepalese, asian, sushi, ramen, dumpling, hot pot, bubble tea, dim sum".',
+        '  "bookstores": type "Books" — no query needed, the Type already is the answer.',
+        '- A cuisine is not confined to one Type: Cuban, Mexican and Peruvian places are filed under Bar, Brunch and Cafe as well as Restaurant. Send the query on its own first; add a type only to narrow a long result, and drop it again if that comes back thin.',
+        '- Then read the Type of every hit and drop the ones that do not fit the ask. A keyword match is not a guarantee — the National Museum of Puerto Rican Arts & Culture matches "puerto ric" and is not a restaurant.',
+        '  Asked about eating or drinking, keep only Restaurant, Bar, Brunch, Cafe, Snack, Market and Club. Museum, Landmark, Park, Books, Retail, Activity and Beach are never food, whatever they matched on.',
+        '  Then count what is left and report that number. Do not quote the search total as if every hit survived, and do not widen the wording to cover what you dropped — no "and related venues".',
+        '- Never say the map has nothing after one narrow attempt. Add keywords, shorten them to stems, or drop the type or neighborhood, and search again before reporting none.',
+        '',
+        'Answering:',
         '- Always call a tool before answering. Never invent or guess any detail — all facts come from tool results.',
         '- For a specific place question (phone, rating, address, website, description), call get_place_details and quote the result exactly. If a field is absent in the result, say it is not listed.',
         '- For "near me" questions, call find_nearby. If no location is available, tell the visitor to allow location access or name a neighborhood.',
         '- For list questions, call search_places. Use "- " bullets, at most 8 results, note the total when there are more.',
         '- Always include Type and neighborhood in your reply. Add the address when the visitor is heading somewhere.',
+        '- After interpreting a broad ask, open with one short line saying what you took it to mean, e.g. "Latin American spots on the map — Mexican, Cuban, Peruvian and Colombian:".',
         '- Plain text only, no markdown headings or tables. Skip preamble and pleasantries.'
     ];
 
@@ -849,9 +929,40 @@ async function addCoords(rows, env) {
     });
 }
 
-/* Merge the sheet rows into the catalog text the model reads. Entries are deduplicated
-   by name + address (La Scarola is in the sheet twice) and grouped by neighborhood,
-   each heading carrying the count the model quotes back for "how many" questions. */
+/* Distinct labels with their counts, most common first, blanks dropped. */
+function tally(labels) {
+    const counts = new Map();
+    labels.forEach(label => {
+        const key = String(label || '').trim();
+        if (key) counts.set(key, (counts.get(key) || 0) + 1);
+    });
+    return Array.from(counts, ([label, count]) => ({ label, count }))
+        .sort((a, b) => b.count - a.count || a.label.localeCompare(b.label));
+}
+
+/* The sub-category at the head of a description: "Colombian restaurant: Small, casual
+   spot…" -> "Colombian restaurant". A few rows are a bare sentence with no category at
+   all, so anything too long to be a label is dropped rather than sent to the prompt as
+   noise. */
+const MAX_TAG_CHARS = 40;
+const MAX_TAG_WORDS = 5;
+
+function descriptionTag(description) {
+    const head = String(description || '').split(':')[0].trim();
+    if (!head || head.length > MAX_TAG_CHARS) return '';
+    return head.split(/\s+/).length <= MAX_TAG_WORDS ? head : '';
+}
+
+/* A vocabulary as one prompt line. Counts are included because they tell the model what
+   to expect: "Colombian restaurant (1)" makes a single hit a complete answer, not a
+   failed search worth retrying. */
+function vocabLine(entries) {
+    return entries.map(entry => `${entry.label} (${entry.count})`).join(', ');
+}
+
+/* Build the catalog the tools search. Entries are deduplicated by name + address
+   (La Scarola is in the sheet twice); the neighborhood grouping survives because
+   find_nearby names the visitor's own area from these averaged centroids. */
 function buildCatalog(rows, source) {
     const byKey = new Map();
     rows.forEach(row => {
@@ -874,6 +985,17 @@ function buildCatalog(rows, source) {
     });
     const places = Array.from(byKey.values());
 
+    /* Two vocabularies, counted from the rows themselves and handed to the model in the
+       system prompt. Neither is guessable from outside the sheet: the Type column is a
+       small closed set its author chose ("Books", not "Bookstore"), and the description
+       column carries a Google-Maps-style sub-category ("Colombian restaurant", "Comic
+       book store") that is the only place a cuisine is recorded. Telling the model what
+       the words actually are is what lets it turn "bookstores" into type Books, and
+       "latino restaurants" into the cuisines the map really holds. Counted rather than
+       hardcoded so a new Type in the sheet reaches the prompt with the next refresh. */
+    const types = tally(places.map(place => place.type));
+    const tags  = tally(places.map(place => descriptionTag(place.description)));
+
     // Group by the sheet's own Neighborhood text; anything blank lands in one bucket.
     const groups = new Map();
     places.forEach(place => {
@@ -893,32 +1015,7 @@ function buildCatalog(rows, source) {
         };
     });
 
-    const lines = [
-        'CATALOG — every saved place, grouped by neighborhood.',
-        'Each entry lists every available field. Fields that are absent are not shown.',
-        'Format per line: Name (Type) | neighborhood | [address: …] | [rating: …★ (N reviews)] | [description: …] | [notes: …] | [phone: …] | [website: …]'
-    ];
-    hoods.forEach(hood => {
-        lines.push('', `## ${hood.label} (${hood.count})`);
-        groups.get(hood.label)
-            .slice()
-            .sort((a, b) => a.name.localeCompare(b.name))
-            .forEach(place => {
-                const parts = [`- ${place.name} (${place.type || 'Place'}) | ${place.neighborhood || 'Chicago'}`];
-                if (place.address)        parts.push(`address: ${place.address}`);
-                if (place.ratingsAverage != null) {
-                    const rev = place.ratingsTotal != null ? ` (${place.ratingsTotal} reviews)` : '';
-                    parts.push(`rating: ${place.ratingsAverage}★${rev}`);
-                }
-                if (place.description)    parts.push(`description: ${place.description}`);
-                if (place.notes)          parts.push(`notes: ${place.notes}`);
-                if (place.phone)          parts.push(`phone: ${place.phone}`);
-                if (place.website)        parts.push(`website: ${place.website}`);
-                lines.push(parts.join(' | '));
-            });
-    });
-
-    return { places, hoods, text: lines.join('\n'), source, builtAt: Date.now() };
+    return { places, hoods, types, tags, source, builtAt: Date.now() };
 }
 
 // "5025 N Clark St, Chicago, IL 60640" -> "5025 N Clark St", but suburbs keep their city.
@@ -1106,7 +1203,11 @@ async function health(env, cors) {
             places: catalog.places.length,
             neighborhoods: catalog.hoods.length,
             source: catalog.source,
-            promptChars: catalog.text.length,
+            // The vocabularies the prompt is built from, so a deploy can be checked for
+            // the Type list actually landing without spending a model call.
+            types: catalog.types.map(t => `${t.label} (${t.count})`),
+            subCategories: catalog.tags.length,
+            promptChars: systemPrompt(catalog, '', false).length,
             defaultModel: env.MODEL || DEFAULTS.MODEL,
             allowedModels: ALLOWED_MODELS,
             keyConfigured: {
