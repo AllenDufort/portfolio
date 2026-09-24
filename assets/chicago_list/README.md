@@ -74,6 +74,18 @@ Counts ride along because they set expectations: `Colombian restaurant (1)` make
 complete answer. Both are recounted per refresh, so a new `Type` reaches the prompt within the
 5-minute cache window with no code change.
 
+One class of ask does not survive being left to the model: a region. *Caribbean food* means two dozen
+countries, and a model told to expand a theme itself expands it to the three or four it thinks of,
+searches `caribbean`, matches only the cards whose description happens to use that word, and answers
+that the map holds two Caribbean places when it holds twenty — a wrong answer that reads like a gap in
+the sheet. So the regions are a table in the Worker, `THEMES`: a query term naming one
+(`caribbean`, `latin`, `asian`, `middle eastern`, `african`, `mediterranean`, `european`, or an alias
+like *west indian* or *hispanic*) is replaced with every country, demonym and unambiguous dish under
+it before the search runs. `query: "caribbean"` becomes 48 terms. The expansion is then reported back
+in the tool result, so the model says which region it read and names the cuisines that actually turned
+up — and so an empty region result is final rather than something to retry island by island. `GET /`
+lists each region's expansion size.
+
 ### Streaming
 
 No upstream round is streamed: a tool call can only be parsed out of a whole JSON body, and the round

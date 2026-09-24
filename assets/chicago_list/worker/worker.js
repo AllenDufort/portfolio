@@ -26,8 +26,9 @@
                                                     #  wrangler.jsonc instead)
 
    GET / returns a health summary (place count, neighborhoods, data source, the counted
-   Type vocabulary the prompt is built from, the default model and allowlist, which keys
-   are set), so a deployment can be verified without spending a model call. */
+   Type vocabulary the prompt is built from, the size of each region expansion, the default
+   model and allowlist, which keys are set), so a deployment can be verified without
+   spending a model call. */
 
 /* Overridable in wrangler.toml [vars]. MODEL is the default the page gets when it asks
    for nothing, or asks for something not on the allowlist below. */
@@ -250,7 +251,10 @@ const TOOL_DECLARATIONS = [
                 query:        { type: 'string',  description: 'One keyword, or a comma-separated list matched as OR — ' +
                                                               'a place is returned if it matches ANY term. Use stems so one ' +
                                                               'term covers variants ("argentin" catches Argentine and Argentinian). ' +
-                                                              'Example: "mexican, cuban, peruvian, colombian, taco, arepa".' },
+                                                              'Example: "mexican, cuban, peruvian, colombian, taco, arepa". ' +
+                                                              'A region name is expanded for you into every cuisine it covers, so ' +
+                                                              'pass "caribbean" as one term rather than listing the islands: ' +
+                                                              'caribbean, latin, asian, middle eastern, african, mediterranean, european.' },
                 type:         { type: 'string',  description: 'Filter by place type from the Type list in your instructions. ' +
                                                               'Everyday words are accepted ("bookstore" finds Books).' },
                 neighborhood: { type: 'string',  description: 'Filter by neighborhood name.' },
@@ -289,7 +293,7 @@ function executeTool(name, args, catalog, point) {
     const cap = n => Math.min(Math.max(1, n || 10), 20);
 
     if (name === 'search_places') {
-        const terms = keywords(args.query);
+        const { terms, themes } = keywords(args.query);
         const type  = String(args.type         || '').toLowerCase().trim();
         const hood  = String(args.neighborhood || '').toLowerCase().trim();
         const limit = cap(args.limit);
@@ -308,7 +312,24 @@ function executeTool(name, args, catalog, point) {
             return true;
         });
 
+        /* Said once, ahead of the result, so the model reports the search that actually ran.
+           Without it a widened search reads back as a narrow one and the opening line
+           claims less than was checked. */
+        const widened = themes.length
+            ? `Read ${themes.map(t => `"${t}"`).join(' and ')} as the whole region and searched ` +
+              `${terms.length} cuisines and dishes for it. Say so in your reply, and name a few of ` +
+              'the cuisines that actually turned up.'
+            : '';
+
         if (!hits.length) {
+            // A theme search has already been widened as far as the list goes, so sending the
+            // model back to try the countries one at a time only spends turns on the same miss.
+            if (themes.length) {
+                return `Searched all ${terms.length} cuisines and dishes under ` +
+                    `${themes.map(t => `"${t}"`).join(' and ')} and nothing matched. That is the whole ` +
+                    'region checked, not a narrow search, so tell the visitor the map has none rather ' +
+                    'than retrying country by country.';
+            }
             return 'No places found matching those criteria. Try more keywords, shorter stems, or ' +
                 'drop the type or neighborhood filter before telling the visitor there are none.';
         }
@@ -319,7 +340,7 @@ function executeTool(name, args, catalog, point) {
         const header = hits.length > shown.length
             ? `${hits.length} places match; showing the first ${shown.length}:`
             : `${hits.length} place${hits.length === 1 ? '' : 's'} match:`;
-        return [header, ...shown.map(p => formatPlace(p))].join('\n\n');
+        return [widened, header, ...shown.map(p => formatPlace(p))].filter(Boolean).join('\n\n');
     }
 
     if (name === 'get_place_details') {
@@ -366,15 +387,126 @@ function executeTool(name, args, catalog, point) {
    whatever Google called the place. Both gaps used to read back as "the map has none",
    so the query is ORed across keywords and the type is matched loosely. */
 
+/* Regional themes the sheet has no single word for. "Caribbean food" is a question about
+   two dozen countries, and a model asked to enumerate them is unreliable in a way that
+   reads as a data gap: it sends the bare word "caribbean", matches only the few cards
+   whose description happens to use it, and reports that the map holds two Caribbean
+   places when it holds twenty. Expanding here rather than in the prompt makes the
+   expansion identical on every model and every turn, and makes a gap a one-line edit to a
+   list instead of another round of instruction tuning.
+
+   Terms are substrings matched against the whole card, so stems cover variants —
+   "jamaic" catches Jamaica and Jamaican, "barbad" catches Barbadian. Dishes are included
+   only where they belong to one region: "jerk", "mofongo" and "pupusa" identify a cuisine
+   on their own, "patty", "curry" and "creole" do not. */
+const THEMES = {
+    caribbean: {
+        aliases: ['west indian', 'antillean', 'antilles'],
+        terms: ['caribbean', 'west indian', 'antillean', 'antigua', 'barbud', 'bahamian', 'bahamas',
+            'barbad', 'cuban', 'cubano', 'dominica', 'grenad', 'haitian', 'haiti', 'jamaic', 'kitts',
+            'nevis', 'saint lucia', 'st lucia', 'vincentian', 'grenadines', 'trinidad', 'tobago',
+            'puerto ric', 'boricua', 'virgin island', 'anguill', 'cayman', 'montserrat', 'turks',
+            'caicos', 'guadeloup', 'martiniq', 'barth', 'saint martin', 'sint maarten', 'curacao',
+            'curaçao', 'jerk', 'mofongo', 'ropa vieja', 'tostones', 'plantain', 'ackee', 'oxtail',
+            'griot', 'pastelillo', 'lechon']
+    },
+    latin: {
+        aliases: ['latino', 'latina', 'latinx', 'latin american', 'hispanic', 'south american',
+            'central american'],
+        terms: ['latin', 'mexican', 'cuban', 'puerto ric', 'peruvian', 'colombian', 'venezuel',
+            'argentin', 'chilean', 'bolivi', 'ecuador', 'salvador', 'guatemal', 'honduran',
+            'nicaragu', 'costa ric', 'panamanian', 'paraguay', 'uruguay', 'dominican', 'brazil',
+            'taco', 'taqueria', 'arepa', 'empanada', 'birria', 'ceviche', 'mole', 'pupusa', 'tamale',
+            'pozole', 'churro']
+    },
+    asian: {
+        aliases: ['east asian', 'southeast asian', 'south asian', 'pan asian'],
+        terms: ['asian', 'chinese', 'japanese', 'korean', 'thai', 'vietnamese', 'filipino',
+            'malaysian', 'indonesian', 'singapore', 'burmese', 'laotian', 'cambodian', 'nepal',
+            'tibetan', 'mongolian', 'taiwanese', 'indian', 'pakistani', 'bangladesh', 'sri lankan',
+            'sushi', 'ramen', 'dumpling', 'hot pot', 'dim sum', 'bubble tea', 'boba', 'pho',
+            'banh mi', 'bibimbap', 'noodle']
+    },
+    'middle eastern': {
+        aliases: ['mideast', 'middle east', 'levantine', 'arab', 'arabic'],
+        terms: ['middle eastern', 'lebanese', 'syrian', 'palestin', 'israeli', 'jordanian', 'iraqi',
+            'iranian', 'persian', 'turkish', 'egyptian', 'yemeni', 'kurdish', 'armenian', 'afghan',
+            'falafel', 'shawarma', 'hummus', 'kebab', 'kabob', 'mezze', 'kofta', 'baklava']
+    },
+    african: {
+        aliases: ['west african', 'east african', 'north african'],
+        terms: ['african', 'ethiopian', 'eritrean', 'nigerian', 'ghanaian', 'senegal', 'somali',
+            'kenyan', 'tanzanian', 'moroccan', 'tunisian', 'algerian', 'sudanese', 'cameroon',
+            'ivorian', 'injera', 'jollof', 'suya', 'tagine', 'berbere', 'doro wat']
+    },
+    mediterranean: {
+        aliases: ['med'],
+        terms: ['mediterranean', 'greek', 'italian', 'spanish', 'portuguese', 'turkish', 'lebanese',
+            'israeli', 'moroccan', 'cypriot', 'sicilian', 'gyro', 'souvlaki', 'tapas', 'paella',
+            'mezze', 'falafel', 'hummus']
+    },
+    european: {
+        aliases: ['eastern european', 'western european', 'scandinavian', 'nordic'],
+        terms: ['european', 'french', 'italian', 'spanish', 'german', 'polish', 'irish', 'british',
+            'english', 'scottish', 'greek', 'portuguese', 'swedish', 'danish', 'norwegian',
+            'finnish', 'dutch', 'belgian', 'swiss', 'austrian', 'hungarian', 'czech', 'slovak',
+            'russian', 'ukrainian', 'romanian', 'serbian', 'croatian', 'lithuanian', 'scandinavian',
+            'nordic', 'pierogi', 'schnitzel', 'crepe', 'brasserie', 'trattoria', 'osteria']
+    }
+};
+
+/* Every word that can reach a theme, aliases included, in one flat lookup. */
+const THEME_LOOKUP = Object.entries(THEMES).reduce((map, [name, theme]) => {
+    map[name] = name;
+    (theme.aliases || []).forEach(alias => { map[alias] = name; });
+    return map;
+}, Object.create(null));
+
+/* The region list as the prompt states it, derived from THEMES so a region added here
+   reaches the model without a second edit. */
+const THEME_NAMES = Object.keys(THEMES).join(', ');
+
+/* Words a visitor hangs off a theme that carry no search meaning. Dropping them is what
+   lets "caribbean restaurants", "asian eats" and "latino food" all reach a theme; the
+   Type they imply is handled separately by resolveTypes. */
+const THEME_NOISE = new Set(['food', 'foods', 'cuisine', 'cuisines', 'restaurant', 'restaurants',
+    'place', 'places', 'spot', 'spots', 'eat', 'eats', 'dining', 'dish', 'dishes', 'bar', 'bars',
+    'cafe', 'cafes', 'joint', 'joints', 'style']);
+
+function themeName(term) {
+    const words = term.split(/[^a-z\u00c0-\u024f]+/).filter(word => word && !THEME_NOISE.has(word));
+    return THEME_LOOKUP[words.join(' ')] || null;
+}
+
 /* query is a comma-separated list matched as OR: "mexican, peruvian, taco" returns a
    place matching any one term. A theme like "latino restaurants" has no single word to
    search for — it is a list of cuisines — so ORing turns what would be a dozen one-term
-   calls, or one call that finds nothing, into a single search. */
+   calls, or one call that finds nothing, into a single search. Any term that names a
+   region in THEMES is replaced by that region's cuisines, so the model can pass the
+   visitor's own word through and still get the whole region.
+
+   Returns the themes it expanded alongside the terms, because a search the Worker widened
+   is one the model would otherwise describe wrongly — either claiming it checked one
+   country, or, on an empty result, retrying the region country by country. */
 function keywords(query) {
-    return String(query || '')
+    const terms = [];
+    const themes = [];
+
+    String(query || '')
         .split(',')
         .map(term => term.trim().toLowerCase())
-        .filter(Boolean);
+        .filter(Boolean)
+        .forEach(term => {
+            const name = themeName(term);
+            if (name) {
+                if (!themes.includes(name)) themes.push(name);
+                terms.push(...THEMES[name].terms);
+            } else {
+                terms.push(term);
+            }
+        });
+
+    return { terms: [...new Set(terms)], themes };
 }
 
 /* Keywords are matched against the whole card, type and sub-category included, because
@@ -920,15 +1052,14 @@ function systemPrompt(catalog, _near, hasPoint) {
         'Reading the question — do this before calling anything:',
         '- Decide whether the ask names a Type, a sub-category, or a theme spanning several, then translate it into the vocabulary above. The visitor will not use the sheet\'s words.',
         '- Everyday words for a Type: bookstores are Books, coffee is Cafe, breakfast is Brunch, shops are Retail or Market, nightlife is Bar and Club, desserts and ice cream are Snack, sights are Landmark.',
-        '- A theme is not a search term. Expand it into every sub-category, country, and dish that belongs to it and send them as ONE comma-separated query. Use stems so a term covers variants — "argentin" catches Argentine and Argentinian, "taco" catches tacos and taqueria.',
-        '  "latino restaurants" or "hispanic food" — every Latin American country counts, not just Mexican: query "mexican, latin, cuban, puerto ric, peruvian, colombian, venezuel, argentin, chilean, bolivi, ecuador, salvador, guatemal, honduran, nicaragu, dominican, brazil, taco, taqueria, arepa, empanada, birria, ceviche, mole".',
-        '  "asian food": query "chinese, japanese, korean, thai, vietnamese, filipino, malaysian, nepalese, asian, sushi, ramen, dumpling, hot pot, bubble tea, dim sum".',
+        `- These region words are expanded for you into every cuisine, country and dish they cover: ${THEME_NAMES}. Pass the region as a single query term — query "caribbean" already searches Cuban, Puerto Rican, Jamaican, Haitian, Dominican, Trinidadian and the rest, and query "latino" already searches every Latin American country. Do not list the countries yourself and do not narrow a region to the one country you thought of first.`,
+        '- A theme outside that list is still not a search term. Expand it yourself into every sub-category, country and dish that belongs to it and send them as ONE comma-separated query. Use stems so a term covers variants — "argentin" catches Argentine and Argentinian, "taco" catches tacos and taqueria.',
         '  "bookstores": type "Books" — no query needed, the Type already is the answer.',
         '- A cuisine is not confined to one Type: Cuban, Mexican and Peruvian places are filed under Bar, Brunch and Cafe as well as Restaurant. Send the query on its own first; add a type only to narrow a long result, and drop it again if that comes back thin.',
         '- Then read the Type of every hit and drop the ones that do not fit the ask. A keyword match is not a guarantee — the National Museum of Puerto Rican Arts & Culture matches "puerto ric" and is not a restaurant.',
         '  Asked about eating or drinking, keep only Restaurant, Bar, Brunch, Cafe, Snack, Market and Club. Museum, Landmark, Park, Books, Retail, Activity and Beach are never food, whatever they matched on.',
         '  Then count what is left and report that number. Do not quote the search total as if every hit survived, and do not widen the wording to cover what you dropped — no "and related venues".',
-        '- Never say the map has nothing after one narrow attempt. Add keywords, shorten them to stems, or drop the type or neighborhood, and search again before reporting none.',
+        '- Never say the map has nothing after one narrow attempt. Add keywords, shorten them to stems, or drop the type or neighborhood, and search again before reporting none. The exception is a region from the list above: that search was already exhaustive, so an empty result is the answer — report none rather than retrying it country by country.',
         '',
         'Answering:',
         '- Always call a tool before answering. Never invent or guess any detail — all facts come from tool results.',
@@ -936,7 +1067,7 @@ function systemPrompt(catalog, _near, hasPoint) {
         '- For "near me" questions, call find_nearby. If no location is available, tell the visitor to allow location access or name a neighborhood.',
         `- For list questions, call search_places. Use "- " bullets, at most ${MAX_RESULTS} results, note the total when there are more.`,
         '- Always include Type and neighborhood in your reply. Add the address when the visitor is heading somewhere.',
-        '- After interpreting a broad ask, open with one short line saying what you took it to mean, e.g. "Latin American spots on the map — Mexican, Cuban, Peruvian and Colombian:".',
+        '- After interpreting a broad ask, open with one short line saying what you took it to mean, naming the region and a few of the cuisines that actually turned up, e.g. "Caribbean spots on the map — Cuban, Puerto Rican and Jamaican:". Name only cuisines present in the results.',
         '- Plain text only, no markdown headings or tables. Skip preamble and pleasantries.'
     ];
 
@@ -1340,6 +1471,10 @@ async function health(env, cors) {
             // the Type list actually landing without spending a model call.
             types: catalog.types.map(t => `${t.label} (${t.count})`),
             subCategories: catalog.tags.length,
+            // Each region's expansion size, so a deploy can be checked for the region lists
+            // being live without asking the model about Caribbean food.
+            themes: Object.fromEntries(Object.keys(THEMES).map(name =>
+                [name, keywords(name).terms.length])),
             promptChars: systemPrompt(catalog, '', false).length,
             defaultModel: env.MODEL || DEFAULTS.MODEL,
             allowedModels: ALLOWED_MODELS,
