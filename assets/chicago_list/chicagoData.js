@@ -24,6 +24,11 @@
     const COORDS_URL   = 'assets/chicago_list/geocode_cache.json';
     const TIMEOUT_MS   = 8000;   // a slow sheet must not hold the map hostage
 
+    // Apps Script web app URL — paste the /exec URL here after deploying geocodeSheet.gs
+    // as a Web App (Deploy → New deployment → Web app, Execute as: Me, Anyone can access).
+    // Leave blank to skip the on-load enrichment call.
+    const ENRICH_URL = 'https://script.google.com/macros/s/AKfycbwThQx6D9M24avvGY16WpAaNEVuW_3MEPj73H_CrOqg2iVOPjdquFDx0ipzL2E7_tspRw/exec';
+
     // Sheet headers are matched by name, so columns can be reordered or added freely.
     const COLUMNS = {
         name:           ['place', 'name'],
@@ -55,10 +60,28 @@
             const csv = await fetchText(SHEET_URL);
             const result = await fromSheet(csv);
             if (!result.meta.rows) throw new Error('sheet has no usable rows');
+            // Fire-and-forget: ask the Apps Script web app to fill any empty columns.
+            // Runs in the background — never delays page render or throws if it fails.
+            triggerEnrich(result);
             return result;
         } catch (err) {
             return fromFallback(err);
         }
+    }
+
+    /* Calls the Apps Script doGet web app when ENRICH_URL is set and the loaded data
+       has at least one row with an empty enrichment column.  The response is ignored —
+       the sheet is updated server-side and the next page load picks it up. */
+    function triggerEnrich(result) {
+        if (!ENRICH_URL) return;
+        const ENRICH_COLS = ['description','phone','website','ratingsAverage',
+                             'ratingsTotal','plusCode','originalUrl','lat','lon'];
+        const needsWork = result.features.some(f => {
+            const p = f.properties || {};
+            return ENRICH_COLS.some(k => p[k] == null || p[k] === '');
+        });
+        if (!needsWork) return;
+        fetch(ENRICH_URL, { method: 'GET', mode: 'no-cors' }).catch(() => {});
     }
 
     /* ── Sheet -> features ───────────────────────────────────────────────── */
