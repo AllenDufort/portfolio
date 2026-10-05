@@ -40,13 +40,20 @@ SHEET_URL = (f'https://docs.google.com/spreadsheets/d/{SHEET_ID}/gviz/tq'
 
 # Header aliases, matched case-insensitively, mirroring COLUMNS in chicagoData.js.
 COLUMNS = {
-    'name':         ['place', 'name'],
-    'type':         ['type', 'category'],
-    'neighborhood': ['neighborhood', 'neighbourhood', 'area'],
-    'reviews':      ['reviews', 'notes', 'review'],
-    'address':      ['address'],
-    'lat':          ['lat', 'latitude'],
-    'lon':          ['lon', 'lng', 'long', 'longitude'],
+    'name':           ['place', 'name'],
+    'type':           ['type', 'category'],
+    'neighborhood':   ['neighborhood', 'neighbourhood', 'area'],
+    'reviews':        ['reviews', 'notes', 'review'],
+    'description':    ['description'],
+    'address':        ['address'],
+    'phone':          ['phone'],
+    'website':        ['website'],
+    'ratingsAverage': ['ratingsaverage', 'rating', 'ratingaverage'],
+    'ratingsTotal':   ['ratingstotal', 'ratingcount', 'ratingtotal'],
+    'plusCode':       ['pluscode', 'plus_code'],
+    'originalUrl':    ['originalurl', 'original_url'],
+    'lat':            ['lat', 'latitude'],
+    'lon':            ['lon', 'lng', 'long', 'longitude'],
 }
 
 USE_API = '--no-api' not in sys.argv
@@ -93,12 +100,19 @@ for row in table:
         continue
     lon, lat = as_float(cell(row, at['lon'])), as_float(cell(row, at['lat']))
     rows.append({
-        'name':         name,
-        'type':         cell(row, at['type']),
-        'neighborhood': cell(row, at['neighborhood']),
-        'reviews':      cell(row, at['reviews']),
-        'address':      cell(row, at['address']),
-        'coord':        [lon, lat] if (lon is not None and lat is not None) else None,
+        'name':           name,
+        'type':           cell(row, at['type']),
+        'neighborhood':   cell(row, at['neighborhood']),
+        'reviews':        cell(row, at['reviews']),
+        'description':    cell(row, at['description']),
+        'address':        cell(row, at['address']),
+        'phone':          cell(row, at['phone']),
+        'website':        cell(row, at['website']),
+        'ratingsAverage': cell(row, at['ratingsAverage']),
+        'ratingsTotal':   cell(row, at['ratingsTotal']),
+        'plusCode':       cell(row, at['plusCode']),
+        'originalUrl':    cell(row, at['originalUrl']),
+        'coord':          [lon, lat] if (lon is not None and lat is not None) else None,
     })
 
 from_sheet = sum(1 for r in rows if r['coord'])
@@ -182,11 +196,18 @@ for r in rows:
             "coordinates": coord   # [lon, lat] — GeoJSON standard order
         },
         "properties": {
-            "name":         r['name'],
-            "address":      r['address'],
-            "reviews":      r['reviews'],
-            "type":         r['type'],
-            "neighborhood": r['neighborhood'],
+            "name":           r['name'],
+            "type":           r['type'],
+            "neighborhood":   r['neighborhood'],
+            "address":        r['address'],
+            "reviews":        r['reviews'],
+            "description":    r['description'],
+            "phone":          r['phone'],
+            "website":        r['website'],
+            "ratingsAverage": r['ratingsAverage'],
+            "ratingsTotal":   r['ratingsTotal'],
+            "plusCode":       r['plusCode'],
+            "originalUrl":    r['originalUrl'],
         }
     }
 
