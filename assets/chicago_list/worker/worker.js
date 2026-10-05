@@ -106,7 +106,6 @@ const COLUMNS = {
     website:        ['website'],
     ratingsAverage: ['ratingsaverage', 'rating', 'ratingaverage'],
     ratingsTotal:   ['ratingstotal', 'ratingcount', 'ratingtotal'],
-    googleUrl:      ['googleurl', 'google_url'],
     originalUrl:    ['originalurl', 'original_url'],
     lat:            ['lat', 'latitude'],
     lon:            ['lon', 'lng', 'long', 'longitude']

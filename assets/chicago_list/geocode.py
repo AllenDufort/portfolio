@@ -38,21 +38,6 @@ SHEET_GID = '2011978534'
 SHEET_URL = (f'https://docs.google.com/spreadsheets/d/{SHEET_ID}/gviz/tq'
              f'?tqx=out:csv&gid={SHEET_GID}')
 
-ALL_LAYER = 'Chicago Todo List'
-
-# Keep this table in sync with TYPE_LAYERS in chicagoData.js — the runtime loader and
-# this snapshot must agree on which layers a Type belongs to. A Type may name more than
-# one: the KML filed every club under both Food Spots and Activities.
-TYPE_LAYERS = {
-    'restaurant': ['Food Spots'], 'bar': ['Food Spots'], 'cafe': ['Food Spots'],
-    'brunch': ['Food Spots'], 'snack': ['Food Spots'], 'market': ['Food Spots'],
-    'club': ['Food Spots', 'Activities'],
-    'museum': ['Activities'], 'landmark': ['Activities'], 'books': ['Activities'],
-    'park': ['Activities'], 'retail': ['Activities'], 'activity': ['Activities'],
-    'beach': ['Activities'],
-}
-LAYER_ORDER = [ALL_LAYER, 'Food Spots', 'Activities']
-
 # Header aliases, matched case-insensitively, mirroring COLUMNS in chicagoData.js.
 COLUMNS = {
     'name':         ['place', 'name'],
@@ -181,7 +166,7 @@ elif missing:
 
 # ── Phase 4: Build per-layer GeoJSON and write the snapshot ────────────────────
 
-out = {name: {"type": "FeatureCollection", "features": []} for name in LAYER_ORDER}
+out = {"type": "FeatureCollection", "features": []}
 unplaced, unknown_types = [], set()
 
 for r in rows:
@@ -205,16 +190,10 @@ for r in rows:
         }
     }
 
-    out[ALL_LAYER]['features'].append(feature)
-    named = TYPE_LAYERS.get(r['type'].lower())
-    if named:
-        for layer in named:
-            out[layer]['features'].append(feature)
-    elif r['type']:
-        unknown_types.add(r['type'])
+    out['features'].append(feature)
 
-for name in LAYER_ORDER:
-    print(f"  layer {name!r}: {len(out[name]['features'])}")
+print(f"{len(out['features'])} entries")
+
 if unplaced:
     print(f"  {len(unplaced)} without coordinates (omitted): {', '.join(unplaced[:5])}"
           f"{'…' if len(unplaced) > 5 else ''}")

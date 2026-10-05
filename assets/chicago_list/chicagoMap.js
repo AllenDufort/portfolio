@@ -315,10 +315,10 @@ document.addEventListener('DOMContentLoaded', () => {
             ? 'live from the Google Sheet'
             : 'from the committed snapshot (the sheet was unreachable)';
         let text = `${meta.rows} places loaded, ${source}.`;
-        if (meta.unplaced && meta.unplaced.length) {
-            text += ` ${meta.unplaced.length} await coordinates — run the sheet's ` +
-                '"Geocode missing rows" script; they are searchable in the chat meanwhile.';
-        }
+        // if (meta.unplaced && meta.unplaced.length) {
+        //     text += ` ${meta.unplaced.length} await coordinates — run the sheet's ` +
+        //         '"Geocode missing rows" script; they are searchable in the chat meanwhile.';
+        // }
         return escapeHtml(text).replace(/"|"/g, '"');
     }
 });
