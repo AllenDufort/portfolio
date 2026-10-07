@@ -1,22 +1,16 @@
 /**
  * Fills the Lat/Lon columns of the Chicago TODO sheet.
  *
- * The map page reads those columns directly, so once a row has coordinates the site
- * needs no geocoder, no cache, and no pipeline run — a sheet edit is live on the next
- * page load. This script is the one thing that turns an address into coordinates.
+ * The map page reads those columns directly, so once a row has coordinates the site needs
+ * no geocoder and no pipeline run. This script is the only thing that turns an address
+ * into coordinates.
  *
- * Install:
- *   1. Open the sheet -> Extensions -> Apps Script.
- *   2. Paste this file over Code.gs and Save.
- *   3. Reload the sheet. A "Chicago Map" menu appears next to Help.
- *   4. Chicago Map -> Geocode missing rows. Approve the permission prompt on first run
- *      (it needs access to this spreadsheet and to Google's geocoder).
+ * Install: sheet -> Extensions -> Apps Script, paste over Code.gs, save, reload. A
+ * "Chicago Map" menu appears; approve the permission prompt on the first run.
  *
- * It only ever touches rows whose Lat or Lon is empty, so re-running it is cheap and
- * safe: nothing already resolved is overwritten or re-billed against the quota.
- *
- * Quota: Maps geocoding is 1,000 calls/day on a consumer account and 10,000/day on
- * Workspace. BATCH_LIMIT keeps one run well inside that; run it again for more.
+ * It only touches rows whose Lat or Lon is empty, so re-running is safe — nothing already
+ * resolved is overwritten or re-billed. Quota is 1,000 geocodes/day on a consumer account
+ * (10,000 on Workspace); BATCH_LIMIT keeps one run well inside it.
  */
 
 var SHEET_NAME   = '';     // '' uses the active sheet
@@ -69,7 +63,7 @@ function run(onlyRows) {
     return;
   }
 
-  // Append Lat/Lon columns the first time this runs.
+  // Appended the first time this runs.
   var latCol = indexOfHeader(header, LAT_HEADER);
   var lonCol = indexOfHeader(header, LON_HEADER);
   if (latCol < 0) { latCol = header.length; sheet.getRange(1, latCol + 1).setValue(LAT_HEADER); header.push(LAT_HEADER); }

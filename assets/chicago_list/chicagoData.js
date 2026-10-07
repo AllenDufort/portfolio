@@ -1,18 +1,15 @@
 /* ── Chicago place data — built from the Google Sheet on every page load ──
-   The sheet is the source of truth: edit a name, note, type, or neighborhood there and
-   it shows up on the next page load with no pipeline run and no commit. Google's gviz
-   endpoint serves the sheet as CSV and echoes the requesting origin in
-   Access-Control-Allow-Origin, so a static page can read it directly with no API key.
+   The sheet is the source of truth: edit a name, note, type, or neighborhood there and it
+   shows up on the next page load, no pipeline run and no commit. Google's gviz endpoint
+   serves it as CSV and echoes the requesting origin in Access-Control-Allow-Origin, so a
+   static page can read it directly with no API key.
 
-   Coordinates come from the sheet's own Lat/Lon columns, which the Apps Script in
-   geocodeSheet.gs fills in. Rows that have no coordinates yet fall back to the
-   committed geocode_cache.json (fetched only when it is actually needed), and anything
-   still unresolved is kept without a marker rather than dropped — it stays searchable
-   in the chat, and the map reports how many are waiting.
-
-   If the sheet is unreachable, unshared, or empty, the committed chicago_layers.geojson
-   is loaded instead, so the page always renders. Both consumers — chicagoMap.js and
-   chicagoChat.js — share one memoised load(), so the data is fetched once per visit. */
+   Coordinates come from the sheet's own Lat/Lon columns, which geocodeSheet.gs fills in;
+   rows still missing them fall back to the committed geocode_cache.json. Anything
+   unresolved is kept without a marker rather than dropped — it stays searchable in the
+   chat, and the map reports how many are waiting. If the sheet is unreachable, unshared,
+   or empty, the committed chicago_layers.geojson loads instead, so the page always
+   renders. chicagoMap.js and chicagoChat.js share one memoised load(). */
 (function () {
     'use strict';
 
@@ -44,7 +41,6 @@
 
     let pending = null;
 
-    // One fetch per visit, shared by the map and the chat.
     function load() {
         if (!pending) pending = build();
         return pending;
@@ -114,9 +110,9 @@
         return { features, meta };
     }
 
-    /* A row without coordinates gets a null geometry rather than being dropped —
-       the map skips it, the chat still finds it. All sheet columns are preserved so
-       the chat worker can answer questions about ratings, websites, phone numbers, etc. */
+    /* A row without coordinates gets a null geometry rather than being dropped — the map
+       skips it, the chat still finds it. Every sheet column is preserved so the worker can
+       answer about ratings, websites, phone numbers. */
     function toFeature(row) {
         return {
             type: 'Feature',
@@ -140,7 +136,6 @@
         };
     }
 
-    // Map each known column name to its position in this sheet's header row.
     function columnIndex(header) {
         const normalized = header.map(h => String(h || '').trim().toLowerCase());
         const at = {};

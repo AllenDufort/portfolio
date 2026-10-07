@@ -1,37 +1,16 @@
 /* ── Chicago Assistant API — Cloudflare Worker ─────────────────────────────
-   The chat widget on a static GitHub Pages site cannot hold a model API key: any
-   key shipped to the browser is public. So the keys live here as Worker secrets and
-   the page talks to this endpoint instead.
+   A key shipped to a static GitHub Pages widget is public, so the Gemini and Groq keys live
+   here as Worker secrets. The Worker builds the whole prompt itself and the page only sends a
+   question, a little history and optional coordinates — so this can *only* answer questions
+   about the Chicago map, not act as a general LLM relay, which is the main risk of putting a
+   paid key behind a public URL. GET / returns a health summary for verifying a deploy.
 
-   Answers can come from Gemini or from Groq. The page picks a model and the provider
-   follows from its id — but only ids in ALLOWED_MODELS are honoured, see below.
+   Deploy:  bash assets/chicago_list/worker/deploy.sh  (then set WORKER_URL in ../chicagoChat.js)
+   Local:   cp .dev.vars.example .dev.vars && npx wrangler dev --config wrangler.toml
+            — the --config flag matters, or wrangler picks up the repo-root wrangler.jsonc. */
 
-   This Worker does more than forward requests. It builds the entire prompt itself —
-   fetching the Google Sheet, counting out the vocabulary the model has to translate the
-   visitor's words into, running the searches it asks for, and computing real distances
-   when the visitor shares their location. The page only ever sends a question, a little
-   chat history, and optional coordinates, which means this endpoint can *only* answer
-   questions about the Chicago map. It is not a general LLM relay somebody can point at
-   their own prompts, which is the main risk of putting a paid key behind a public URL.
-
-   Deploy:
-     bash assets/chicago_list/worker/deploy.sh      # sets the API key secrets and deploys
-   Then put the deployed URL in WORKER_URL at the top of ../chicagoChat.js.
-
-   Local development:
-     cp .dev.vars.example .dev.vars                 # paste your API keys into .dev.vars
-     npx wrangler dev --config wrangler.toml        # serves http://127.0.0.1:8787
-                                                    # (the flag matters: without it
-                                                    #  wrangler finds the repo-root
-                                                    #  wrangler.jsonc instead)
-
-   GET / returns a health summary (place count, neighborhoods, data source, the counted
-   Type vocabulary the prompt is built from, the size of each region expansion, the default
-   model and allowlist, which keys are set), so a deployment can be verified without
-   spending a model call. */
-
-/* Overridable in wrangler.toml [vars]. MODEL is the default the page gets when it asks
-   for nothing, or asks for something not on the allowlist below. */
+/* Overridable in wrangler.toml [vars]. MODEL is the fallback when the page asks for nothing,
+   or for something not on the allowlist below. */
 const DEFAULTS = {
     MODEL: 'openai/gpt-oss-120b',
     ALLOWED_ORIGINS: [
@@ -43,13 +22,10 @@ const DEFAULTS = {
     COORDS_URL: 'https://allendufort.github.io/portfolio/assets/chicago_list/geocode_cache.json'
 };
 
-/* The page chooses a model, so this endpoint would otherwise be a way to spend the keys
-   on whatever model a scripted caller names. It is not: an id that is not on this list
-   is discarded and DEFAULTS.MODEL is used instead, so the worst a caller can do is pick
-   another cheap model. Everything here is flash-tier, Gemma, or a small Groq model — no
-   pro models, which is what keeps a public URL on a paid key affordable.
-
-   Keep in sync with the <select id="chat-model"> options in ../../../chicagoMap.html. */
+/* The page names the model, so without an allowlist a scripted caller could spend the keys on
+   anything. An unlisted id is discarded for DEFAULTS.MODEL, and everything here is flash-tier,
+   Gemma, or a small Groq model — no pro models, which keeps a public URL on a paid key
+   affordable. Keep in sync with <select id="chat-model"> in ../../../chicagoMap.html. */
 const ALLOWED_MODELS = [
     // Groq
     'openai/gpt-oss-120b',
@@ -62,9 +38,8 @@ const ALLOWED_MODELS = [
     'gemini-3.5-flash',
     'gemini-3.5-flash-lite',
     'gemini-3.1-flash-lite',
-    /* Gemma 4 — Google's open-weights family, served by the Gemini endpoint (see
-       providerFor). Verified against the live API to accept systemInstruction, call
-       functionDeclarations, and stream, so the tool loop works here unchanged. */
+    /* Gemma 4 — open weights, but served by the Gemini endpoint (see providerFor) and verified
+       to accept systemInstruction and functionDeclarations, so the tool loop works unchanged. */
     'gemma-4-31b-it',
     'gemma-4-26b-a4b-it'
 ];
@@ -111,39 +86,25 @@ const COLUMNS = {
     lon:            ['lon', 'lng', 'long', 'longitude']
 };
 
-/* Module scope, so a warm isolate reuses the built catalog and the sheet is fetched
-   once every CATALOG_TTL_MS rather than once per question. A cold isolate pays one
-   extra fetch, which is cheaper than any cross-request store worth wiring up here. */
+/* Module scope, so a warm isolate reuses the built catalog instead of refetching the sheet
+   per question. A cold isolate pays one extra fetch — cheaper than wiring up a KV store. */
 let catalogCache = null;
 const rateLog = new Map();   // ip -> recent request timestamps
 
 /* ── Providers ─────────────────────────────────────────────────────────────
-   Two upstreams, chosen by model id: every Groq id is namespaced ("openai/…",
-   "qwen/…") or bare, and Groq serves none of Google's models, so the prefix decides.
-
-   Both "gemini-*" and "gemma-*" are Google's — Gemma is an open-weights family, but on
-   this key it is served by the same generativelanguage.googleapis.com endpoint, speaks
-   the same request shape, and is billed the same way, so it is simply a Gemini-path
-   model here. Matching only "gemini-" would route it to Groq, which does not serve it.
-
-   These few helpers are deliberately duplicated in ../../travel/worker/worker.js
-   rather than shared: each worker deploys as one standalone file with no bundler,
-   and a shared module would mean a build step for ~40 lines. */
+   Two upstreams, chosen by model id. Both "gemini-*" and "gemma-*" take the Google path: on
+   this key Gemma is served by the same endpoint, and matching only "gemini-" would route it to
+   Groq, which does not serve it. Duplicated in ../../travel/worker/worker.js rather than shared
+   — each worker deploys as one standalone file, and sharing would mean a build step. */
 
 const GROQ_URL = 'https://api.groq.com/openai/v1/chat/completions';
 
-/* Reasoning models think before answering and those hidden tokens are billed against the
-   same budget as the reply, so a bare 700-token cap can be spent entirely on thinking and
-   return nothing at all. Every request gets extra room on top of the cap.
-
-   Both providers need this: Groq's gpt-oss and qwen models reason, and so does Gemma on the
-   Gemini path. The headroom is a ceiling, not a reservation, so a model that does not think
-   is unaffected. */
+/* Hidden reasoning tokens bill against the same budget as the reply, so a bare 700-token cap
+   can be spent entirely on thinking and return nothing. Both providers reason, and this is a
+   ceiling rather than a reservation, so a model that does not think is unaffected. */
 const REASONING_HEADROOM = 1024;
 
-/* Groq alone exposes a dial for how much thinking to do; Gemma rejects thinkingConfig
-   ("Thinking budget is not supported for this model"), so on the Gemini path the headroom
-   above is the only lever. */
+// Only Groq dials thinking effort; Gemma rejects thinkingConfig, so headroom is the only lever.
 const GROQ_REASONING_EFFORT = 'low';
 
 function providerFor(model) {
@@ -177,9 +138,8 @@ export default {
         if (request.method === 'GET') return health(env, cors);
         if (request.method !== 'POST') return fail(405, 'Send a POST request.', cors);
 
-        // A browser always sends Origin on a cross-origin POST, so requiring an allowed
-        // one keeps casual scripted abuse off the key. It is not a hard boundary — the
-        // rate limit below and the fixed prompt shape are what actually contain it.
+        // Requiring an allowed Origin keeps casual scripted abuse off the key, but it is not a
+        // hard boundary — the rate limit and the fixed prompt shape are what contain it.
         if (!cors['Access-Control-Allow-Origin']) {
             return fail(403, 'This endpoint only answers the Chicago map page.', {});
         }
@@ -214,15 +174,13 @@ export default {
             return fail(503, 'I could not reach the place list just now — try again shortly.', cors);
         }
 
-        /* The prompt gets only where the visitor is, not a precomputed list of what is near
-           them: find_nearby answers that on demand, and embedding 50 ranked places cost more
-           of the 8K window than the rest of the prompt put together. */
+        /* Only where the visitor is, not what is near them: find_nearby answers that on demand,
+           and 50 embedded ranked places outweighed the rest of the 8K prompt put together. */
         const point = coords(body && body.coords);
         const systemText = systemPrompt(catalog, point ? nearestHood(catalog, point) : '', Boolean(point));
         const historyTurns = history(body && body.history);
 
-        /* Provider-neutral transcript — converted into each API's own shape only when a
-           request is built, so the tool loop below stays single-threaded. */
+        // Provider-neutral transcript; converted to each API's shape only when a request is built.
         const turns = [
             ...historyTurns.map(m => ({
                 role: m.role === 'assistant' ? 'assistant' : 'user',
@@ -237,17 +195,10 @@ export default {
 
 /* ── Function calling + agentic loop ─────────────────────────────────────── */
 
-/* The canonical tool schema, written in Gemini's functionDeclarations format. Groq's
-   OpenAI-style declarations are mapped from this in buildBody(), so the JSON Schema for
-   each tool is written once here and never duplicated per provider.
-
-   Descriptions are terse on purpose. The schema is re-sent on every round of the tool
-   loop, so each sentence here is paid for three or four times inside an 8K window; the
-   long-form guidance it used to carry (how to stem a query, which Type an everyday word
-   maps to) lives in the system prompt, which is sent exactly once.
-
-   Built on first use rather than at module load because the descriptions interpolate
-   THEME_NAMES and PLACE_FIELDS, which are declared further down the file. */
+/* Canonical tool schema in Gemini's functionDeclarations format; buildBody() maps it to Groq's
+   OpenAI shape, so each JSON Schema is written once. Descriptions stay terse because the schema
+   is re-sent every round — long-form guidance (stemming, Type synonyms) belongs in the system
+   prompt, sent once. Built on first use: the descriptions interpolate THEME_NAMES. */
 let toolDeclarationsCache = null;
 
 function toolDeclarations() {
@@ -305,8 +256,7 @@ function buildToolDeclarations() {
     ];
 }
 
-/* Execute a tool call against the live catalog. Returns a plain-text result string
-   the model can read directly. All filtering is case-insensitive. */
+// Execute a tool call against the live catalog, returning plain text the model reads directly.
 function executeTool(name, args, catalog, point) {
     const cap = n => Math.min(Math.max(1, n || 10), MAX_TOOL_LIMIT);
 
@@ -316,9 +266,8 @@ function executeTool(name, args, catalog, point) {
         const hood  = String(args.neighborhood || '').toLowerCase().trim();
         const limit = cap(args.limit);
 
-        /* A type word that is not in the vocabulary at all ("barbecue", "speakeasy") is
-           narrowed with instead of filtered on, so a near-miss trims the result rather
-           than emptying it — "barbecue" then finds the barbecue sub-category. */
+        /* An unrecognized type word ("barbecue", "speakeasy") narrows rather than filters, so a
+           near-miss trims the result instead of emptying it. */
         const wanted   = type ? resolveTypes(type, catalog.types) : [];
         const typeWord = type && !wanted.length ? type : '';
 
@@ -330,9 +279,8 @@ function executeTool(name, args, catalog, point) {
             return true;
         });
 
-        /* Said once, ahead of the result, so the model reports the search that actually ran.
-           Without it a widened search reads back as a narrow one and the opening line
-           claims less than was checked. */
+        /* Stated ahead of the results so the model reports the search that actually ran —
+           otherwise a widened search reads back as a narrow one. */
         const widened = themes.length
             ? `Read ${themes.map(t => `"${t}"`).join(' and ')} as the whole region and searched ` +
               `${terms.length} cuisines and dishes for it. Say so in your reply, and name a few of ` +
@@ -363,11 +311,8 @@ function executeTool(name, args, catalog, point) {
         return [widened, header, ...shown.map(p => formatPlace(p))].filter(Boolean).join('\n');
     }
 
-    /* "What's the rating for Kasama", "the address of the Puerto Rican museum", "what's the
-       description of this place" all land here. Two things make them work: the name is
-       matched loosely, because a visitor types "the bean" and the sheet says "Cloud Gate";
-       and `fields` keeps the answer to the field asked about instead of returning a card
-       the model then has to pick through. */
+    /* Single-place questions. Names are matched loosely (a visitor types "the bean"; the sheet
+       says "Cloud Gate"), and `fields` narrows the reply to what was actually asked. */
     if (name === 'get_place_details') {
         const fields  = Array.isArray(args.fields) ? args.fields : [];
         const matches = matchPlacesByName(args.name, catalog.places);
@@ -377,9 +322,8 @@ function executeTool(name, args, catalog, point) {
                 'the name or its type, in case it is saved under a different name.';
         }
 
-        /* Several equally good matches is a question, not an answer — "the museum" hits a
-           dozen. Handing the model the candidates lets it ask which one rather than
-           silently answering about the first and sounding confident about the wrong place. */
+        /* Several equally good matches is a question, not an answer — "the museum" hits a dozen.
+           Returning the candidates lets the model ask which, not guess confidently wrong. */
         if (matches.length > 1) {
             return [
                 `"${args.name}" matches ${matches.length} saved places. Ask the visitor which one they ` +
@@ -412,11 +356,10 @@ function executeTool(name, args, catalog, point) {
             .sort((a, b) => a.miles - b.miles);
         const ranked = sorted.filter(hit => hit.miles <= radius).slice(0, limit);
 
-        /* An empty radius means two different things, and the answer differs: a quiet block
-           in Chicago should widen, while a visitor in another state should be told they are
-           too far rather than offered a 340-mile drive. Reporting the nearest distance is
-           what lets the model tell those apart — the prompt no longer carries a precomputed
-           "near the visitor" block, so this result is the only place that signal exists. */
+        /* An empty radius means two different things: a quiet block in Chicago should widen,
+           while a visitor in another state should be told they are too far rather than offered
+           a 340-mile drive. Reporting the nearest distance is how the model tells them apart,
+           and this result is the only place that signal exists. */
         if (!ranked.length) {
             if (!sorted.length) return `Nothing on the map matches type "${args.type}".`;
             const nearest = sorted[0];
@@ -439,23 +382,14 @@ function executeTool(name, args, catalog, point) {
 }
 
 /* ── Matching the visitor's words to the sheet's words ─────────────────────
-   The two rarely agree. The Type column says "Books" where people say "bookstores",
-   and a cuisine is never a Type at all — "Colombian" lives in the description, under
-   whatever Google called the place. Both gaps used to read back as "the map has none",
-   so the query is ORed across keywords and the type is matched loosely. */
+   The two rarely agree: Type says "Books" where people say "bookstores", and a cuisine is
+   never a Type at all — "Colombian" lives in the description. Either gap reads back as "the
+   map has none", so the query is ORed across keywords and the type is matched loosely. */
 
-/* Regional themes the sheet has no single word for. "Caribbean food" is a question about
-   two dozen countries, and a model asked to enumerate them is unreliable in a way that
-   reads as a data gap: it sends the bare word "caribbean", matches only the few cards
-   whose description happens to use it, and reports that the map holds two Caribbean
-   places when it holds twenty. Expanding here rather than in the prompt makes the
-   expansion identical on every model and every turn, and makes a gap a one-line edit to a
-   list instead of another round of instruction tuning.
-
-   Terms are substrings matched against the whole card, so stems cover variants —
-   "jamaic" catches Jamaica and Jamaican, "barbad" catches Barbadian. Dishes are included
-   only where they belong to one region: "jerk", "mofongo" and "pupusa" identify a cuisine
-   on their own, "patty", "curry" and "creole" do not. */
+/* Regional themes the sheet has no single word for. Left to the model, "Caribbean food" goes
+   out as the bare word "caribbean" and reports two places where the map holds twenty; expanding
+   here makes it identical on every model and turn. Terms are substrings, so stems cover variants
+   ("jamaic"), and dishes appear only where they identify one region ("jerk", not "curry"). */
 const THEMES = {
     caribbean: {
         aliases: ['west indian', 'antillean', 'antilles'],
@@ -519,13 +453,11 @@ const THEME_LOOKUP = Object.entries(THEMES).reduce((map, [name, theme]) => {
     return map;
 }, Object.create(null));
 
-/* The region list as the prompt states it, derived from THEMES so a region added here
-   reaches the model without a second edit. */
+// The region list as the prompt states it, derived from THEMES so one edit reaches the model.
 const THEME_NAMES = Object.keys(THEMES).join(', ');
 
-/* Words a visitor hangs off a theme that carry no search meaning. Dropping them is what
-   lets "caribbean restaurants", "asian eats" and "latino food" all reach a theme; the
-   Type they imply is handled separately by resolveTypes. */
+/* Words a visitor hangs off a theme that carry no search meaning. Dropping them lets
+   "caribbean restaurants" and "asian eats" reach a theme; resolveTypes handles the Type. */
 const THEME_NOISE = new Set(['food', 'foods', 'cuisine', 'cuisines', 'restaurant', 'restaurants',
     'place', 'places', 'spot', 'spots', 'eat', 'eats', 'dining', 'dish', 'dishes', 'bar', 'bars',
     'cafe', 'cafes', 'joint', 'joints', 'style']);
@@ -535,16 +467,10 @@ function themeName(term) {
     return THEME_LOOKUP[words.join(' ')] || null;
 }
 
-/* query is a comma-separated list matched as OR: "mexican, peruvian, taco" returns a
-   place matching any one term. A theme like "latino restaurants" has no single word to
-   search for — it is a list of cuisines — so ORing turns what would be a dozen one-term
-   calls, or one call that finds nothing, into a single search. Any term that names a
-   region in THEMES is replaced by that region's cuisines, so the model can pass the
-   visitor's own word through and still get the whole region.
-
-   Returns the themes it expanded alongside the terms, because a search the Worker widened
-   is one the model would otherwise describe wrongly — either claiming it checked one
-   country, or, on an empty result, retrying the region country by country. */
+/* query is comma-separated and OR-matched, turning "latino restaurants" — a dozen cuisines with
+   no single word for them — into one search instead of a dozen calls. Terms naming a THEMES
+   region are replaced by its cuisines, and the expansion is returned alongside: a widened search
+   the model cannot see gets described wrongly. */
 function keywords(query) {
     const terms = [];
     const themes = [];
@@ -566,10 +492,9 @@ function keywords(query) {
     return { terms: [...new Set(terms)], themes };
 }
 
-/* Keywords are matched against the whole card, type and sub-category included, because
-   that is where a cuisine actually is: "Colombian" is in the description, not the name.
-   Neighborhood is left out on purpose — it has its own filter, and including it would
-   make a search for "park" return everything in Lincoln Park. */
+/* Keywords match the whole card, type and sub-category included, because that is where a cuisine
+   actually is. Neighborhood is excluded — it has its own filter, and including it would make a
+   search for "park" return everything in Lincoln Park. */
 function haystack(place) {
     return [place.name, place.type, place.description, place.notes]
         .join(' ')
@@ -595,9 +520,7 @@ const TYPE_SYNONYMS = {
     activity:   ['thing to do', 'entertainment', 'fun', 'game']
 };
 
-/* Plural stripping, enough to let "bookstores" reach "bookstore", "beaches" reach
-   "beach", and "Restaurant" answer to "restaurants". Not a real stemmer, and does not
-   need to be. */
+// Plural stripping: "bookstores" → "bookstore", "beaches" → "beach". Not a real stemmer.
 function singular(word) {
     if (word.endsWith('ies')) return `${word.slice(0, -3)}y`;
     if (/(ch|sh|s|x|z)es$/.test(word)) return word.slice(0, -2);
@@ -605,18 +528,10 @@ function singular(word) {
     return word;
 }
 
-/* Match a spoken place name to catalog rows, best tier only.
-
-   A visitor asking "what's the rating for Kasama" rarely types what the sheet stores.
-   They drop articles ("the Violet Hour" → "violet hour"), use a nickname, or name a
-   category instead of a place ("the Puerto Rican museum"). The old lookup took the first
-   substring hit, which answered "what's the address of the museum" with whichever museum
-   happened to be first in the sheet — confidently, and usually wrong.
-
-   So matching runs in tiers and returns only the best one that hit: exact, then prefix,
-   then substring, then all-words-present. One result is an answer; several mean the
-   question was ambiguous and the caller asks which was meant. Returning a tier at a time
-   is what keeps "Kasama" from being drowned out by the places whose notes mention it. */
+/* Match a spoken place name to catalog rows — visitors drop articles, use nicknames, or name a
+   category ("the Puerto Rican museum"). Tiers (exact, prefix, substring, all-words) are tried in
+   order and only the best returns, so "Kasama" is not drowned out by places whose notes merely
+   mention it. Several hits mean the question was ambiguous, and the caller asks which. */
 function matchPlacesByName(asked, places) {
     const q = String(asked || '').toLowerCase().replace(/\s+/g, ' ').trim();
     if (!q) return [];
@@ -640,12 +555,9 @@ function matchPlacesByName(asked, places) {
     return tiers.find(tier => tier.length) || [];
 }
 
-/* Which Type values the visitor's word refers to, resolved against the vocabulary as a
-   whole rather than one place at a time — that is what lets a direct hit outrank an
-   alias. "coffee shops" is Cafe, and without the preference the Retail alias "shop"
-   would drag in every clothing store alongside it.
-
-   Matching is word by word, never a bare substring: "barbecue" contains "bar", and
+/* Which Type values the visitor's word refers to, resolved against the whole vocabulary so a
+   direct hit outranks an alias: "coffee shops" is Cafe, not every Retail place answering to
+   "shop". Matching is word by word, never a bare substring — "barbecue" contains "bar", and
    substring matching would hand back all 96 bars. */
 function resolveTypes(asked, types) {
     const words  = asked.split(/[^a-z]+/).filter(Boolean).map(singular);
@@ -674,18 +586,15 @@ function resolveTypes(asked, types) {
     if (direct.length)   return direct;
     if (!viaAlias.length) return [];
 
-    /* In a compound like "coffee shop" or "book store" the modifier is the specific half.
-       Keeping only the earliest match returns Cafe and Books, rather than adding every
-       Retail place that also answers to "shop" and "store". */
+    /* In "coffee shop" or "book store" the modifier is the specific half, so keeping only the
+       earliest match returns Cafe and Books, not every Retail place answering to "shop". */
     const earliest = Math.min(...viaAlias.map(hit => hit.at));
     return viaAlias.filter(hit => hit.at === earliest).map(hit => hit.label);
 }
 
-/* Every field a visitor can ask about, in one place: the label the model reads, and how
-   to render the value from a catalog row. get_place_details walks this table, so adding a
-   column to the sheet means adding one entry here rather than touching the formatter, the
-   tool schema and the prompt separately. `list` marks the fields cheap and identifying
-   enough to repeat on every row of a list answer. */
+/* Every field a visitor can ask about: the label the model reads, and how to render it from a
+   catalog row. The schema, both formatters and get_place_details all walk this table, so a new
+   sheet column is one entry. `list` marks fields cheap enough to repeat on every row. */
 const PLACE_FIELDS = [
     { key: 'type',         list: true,  label: 'type',         read: p => p.type || 'Place' },
     { key: 'neighborhood', list: true,  label: 'neighborhood', read: p => p.neighborhood || 'Chicago' },
@@ -712,13 +621,9 @@ function clip(text, max) {
     return value.length > max ? `${value.slice(0, max - 1).trimEnd()}…` : value;
 }
 
-/* One place, as a line for a list result.
-
-   This used to print every field it had, including the full description and the untrimmed
-   review notes, which made a 20-place answer 5.8K characters — more than the system
-   prompt, inside an 8K window, re-sent on every round of the tool loop. A list answer only
-   ever reads out name, type, neighborhood, rating and address, so the list form now carries
-   exactly those, on one line, and everything else is a get_place_details call away. */
+/* One place as a single line. Printing every field made a 20-place answer 5.8K characters —
+   bigger than the system prompt, in an 8K window, re-sent every round. Lists carry only the
+   `list` fields; the rest is a get_place_details away. */
 function formatPlace(p) {
     const parts = PLACE_FIELDS
         .filter(field => field.list && field.key !== 'type' && field.key !== 'neighborhood')
@@ -728,13 +633,9 @@ function formatPlace(p) {
         (parts.length ? ` | ${parts.join(' | ')}` : '');
 }
 
-/* One place, in full or field by field.
-
-   `fields` is what makes "what's the rating for Kasama" cost one short line instead of a
-   whole card: the model names the field it was asked about, gets that field, and has
-   nothing else to wade through or accidentally volunteer. An unknown field name falls back
-   to the full card rather than erroring, because the model picking a word the table does
-   not have is not a reason to fail a question that the full card answers anyway. */
+/* One place, in full or field by field. `fields` keeps "what's the rating for Kasama" to one line
+   instead of a card the model over-volunteers from. An unknown field name falls back to the full
+   card rather than erroring. */
 function formatPlaceDetails(p, fields = []) {
     const asked = fields
         .map(name => String(name || '').toLowerCase().trim())
@@ -756,13 +657,10 @@ function formatPlaceDetails(p, fields = []) {
 }
 
 /* ── Provider adapters ─────────────────────────────────────────────────────
-   The transcript and TOOL_DECLARATIONS are the canonical forms; these translate them
-   into whichever shape the provider speaks. Transcript turns are:
-
-     {role:'user',      text}
-     {role:'assistant', text, toolCalls:[{id, name, args, signature?}]}
-     {role:'tool',      results:[{id, name, result}]}
-
+   The transcript and TOOL_DECLARATIONS are canonical; these translate them into whichever
+   shape the provider speaks. Transcript turns are:
+     {role:'user', text} / {role:'assistant', text, toolCalls:[{id,name,args,signature?}]}
+     {role:'tool', results:[{id, name, result}]}
    `signature` is provider-opaque and only Gemini sets it; see parseTurn().           */
 
 function buildBody(provider, { model, systemText, turns }) {
@@ -844,9 +742,8 @@ function parseTurn(provider, data) {
     if (provider === 'gemini') {
         const parts = data?.candidates?.[0]?.content?.parts || [];
         return {
-            /* Thought parts dropped. On a tool round this text
-               becomes the assistant turn in the transcript, so keeping them would feed a
-               thinking model's own reasoning back to it as something it had said. */
+            /* Thought parts dropped: on a tool round this text becomes the assistant turn,
+               so keeping them feeds a model its own reasoning back as something it said. */
             text: parts.filter(p => !p.thought && typeof p.text === 'string')
                 .map(p => p.text).join(''),
             toolCalls: parts.filter(p => p.functionCall).map((p, i) => ({
@@ -854,9 +751,8 @@ function parseTurn(provider, data) {
                 id:   p.functionCall.id || `call_${i}`,
                 name: p.functionCall.name,
                 args: p.functionCall.args || {},
-                /* Opaque to us, but Gemini 3 requires the signature it issued with a
-                   functionCall to come back alongside that call in the next request, or it
-                   rejects the turn. Carried through the neutral transcript untouched. */
+                /* Opaque to us, but Gemini 3 rejects the turn unless the signature it issued
+                   with a functionCall comes back alongside it. Carried through untouched. */
                 signature: p.thoughtSignature
             }))
         };
@@ -894,22 +790,10 @@ function upstreamRequest(provider, { model, apiKey, systemText, turns }) {
     }];
 }
 
-/* A 429 from the provider is transient in a way the visitor cannot act on: Groq's free tier
-   caps tokens per minute, and one question that runs several tool rounds can exhaust the
-   window mid-loop and then be fine seconds later. So wait once and try again — two attempts
-   in all, which is about as long as someone watching a spinner will sit through.
-
-   How long to wait comes from the provider, not from here. Groq answers a token-budget 429
-   with `Retry-After: 12` and a body asking for 11.625s, so a shorter fixed wait just spends
-   the retry too early and fails anyway. RETRY_WAIT_MS is only the fallback for a 429 that
-   says nothing, and RETRY_WAIT_MAX_MS keeps an outsized ask from parking the request.
-
-   Deliberately not the same thing as this Worker's own 429 (see the per-IP limit above),
-   which is meant to slow a caller down and is never retried here.
-
-   RETRY_BUDGET_MS caps the time one request may spend waiting, shared across every round,
-   so a question that 429s round after round cannot sleep past the 90s at which
-   chicagoChat.js gives up and turn a slow answer into no answer at all. */
+/* Groq's free tier caps tokens per minute, so one multi-round question can 429 mid-loop and be
+   fine seconds later. Wait once and retry, using the provider's own figure — Groq asks for ~12s,
+   so a shorter fixed wait spends the retry too early. RETRY_BUDGET_MS is shared across rounds so
+   repeated 429s cannot sleep past the 90s at which chicagoChat.js gives up. */
 const RETRY_ATTEMPTS    = 2;       // the first try, plus one retry
 const RETRY_WAIT_MS     = 5000;    // only for a 429 that carries no Retry-After
 const RETRY_WAIT_MAX_MS = 20000;
@@ -947,39 +831,26 @@ async function fetchRetrying429(url, init, retryUntil, announce) {
     }
 }
 
-/* Agentic loop: call the model, run any tool calls it makes, then call again until it
-   produces a plain text reply — which is also the answer the visitor gets, streamed back
-   from the buffer rather than re-requested. No round is streamed from upstream: a tool
-   call has to be parsed out of a whole JSON body, and by the time the model stops calling
-   tools it has already written the reply.
-
-   It used to throw that reply away and ask the same turn again with `stream: true`, purely
-   to get SSE out of the provider. That cost an extra call per question and was the source
-   of the empty-reply bug: the re-request is a fresh sample, and a model that answered the
-   first time sometimes calls a tool the second time, streaming no text at all. Forbidding
-   the call (`tool_choice: 'none'`) only moved the failure — Groq's gpt-oss called a tool
-   anyway and the API rejected the request with "Tool choice is none, but model called a
-   tool". Keeping the text the model already produced fixes it outright, and saves a
-   full-prompt call per question, which matters against a per-minute token budget. */
+/* Agentic loop: call the model, run any tool calls, repeat until it writes plain text — which
+   IS the answer, streamed from the buffer. Nothing streams from upstream, since a tool call has
+   to be parsed out of a whole JSON body anyway. Do not re-request the turn with `stream: true`
+   for real SSE: that is a fresh sample, so a model that answered once may call a tool instead
+   and stream nothing (`tool_choice:'none'` only moved the failure). */
 const MAX_TOOL_ROUNDS = 5;   // guard against a runaway loop
 
 async function askModel(env, options) {
     const live = liveChannel(options.cors);
 
-    /* Two ways this ends, and whichever happens first wins the race: the loop finishes and
-       the answer goes out in one piece, or the loop hits a 429, tells the visitor it is
-       waiting, and by saying so commits to a reply that is already streaming.
-
-       Only that second path gives up the real HTTP status on a later failure — once a byte
-       is out the status line is spent — so the common path and every fast failure (a bad
-       key, a rejected request) keep theirs, and the page's `!res.ok` handling with them. */
+    /* Whichever finishes first wins: the loop completes and the answer goes out whole, or it hits
+       a 429, says it is waiting, and commits to streaming. Only the second path forfeits the HTTP
+       status on a later failure, so the common path keeps `!res.ok` intact. */
     const settled = runToolLoop(env, options, live).then(outcome => live.settle(outcome));
     return await Promise.race([live.response, settled]);
 }
 
 /* An SSE channel that stays shut unless something needs saying before the answer is ready.
-   Shut is the normal case, and it is the better one: a whole response can still carry a
-   status code, so nothing is spent on the chance that a wait might happen. */
+   Shut is the normal case and the better one — a whole response can still carry a status code,
+   so nothing is spent on the chance of a wait. */
 function liveChannel(cors) {
     const encoder = new TextEncoder();
     const { readable, writable } = new TransformStream();
@@ -993,8 +864,8 @@ function liveChannel(cors) {
     return {
         response,
 
-        /* Say why the answer is late. The first call hands the page its response, so the
-           note reaches the visitor during the wait rather than after it. */
+        /* Say why the answer is late. The first call hands the page its response, so the note
+           arrives during the wait rather than after it. */
         async notice(text) {
             if (!open) {
                 open = true;
@@ -1003,8 +874,7 @@ function liveChannel(cors) {
             await frame({ notice: text });
         },
 
-        /* Deliver the outcome: as a whole response if nothing has gone out yet, otherwise
-           as frames on the stream already in flight. */
+        /* Whole response if nothing has gone out yet, otherwise frames on the open stream. */
         async settle(outcome) {
             if (!open) {
                 return outcome.answer
@@ -1026,9 +896,9 @@ function liveChannel(cors) {
     };
 }
 
-/* Returns what happened rather than a Response — `{ answer }`, or a status and a sentence —
-   because by the time it finishes the caller may already be mid-stream, and only the caller
-   knows which of the two shapes is still available to it. */
+/* Returns what happened (`{ answer }`, or a status and a sentence) rather than a Response: by
+   the time it finishes the caller may be mid-stream, and only the caller knows which shape is
+   still available to it. */
 async function runToolLoop(env, { model, provider, catalog, point, systemText, turns }, live) {
     const apiKey = apiKeyFor(provider, env);
 
@@ -1046,8 +916,8 @@ async function runToolLoop(env, { model, provider, catalog, point, systemText, t
     let msgs   = turns;
     let answer = '';
 
-    /* One extra pass beyond MAX_TOOL_ROUNDS: the last one reads the model's reply but
-       runs no tools, so five rounds of searching still get a turn to write an answer. */
+    /* One extra pass beyond MAX_TOOL_ROUNDS: the last reads the reply but runs no tools, so a
+       full budget of searching still gets a turn to write the answer. */
     for (let round = 0; round <= MAX_TOOL_ROUNDS; round++) {
         let upstream;
         try {
@@ -1070,13 +940,9 @@ async function runToolLoop(env, { model, provider, catalog, point, systemText, t
 
         const { text, toolCalls } = parseTurn(provider, data);
 
-        /* No tool calls — the model is answering, so this text IS the answer.
-
-           finishReason deliberately plays no part in this test. Gemini reports "STOP" on
-           the tool-call turn itself (verified against the live API), so the older
-           `|| finishReason === 'STOP'` check here meant a tool was never actually run on
-           the Gemini path. Groq is unambiguous — it reports "tool_calls" — but the tool
-           calls themselves are the reliable signal for both. */
+        /* No tool calls — the model is answering, so this text IS the answer. finishReason is
+           not consulted: Gemini reports "STOP" on the tool-call turn itself, so testing it meant
+           tools never ran there. Tool-call presence is the reliable signal on both providers. */
         if (!toolCalls.length || round === MAX_TOOL_ROUNDS) {
             answer = text;
             break;
@@ -1096,8 +962,8 @@ async function runToolLoop(env, { model, provider, catalog, point, systemText, t
         ];
     }
 
-    /* Only reachable if the model spent every round on tools and still wrote nothing.
-       An empty 200 reads as a broken widget, so say something a visitor can act on. */
+    /* Only reachable if the model spent every round on tools and still wrote nothing. An empty
+       200 reads as a broken widget, so say something a visitor can act on. */
     if (!answer.trim()) {
         return { status: 502, message: 'The model kept searching without answering — try a simpler question.' };
     }
@@ -1105,10 +971,9 @@ async function runToolLoop(env, { model, provider, catalog, point, systemText, t
     return { answer };
 }
 
-/* The reply is already complete, so this is the SSE envelope the page expects rather than
-   a relay of an upstream stream: same `{"delta"}` frames and `[DONE]`, emitted in one pass.
-   Chunked on whitespace so a long answer paints in reading order instead of one block, and
-   with no artificial delay — the text is in hand, and pacing it out would only add latency. */
+/* The reply is already complete, so this is the SSE envelope the page expects — same `{"delta"}`
+   frames and `[DONE]` — rather than a relay of an upstream stream. Chunked on whitespace so a
+   long answer paints in reading order, with no artificial delay to pace it out. */
 const STREAM_CHUNK_CHARS = 90;
 
 function streamAnswer(text, cors) {
@@ -1136,8 +1001,7 @@ function sseResponse(body, cors) {
     });
 }
 
-/* Split on whitespace runs, keeping the whitespace, so joining the chunks reproduces the
-   text exactly — newlines and blank lines included, which the widget renders as markdown. */
+// Whitespace rides along with the chunks, so rejoining reproduces the markdown exactly.
 function chunkText(text, size) {
     const chunks = [];
     let current  = '';
@@ -1152,8 +1016,7 @@ function chunkText(text, size) {
     return chunks;
 }
 
-/* Turn a provider API error response into something worth showing a visitor.
-   Gemini and Groq both nest the human-readable text at error.message. */
+/* A provider error as something worth showing a visitor — both APIs nest it at error.message. */
 async function upstreamMessage(res) {
     let detail = '';
     try {
@@ -1177,13 +1040,10 @@ async function upstreamMessage(res) {
 
 /* ── Prompt ──────────────────────────────────────────────────────────────── */
 
-/* With tools available, the model no longer needs the whole catalog in the prompt. What
-   it does need is the sheet's vocabulary — the Type values and the description
-   sub-categories, both counted in buildCatalog. Without them the model searches for the
-   words a visitor used ("bookstores", "latino") rather than the words the sheet uses
-   ("Books", "Colombian restaurant"), finds nothing, and reports that the map is empty on
-   a subject where it holds dozens of places. Actual place data still comes back only
-   through tool results, which are precise and complete. */
+/* With tools available the prompt carries no place data — only the sheet's vocabulary, counted
+   in buildCatalog. Without it the model searches the visitor's words ("bookstores") instead of
+   the sheet's ("Books") and reports an empty map where it holds dozens. Verbose where the tool
+   schema is terse: this is sent once, the schema every round. */
 function systemPrompt(catalog, visitorHood, hasPoint) {
     const lines = [
         `Chicago Assistant: guide to a personal map of ${catalog.places.length} saved Chicago places ` +
@@ -1222,18 +1082,16 @@ function systemPrompt(catalog, visitorHood, hasPoint) {
         '- Plain text, no markdown or tables. No preamble or pleasantries.'
     ];
 
-    /* Where they are, not what is near them — one line instead of fifty, and it is the part
-       the model cannot get from a tool: find_nearby returns distances, but naming the
-       neighborhood lets the assistant say "you're in Pilsen" without a round trip. */
+    /* Where they are, not what is near them: find_nearby already returns distances, so one
+       line of neighborhood is the only part a tool cannot supply. */
     if (!hasPoint) lines.push('- No visitor location shared; find_nearby is unavailable until they allow it.');
     else if (visitorHood) lines.push(`- The visitor is in or near ${visitorHood}.`);
 
     return lines.join('\n');
 }
 
-/* Which neighborhood the visitor is standing in, from the average coordinates of the
-   places filed under each one. The sheet's own rows define the areas, so there is no
-   hand-entered centroid table to drift out of date. */
+/* Which neighborhood the visitor is in, from the average coordinates of the places filed under
+   each one — the sheet's rows define the areas, so no centroid table can drift out of date. */
 function nearestHood(catalog, point) {
     let best = null;
     catalog.hoods.forEach(hood => {
@@ -1277,11 +1135,10 @@ async function loadCatalog(env) {
     return catalogCache;
 }
 
-/* The sheet has no Lat/Lon columns of its own right now, so coordinates come from the
-   committed geocode_cache.json keyed by street address — the same order chicagoData.js
-   uses in the browser (sheet columns first, cache second). Without them "near me" has
-   no distances to report, but every other question still works, so a missing cache is
-   swallowed rather than thrown: it must not knock the catalog back to the snapshot. */
+/* The sheet has no Lat/Lon columns, so coordinates come from the committed geocode_cache.json
+   keyed by street address — same order chicagoData.js uses (sheet columns first, cache
+   second). A missing cache only costs "near me" distances, so it is swallowed rather than
+   thrown: it must not knock the catalog back to the snapshot. */
 async function addCoords(rows, env) {
     if (!rows.some(row => row.lon == null || row.lat == null)) return;
     let cache = {};
@@ -1311,10 +1168,9 @@ function tally(labels) {
         .sort((a, b) => b.count - a.count || a.label.localeCompare(b.label));
 }
 
-/* The sub-category at the head of a description: "Colombian restaurant: Small, casual
-   spot…" -> "Colombian restaurant". A few rows are a bare sentence with no category at
-   all, so anything too long to be a label is dropped rather than sent to the prompt as
-   noise. */
+/* The sub-category at the head of a description: "Colombian restaurant: Small, casual spot…" ->
+   "Colombian restaurant". Some rows are a bare sentence, so anything too long to be a label is
+   dropped rather than sent to the prompt as noise. */
 const MAX_TAG_CHARS = 40;
 const MAX_TAG_WORDS = 5;
 
@@ -1324,16 +1180,10 @@ function descriptionTag(description) {
     return head.split(/\s+/).length <= MAX_TAG_WORDS ? head : '';
 }
 
-/* A vocabulary as one prompt line, capped in characters.
-
-   Counts used to be printed for every entry, which is the right idea on the Type list —
-   "Colombian restaurant (1)" makes a single hit a complete answer rather than a failed
-   search worth retrying — and the wrong one on the sub-category list, where 300-odd
-   mostly-unique labels spent 2.8K characters of an 8K window on " (1)" repeated 250
-   times. Counts are now kept only where they carry information (count > 1), and the long
-   tail is cut with a note that it exists, since the tail is exactly the set the model
-   should search for rather than assume: a label it cannot see is still findable by
-   keyword, but a model told the list is complete would stop looking. */
+/* A vocabulary as one prompt line, capped in characters. A count is printed only where it
+   informs (> 1): on 300-odd mostly-unique sub-categories, " (1)" repeated 250 times cost
+   2.8K characters of an 8K window. The cut tail is announced rather than hidden — an unseen
+   label is still findable by keyword, but a model told the list is complete stops looking. */
 function vocabLine(entries, maxChars = 0) {
     const part = entry => (entry.count > 1 ? `${entry.label} (${entry.count})` : entry.label);
     if (!maxChars) return entries.map(part).join(', ');
@@ -1350,9 +1200,8 @@ function vocabLine(entries, maxChars = 0) {
     return kept.join(', ') + (dropped > 0 ? `, +${dropped} rarer ones not listed` : '');
 }
 
-/* Build the catalog the tools search. Entries are deduplicated by name + address
-   (La Scarola is in the sheet twice); the neighborhood grouping survives because
-   find_nearby names the visitor's own area from these averaged centroids. */
+/* Build the catalog the tools search, deduplicated by name + address (La Scarola is in the
+   sheet twice). Neighborhoods are grouped so find_nearby can name the visitor's own area. */
 function buildCatalog(rows, source) {
     const byKey = new Map();
     rows.forEach(row => {
@@ -1375,14 +1224,10 @@ function buildCatalog(rows, source) {
     });
     const places = Array.from(byKey.values());
 
-    /* Two vocabularies, counted from the rows themselves and handed to the model in the
-       system prompt. Neither is guessable from outside the sheet: the Type column is a
-       small closed set its author chose ("Books", not "Bookstore"), and the description
-       column carries a Google-Maps-style sub-category ("Colombian restaurant", "Comic
-       book store") that is the only place a cuisine is recorded. Telling the model what
-       the words actually are is what lets it turn "bookstores" into type Books, and
-       "latino restaurants" into the cuisines the map really holds. Counted rather than
-       hardcoded so a new Type in the sheet reaches the prompt with the next refresh. */
+    /* Two vocabularies for the system prompt, neither guessable from outside the sheet: Type
+       is a small closed set its author chose ("Books", not "Bookstore"), and the description's
+       Google-Maps-style sub-category ("Colombian restaurant") is the only place a cuisine is
+       recorded. Counted rather than hardcoded, so a new Type reaches the prompt on refresh. */
     const types = tally(places.map(place => place.type));
     const tags  = tally(places.map(place => descriptionTag(place.description)));
 
@@ -1461,10 +1306,9 @@ function fromSnapshot(json) {
             address:        String(props.address || '').trim(),
             phone:          String(props.phone || '').trim(),
             website:        String(props.website || '').trim(),
-            /* Coerced with the same number() the sheet path uses, rather than required to be
-               a number already. The snapshot is generated from the sheet and stores these as
-               strings ("4.6", and "" where unrated), so a typeof check dropped the rating of
-               all 548 places — every "what's the rating for X" answered "not listed". */
+            /* Coerced with number(), not typeof-checked: the snapshot stores these as strings
+               ("4.6", "" where unrated), so a typeof check dropped every place's rating and
+               "what's the rating for X" always answered "not listed". */
             ratingsAverage: number(props.ratingsAverage),
             ratingsTotal:   number(props.ratingsTotal),
             lon:            number(coords[0]),
@@ -1499,9 +1343,8 @@ function number(text) {
     return Number.isFinite(value) ? value : null;
 }
 
-/* A real CSV scan rather than a line split: some Reviews cells contain newlines and
-   escaped quotes, so splitting on "\n" would shear rows apart. Same parser as
-   chicagoData.js. */
+/* A real CSV scan, not a line split: some Reviews cells contain newlines and escaped quotes,
+   so splitting on "\n" would shear rows apart. Same parser as chicagoData.js. */
 function parseCsv(text) {
     const rows = [];
     let row = [];
@@ -1540,8 +1383,8 @@ async function fetchText(url) {
 
 /* ── Request plumbing ────────────────────────────────────────────────────── */
 
-// Only user/assistant turns, trimmed and capped, so history cannot smuggle in a
-// system prompt or grow the request without bound.
+// Only user/assistant turns, trimmed and capped, so history cannot smuggle in a system prompt
+// or grow the request without bound.
 function history(raw) {
     if (!Array.isArray(raw)) return [];
     return raw
@@ -1560,8 +1403,8 @@ function coords(raw) {
     return { lat, lon };
 }
 
-// Fixed-window count per IP, held in the isolate. Not exact across isolates, but
-// enough to keep one script from burning the day's free allowance.
+// Fixed-window count per IP, held in the isolate. Not exact across isolates, but enough to keep
+// one script from burning the day's free allowance.
 function allowRequest(ip) {
     const now = Date.now();
     const recent = (rateLog.get(ip) || []).filter(at => now - at < RATE_LIMIT_WINDOW_MS);
@@ -1597,12 +1440,12 @@ async function health(env, cors) {
             places: catalog.places.length,
             neighborhoods: catalog.hoods.length,
             source: catalog.source,
-            // The vocabularies the prompt is built from, so a deploy can be checked for
-            // the Type list actually landing without spending a model call.
+            // The vocabularies the prompt is built from, so a deploy can be checked for the
+            // Type list landing without spending a model call.
             types: catalog.types.map(t => `${t.label} (${t.count})`),
             subCategories: catalog.tags.length,
-            // Each region's expansion size, so a deploy can be checked for the region lists
-            // being live without asking the model about Caribbean food.
+            // Each region's expansion size, so the region lists can be confirmed live without
+            // asking the model about Caribbean food.
             themes: Object.fromEntries(Object.keys(THEMES).map(name =>
                 [name, keywords(name).terms.length])),
             promptChars: systemPrompt(catalog, '', false).length,

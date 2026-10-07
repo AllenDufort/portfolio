@@ -1,29 +1,22 @@
 /* ── Chicago Assistant — LLM chat widget ──────────────────────────────────
-   Every answer comes from a model. There is no local retrieval or fallback layer here:
-   the widget collects a question, optionally the visitor's coordinates, and streams the
-   reply back token by token.
+   Every answer comes from a model; there is no local retrieval or fallback. The widget
+   collects a question, optionally the visitor's coordinates, and streams the reply back.
 
-   The model is reached through the Cloudflare Worker in ./worker, never directly. That
-   is not indirection for its own sake — a model API key in a static page is a public
-   key, so it stays a Worker secret. The Worker also owns all place knowledge: it fetches
-   the same Google Sheet the map uses and exposes it to the model as search tools rather
-   than pasting every place into the prompt, which is what keeps a question inside the 8K
-   context window the models here are served. Either way this file needs no place data at
-   all and does not wait on ChicagoData.load().
+   The model is reached through the Cloudflare Worker in ./worker, never directly: a model
+   API key in a static page is a public key. The Worker also owns all place knowledge — it
+   exposes the map's Google Sheet to the model as search tools rather than pasting every
+   place into the 8K context window — so this file needs no place data and never waits on
+   ChicagoData.load(). The Model dropdown offers Gemini and Groq; the Worker validates the
+   choice and normalises both providers to one SSE shape, so nothing here depends on which
+   one answered.
 
-   The Model dropdown picks between Gemini and Groq models; the Worker validates the choice
-   against its own allowlist and normalises both providers to one SSE shape, so nothing here
-   depends on which one answered.
-
-   Location questions ("what food spots are near me") are the one thing a prompt cannot
-   answer alone, so NEAR_ME_RE spots them, the browser asks for permission, and the
-   coordinates ride along with the question. The Worker turns them into real distances.
-   Coordinates are rounded to ~11 m, sent only on those questions, and never stored. */
+   Location questions are the one thing a prompt cannot answer alone: NEAR_ME_RE spots
+   them, the browser asks permission, and the coordinates ride along with the question —
+   rounded to ~11 m, sent only on those questions, never stored. */
 (function () {
     'use strict';
 
-    /* The deployed Worker in ./worker. Re-deploying keeps this URL; it only changes if the
-       Worker's `name` in wrangler.toml does. The API keys stay server-side. */
+    // The deployed Worker in ./worker; the URL changes only if its wrangler.toml `name` does.
     const WORKER_URL = 'https://chicago-chat.chicagochat.workers.dev';
     const DEV_WORKER_URL = 'http://127.0.0.1:8787';       // wrangler dev in worker/
 
@@ -35,9 +28,9 @@
     const GEO_TIMEOUT_MS = 12000;
     const COORD_PRECISION = 4;          // ~11 m — enough for "near me", not a doorstep
 
-    /* The one hardcoded piece of language understanding left, and it only decides whether
-       to ask the browser for coordinates before sending the question. Everything about
-       what the answer says is the model's job. */
+    /* The one hardcoded piece of language understanding left, and it decides exactly one
+       thing: whether to ask the browser for coordinates before sending. What the answer
+       says is the model's job. */
     const NEAR_ME_RE = /\b(?:near|around|close to|closest to|by)\s+(?:me|here|us|my\s+location)\b|\bnear\s?by\b|\bwalking distance\b|\bmy location\b|\baround here\b|\bclose by\b|\bwhere i am\b/i;
 
     const toggle   = document.getElementById('chat-toggle');
@@ -51,11 +44,10 @@
 
     const MODEL_KEY = 'chicagoChat.model';   // remembers the picker across reloads
 
-    /* Chips are the only hint a visitor gets about what the assistant can field, so they
-       deliberately span the range rather than showing five versions of one question: a
-       neighborhood list, a location question, a count, and — since the Worker can now answer
-       about a single field — one detail lookup. "What's the rating for Aba" is here to teach
-       that naming one place and one fact is a supported question, not just browsing. */
+    /* The only hint a visitor gets about what the assistant can field, so they span the
+       range instead of showing five versions of one question: a neighborhood list, a
+       location question, a count, and two single-field lookups — the last to teach that
+       naming one place and one fact is supported, not just browsing. */
     const OPENING_CHIPS = [
         'What food spots are in South Loop?',
         'What food spots are near me?',
@@ -74,7 +66,6 @@
     let history = [];          // [{role, content}] — the last HISTORY_TURNS messages
     let spot = null;           // {lat, lon, at} once the visitor has shared their location
 
-    // Open and close the chat panel.
     toggle.addEventListener('click', () => {
         const isHidden = panel.hidden;
         panel.hidden = !isHidden;
@@ -90,10 +81,9 @@
     });
     closeBtn.addEventListener('click', () => { panel.hidden = true; });
 
-    /* The model is the visitor's choice, remembered per browser. The Worker validates it
-       against its own allowlist, so a stale or hand-edited value costs nothing — it just
-       falls back to the server default. A value no longer in the list is ignored here too,
-       so the select never ends up blank. */
+    /* The model is remembered per browser. The Worker validates it against its own
+       allowlist, so a stale value costs nothing. One no longer in the list is ignored here
+       too, so the select never ends up blank. */
     try {
         const saved = localStorage.getItem(MODEL_KEY);
         if (saved && Array.from(modelSel.options).some(o => o.value === saved)) {
@@ -121,9 +111,9 @@
         ask(text);
     }
 
-    /* One question: resolve location if it was asked for, stream the reply into a bubble,
-       and keep the exchange in history. Failures are shown as themselves — with no local
-       answer to fall back on, a quiet substitute would only look like a bad reply. */
+    /* One question: resolve location if asked for, stream the reply into a bubble, keep the
+       exchange in history. Failures show as themselves — with no local answer to fall back
+       on, a quiet substitute would only look like a bad reply. */
     async function ask(question) {
         setBusy(true);
 
@@ -132,8 +122,8 @@
         msgs.appendChild(bubble);
         setStatus(bubble, 'Thinking…');
 
-        /* A note from the Worker says something this timer cannot — why the wait is
-           happening, and how long it is — so it stops the generic hint overwriting it. */
+        /* A note from the Worker says why the wait is happening, which this timer cannot,
+           so it suppresses the generic hint. */
         let noticed = false;
         const slowHint = setTimeout(() => {
             if (!bubble.dataset.streaming && !noticed) {
@@ -199,10 +189,9 @@
         return WORKER_URL;
     }
 
-    /* Read the Worker's event stream. It normalises whatever the model provider sends into
-       one shape — {"delta"} for text, {"notice"} for progress the visitor should see before
-       the answer, {"error"} for a generation that failed halfway, and a trailing [DONE] — so
-       this side only has to accumulate, whichever model is selected. */
+    /* Read the Worker's event stream. Whatever the provider sent arrives in one shape —
+       {"delta"} text, {"notice"} progress, {"error"} for a generation that failed halfway,
+       trailing [DONE] — so this side only accumulates. */
     async function stream(question, coords, onText, onNotice) {
         const controller = new AbortController();
         const timer = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
@@ -290,9 +279,8 @@
 
     /* ── Location ────────────────────────────────────────────────────────── */
 
-    /* Coordinates go out on a "near me" question, and on every question afterwards once
-       they have been shared — so a follow-up like "any bars instead?" stays anchored
-       where the visitor is standing. */
+    /* Coordinates go out on a "near me" question, then on every question afterwards, so a
+       follow-up like "any bars instead?" stays anchored where the visitor is standing. */
     async function coordsFor(question, bubble) {
         const known = fresh(spot);
         if (known || !NEAR_ME_RE.test(question)) return known;
@@ -347,9 +335,8 @@
         msgs.scrollTop = msgs.scrollHeight;
     }
 
-    /* A reasoning model can leak a <think> block into the stream. Drop closed ones, and
-       hide an open one and everything after it until it closes, so a half-streamed
-       thought never shows. */
+    /* A reasoning model can leak a <think> block into the stream. Drop closed ones; hide an
+       open one and everything after it, so a half-streamed thought never shows. */
     function visible(text) {
         return String(text)
             .replace(/<think>[\s\S]*?<\/think>/gi, '')
@@ -391,7 +378,6 @@
         msgs.scrollTop = msgs.scrollHeight;
     }
 
-    // Quick-action buttons under the input.
     function renderChips(chips) {
         sugBox.innerHTML = '';
         chips.forEach(chip => {

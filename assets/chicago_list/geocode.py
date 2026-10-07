@@ -1,30 +1,24 @@
 """
 geocode.py — Refresh chicago_layers.geojson from the Google Sheet.
 
-The site no longer needs this script to run in order to show current data: the map page
-reads the sheet directly on every load (see chicagoData.js). What this script maintains
-is the *fallback* snapshot the page uses when the sheet is unreachable or unshared, plus
-the address -> [lon, lat] cache that covers rows whose Lat/Lon columns are still empty.
+The map page reads the sheet directly on every load (see chicagoData.js), so this script
+is not needed to show current data. What it maintains is the *fallback* snapshot the page
+uses when the sheet is unreachable or unshared, plus the address -> [lon, lat] cache that
+covers rows whose Lat/Lon columns are still empty.
 
 Pipeline:
   1. Fetch the sheet as CSV from Google's gviz endpoint (no API key, no auth).
-  2. Take coordinates from the sheet's own Lat/Lon columns when present — those are
-     filled by geocodeSheet.gs, and are the preferred source.
-  3. For rows that still lack coordinates, geocode the address via Nominatim
-     (OpenStreetMap's free API), caching results in geocode_cache.json so reruns skip
-     anything already resolved.
-  4. Emit chicago_layers.geojson shaped as:
-       { "<LayerName>": { "type": "FeatureCollection", "features": [...] }, ... }
+  2. Prefer the sheet's own Lat/Lon columns, which geocodeSheet.gs fills in.
+  3. Geocode whatever is left via Nominatim (OpenStreetMap's free API), caching results
+     in geocode_cache.json so reruns skip anything already resolved.
+  4. Emit chicago_layers.geojson as one flat FeatureCollection; places that still have no
+     coordinates are omitted, since the snapshot only carries what can be drawn.
 
 Usage:
     python3 geocode.py            # refresh the snapshot
     python3 geocode.py --no-api   # snapshot only, never call Nominatim
 
 Requirements: Python 3.8+, no third-party packages.
-
-History: this script used to parse a Google My Maps KML export (real.kml). The Google
-Sheet replaced that export as the source of truth, and the KML files were deleted once
-nothing read them.
 """
 
 import csv, io, json, os, sys, time, urllib.parse, urllib.request
@@ -135,12 +129,10 @@ print(f"{len(needed)} rows need the cache; {len(missing)} of those are unresolve
 
 def geocode(addr):
     """
-    Resolve a street address to [lon, lat] using the Nominatim search API.
+    Resolve a street address to [lon, lat] via Nominatim, or None if it fails.
 
-    Returns a [lon, lat] list on success, or None if the address cannot be
-    resolved or the request fails.  Nominatim's usage policy requires a
-    descriptive User-Agent and a minimum 1-second delay between requests
-    (enforced by the caller).
+    Nominatim's usage policy requires a descriptive User-Agent and a minimum 1-second
+    delay between requests (the delay is enforced by the caller).
     """
     q   = urllib.parse.urlencode({"format": "json", "limit": "1", "q": addr})
     url = "https://nominatim.openstreetmap.org/search?" + q
@@ -165,7 +157,7 @@ elif missing:
     for i, a in enumerate(missing):
         cache[a] = geocode(a)
 
-        # Flush cache to disk every 25 requests so partial progress isn't lost
+        # Flush every 25 requests so an interrupted run keeps its progress.
         if (i + 1) % 25 == 0:
             json.dump(cache, open(CACHE, 'w'), indent=4)
             ok = sum(1 for v in cache.values() if v)
@@ -178,7 +170,7 @@ elif missing:
     print(f"FINISHED geocoding: {ok}/{len(cache)} entries resolved")
 
 
-# ── Phase 4: Build per-layer GeoJSON and write the snapshot ────────────────────
+# ── Phase 4: Build the GeoJSON snapshot ───────────────────────────────────────
 
 out = {"type": "FeatureCollection", "features": []}
 unplaced, unknown_types = [], set()
