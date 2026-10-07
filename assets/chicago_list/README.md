@@ -51,7 +51,7 @@ body can turn it into a general LLM proxy — the main risk of a paid key behind
 | Abuse | 12 requests/minute per IP (`429` + `Retry-After`). Temperature and the token cap are pinned server-side. |
 | The provider's own rate limit | A Groq/Gemini `429` is retried once, waiting as long as its `Retry-After` asks (1–20s; 5s if it sends none), and the visitor is told so mid-wait. Total waiting per question is capped at 45s, under the client's 90s. Never applied to the Worker's own `429` above — that one is meant to slow a caller down. |
 | Which model a caller may pick | `ALLOWED_MODELS` in `worker.js`. Anything else, including a hand-edited request, silently falls back to the default, so a leaked endpoint cannot be pointed at an expensive model. |
-| Prompt injection through history | Only `user` and `assistant` turns are forwarded; an injected `system` turn is dropped. History is capped at 6 turns and 600 chars, the question at 500. |
+| Prompt injection through history | Only `user` and `assistant` turns are forwarded; an injected `system` turn is dropped. History is capped at 4 turns and 280 chars, the question at 500. |
 | Sheet outages | Same fallback the map uses: the sheet, then `chicago_layers.geojson`. The catalog is cached 5 minutes, so a burst of questions is one sheet fetch. |
 | A dead endpoint | `GET /` returns health JSON — place and neighborhood counts, data source, the counted `Type` vocabulary and sub-category count behind the prompt, prompt size, default model and allowlist, which keys are set. Never a key itself. |
 
@@ -73,6 +73,45 @@ while a word outside it (*barbecue*, *speakeasy*) narrows as a keyword instead o
 Counts ride along because they set expectations: `Colombian restaurant (1)` makes a single hit a
 complete answer. Both are recounted per refresh, so a new `Type` reaches the prompt within the
 5-minute cache window with no code change.
+
+### Everything is sized against an 8K context window
+
+The models on the allowlist are served an **8,000-token context**, and one question can spend it
+several times over: the system prompt, the tool schema, the history and each tool result are all
+re-sent on every round of the tool loop. Measured against the real sheet, the first version spent
+~2.0K tokens on the prompt, ~0.5K on the schema and ~1.6K on a single 20-place tool result — about
+6.9K for one round, and over the window by the second. Four changes brought a three-round question to
+roughly **2.9K**:
+
+- **List results carry only what a list answer says out loud** — name, type, sub-category,
+  neighborhood, rating, address. `PLACE_FIELDS` marks those `list: true`; the rest (phone, website,
+  description, notes, layers, coordinates) are returned by `get_place_details` alone, the one call
+  where a visitor actually asked for them. This was the largest win by far: ~1.6K tokens to ~0.3K.
+- **Sub-category counts only where they inform.** 300-odd mostly-unique labels spent 2.8K characters
+  on " (1)" repeated 250 times. Counts now print for `count > 1` only, the list is capped at
+  `MAX_VOCAB_CHARS`, and the dropped tail is announced (`+N rarer ones not listed`) rather than hidden
+  — a model told the list is complete stops searching, which is the failure this vocabulary exists to
+  prevent.
+- **Terse tool descriptions, verbose prompt.** The schema is re-sent every round and the prompt is
+  sent once, so guidance lives in the prompt and the schema keeps one line per field.
+- **Tighter caps**: history 6×600 → 4×280 chars, results 20 → 12 places, and single newlines between
+  result rows instead of blank lines.
+
+`GET /` reports the live prompt size, so drift is visible without a deploy.
+
+### Asking about one place, or one field of it
+
+"What's the rating for Aba", "what is the address of the Art Institute", "what's the description of
+this place" are single-field questions, and `get_place_details` takes a `fields` argument so the answer
+carries that field instead of a whole card the model has to pick through. Two details make it hold up:
+
+- **Names are matched loosely, in tiers.** A visitor types *the bean* and the sheet says `The Bean`;
+  they drop articles, or name a category instead of a place. `matchPlacesByName` tries exact, then
+  prefix, then substring, then all-words-present, and returns **only the best tier that hit** — which
+  is what keeps a place whose notes mention "Kasama" from drowning out Kasama itself.
+- **Ambiguity becomes a question, not a guess.** *The museum* matches a dozen rows. Rather than
+  answering about whichever sorted first — confidently, and usually wrong — the tool hands back the
+  candidates and the model asks which was meant.
 
 One class of ask does not survive being left to the model: a region. *Caribbean food* means two dozen
 countries, and a model told to expand a theme itself expands it to the three or four it thinks of,

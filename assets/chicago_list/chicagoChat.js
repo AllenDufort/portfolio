@@ -5,10 +5,11 @@
 
    The model is reached through the Cloudflare Worker in ./worker, never directly. That
    is not indirection for its own sake — a model API key in a static page is a public
-   key, so it stays a Worker secret. The Worker also builds the prompt (it fetches the
-   same Google Sheet the map uses and sends the model all 552 places grouped by
-   neighborhood), which is why this file needs no place data at all and does not wait on
-   ChicagoData.load().
+   key, so it stays a Worker secret. The Worker also owns all place knowledge: it fetches
+   the same Google Sheet the map uses and exposes it to the model as search tools rather
+   than pasting every place into the prompt, which is what keeps a question inside the 8K
+   context window the models here are served. Either way this file needs no place data at
+   all and does not wait on ChicagoData.load().
 
    The Model dropdown picks between Gemini and Groq models; the Worker validates the choice
    against its own allowlist and normalises both providers to one SSE shape, so nothing here
@@ -29,7 +30,7 @@
     const REQUEST_TIMEOUT_MS = 90000;   // a large model on a free endpoint can be slow
     const SLOW_HINT_MS = 9000;          // when to admit it is taking a while
     const MAX_QUESTION_CHARS = 500;     // matches the Worker's own cap
-    const HISTORY_TURNS = 6;            // messages kept so follow-ups make sense
+    const HISTORY_TURNS = 4;            // matches the Worker's cap; see its MAX_HISTORY_TURNS
     const LOCATION_TTL_MS = 5 * 60 * 1000;
     const GEO_TIMEOUT_MS = 12000;
     const COORD_PRECISION = 4;          // ~11 m — enough for "near me", not a doorstep
@@ -50,12 +51,17 @@
 
     const MODEL_KEY = 'chicagoChat.model';   // remembers the picker across reloads
 
+    /* Chips are the only hint a visitor gets about what the assistant can field, so they
+       deliberately span the range rather than showing five versions of one question: a
+       neighborhood list, a location question, a count, and — since the Worker can now answer
+       about a single field — one detail lookup. "What's the rating for Aba" is here to teach
+       that naming one place and one fact is a supported question, not just browsing. */
     const OPENING_CHIPS = [
         'What food spots are in South Loop?',
         'What food spots are near me?',
         'How many places are there?',
-        'Show me museums',
-        'Tell me about Aba'
+        "What's the rating for Aba?",
+        'What is the address of the Art Institute?'
     ];
     // Offered when a location question cannot be answered, so there is still a way forward.
     const NO_LOCATION_CHIPS = [
@@ -76,7 +82,8 @@
             input.focus();
             if (msgs.children.length === 0) {
                 addBot('Hi! I’m your Chicago assistant 🏙️ Ask me about food spots, activities, ' +
-                    'a neighborhood, or what’s near you.');
+                    'a neighborhood, or what’s near you — or about one place: its rating, ' +
+                    'address, phone, website or description.');
                 renderChips(OPENING_CHIPS);
             }
         }

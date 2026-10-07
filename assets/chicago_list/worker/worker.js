@@ -79,16 +79,16 @@ const SHEET_TIMEOUT_MS = 8000;
 const CATALOG_TTL_MS   = 5 * 60 * 1000;   // rebuild the prompt from the sheet this often
 
 const MAX_QUESTION_CHARS = 500;
-const MAX_HISTORY_TURNS  = 6;             // last N messages kept for follow-ups
-const MAX_HISTORY_CHARS  = 600;
-const MAX_RESULTS         = 20;             // most places to return in a list answer
+const MAX_HISTORY_TURNS  = 4;             // last N messages kept for follow-ups
+const MAX_HISTORY_CHARS  = 280;
+const MAX_RESULTS         = 12;             // most places to return in a list answer
+const MAX_TOOL_LIMIT     = 12;            // hard cap on any tool's limit argument
+const MAX_NOTES_CHARS    = 320;           // review text is unbounded in the sheet
+const MAX_VOCAB_CHARS    = 1100;          // sub-category list, longest tail dropped
 
 const RATE_LIMIT_MAX      = 12;           // requests per IP per window
 const RATE_LIMIT_WINDOW_MS = 60 * 1000;
 
-const NEAR_RADII_MI = [0.5, 1, 2];        // widen until at least NEAR_MIN places match
-const NEAR_MIN      = 5;
-const NEAR_MAX      = 50;                 // most "near you" lines to put in the prompt
 const FAR_AWAY_MI   = 25;                 // past this, tell the model the visitor is out of town
 
 const MODEL_MAX_TOKENS = 700;
@@ -214,9 +214,11 @@ export default {
             return fail(503, 'I could not reach the place list just now — try again shortly.', cors);
         }
 
+        /* The prompt gets only where the visitor is, not a precomputed list of what is near
+           them: find_nearby answers that on demand, and embedding 50 ranked places cost more
+           of the 8K window than the rest of the prompt put together. */
         const point = coords(body && body.coords);
-        const near = nearbyBlock(catalog, point);
-        const systemText = systemPrompt(catalog, near, Boolean(point));
+        const systemText = systemPrompt(catalog, point ? nearestHood(catalog, point) : '', Boolean(point));
         const historyTurns = history(body && body.history);
 
         /* Provider-neutral transcript — converted into each API's own shape only when a
@@ -237,59 +239,76 @@ export default {
 
 /* The canonical tool schema, written in Gemini's functionDeclarations format. Groq's
    OpenAI-style declarations are mapped from this in buildBody(), so the JSON Schema for
-   each tool is written once here and never duplicated per provider. */
-const TOOL_DECLARATIONS = [
+   each tool is written once here and never duplicated per provider.
+
+   Descriptions are terse on purpose. The schema is re-sent on every round of the tool
+   loop, so each sentence here is paid for three or four times inside an 8K window; the
+   long-form guidance it used to carry (how to stem a query, which Type an everyday word
+   maps to) lives in the system prompt, which is sent exactly once.
+
+   Built on first use rather than at module load because the descriptions interpolate
+   THEME_NAMES and PLACE_FIELDS, which are declared further down the file. */
+let toolDeclarationsCache = null;
+
+function toolDeclarations() {
+    if (!toolDeclarationsCache) toolDeclarationsCache = buildToolDeclarations();
+    return toolDeclarationsCache;
+}
+
+function buildToolDeclarations() {
+    return [
     {
         name: 'search_places',
-        description: 'Search saved places by keyword, type, or neighborhood. Keywords are matched against ' +
-            'each place\'s name, type, sub-category, and notes, so one call can cover a whole theme. ' +
-            'Returns matching places with all their details, and the total when there are more than shown.',
+        description: 'Find places by keyword, type, or neighborhood. Terms are OR-matched against name, ' +
+            'type, sub-category and notes. Returns one line per place plus the total.',
         parameters: {
             type: 'object',
             properties: {
-                query:        { type: 'string',  description: 'One keyword, or a comma-separated list matched as OR — ' +
-                                                              'a place is returned if it matches ANY term. Use stems so one ' +
-                                                              'term covers variants ("argentin" catches Argentine and Argentinian). ' +
-                                                              'Example: "mexican, cuban, peruvian, colombian, taco, arepa". ' +
-                                                              'A region name is expanded for you into every cuisine it covers, so ' +
-                                                              'pass "caribbean" as one term rather than listing the islands: ' +
-                                                              'caribbean, latin, asian, middle eastern, african, mediterranean, european.' },
-                type:         { type: 'string',  description: 'Filter by place type from the Type list in your instructions. ' +
-                                                              'Everyday words are accepted ("bookstore" finds Books).' },
-                neighborhood: { type: 'string',  description: 'Filter by neighborhood name.' },
-                limit:        { type: 'integer', description: 'Max results to return (default 10, max 20).' }
+                query:        { type: 'string',  description: 'Comma-separated terms, OR-matched. Use stems ' +
+                                                              '("argentin" covers Argentine/Argentinian). A region word ' +
+                                                              `(${THEME_NAMES}) is expanded for you — pass it alone.` },
+                type:         { type: 'string',  description: 'Type filter; everyday words work ("bookstore" → Books).' },
+                neighborhood: { type: 'string',  description: 'Neighborhood filter.' },
+                limit:        { type: 'integer', description: `Max results (default 10, max ${MAX_TOOL_LIMIT}).` }
             }
         }
     },
     {
         name: 'get_place_details',
-        description: 'Get full details for a specific place by exact name: address, rating, review count, description, notes, phone, website.',
+        description: 'Details for one named place. Use for any question about a specific place — rating, ' +
+            'address, description, phone, website, notes. Matches partial and misspelled names.',
         parameters: {
             type: 'object',
             required: ['name'],
             properties: {
-                name: { type: 'string', description: 'Exact or near-exact name of the place.' }
+                name:   { type: 'string', description: 'Place name, as the visitor said it.' },
+                fields: {
+                    type: 'array',
+                    items: { type: 'string', enum: PLACE_FIELDS.map(f => f.key) },
+                    description: 'Only the fields asked about, e.g. ["rating"]. Omit for everything.'
+                }
             }
         }
     },
     {
         name: 'find_nearby',
-        description: 'Find saved places nearest to the visitor\'s current location, sorted by distance.',
+        description: 'Saved places closest to the visitor, nearest first.',
         parameters: {
             type: 'object',
             properties: {
-                type:         { type: 'string',  description: 'Optional: filter by place type.' },
-                radius_miles: { type: 'number',  description: 'Search radius in miles (default 1).' },
-                limit:        { type: 'integer', description: 'Max results (default 10, max 20).' }
+                type:         { type: 'string',  description: 'Optional type filter.' },
+                radius_miles: { type: 'number',  description: 'Radius in miles (default 1).' },
+                limit:        { type: 'integer', description: `Max results (default 10, max ${MAX_TOOL_LIMIT}).` }
             }
         }
     }
-];
+    ];
+}
 
 /* Execute a tool call against the live catalog. Returns a plain-text result string
    the model can read directly. All filtering is case-insensitive. */
 function executeTool(name, args, catalog, point) {
-    const cap = n => Math.min(Math.max(1, n || 10), 20);
+    const cap = n => Math.min(Math.max(1, n || 10), MAX_TOOL_LIMIT);
 
     if (name === 'search_places') {
         const { terms, themes } = keywords(args.query);
@@ -339,15 +358,38 @@ function executeTool(name, args, catalog, point) {
         const header = hits.length > shown.length
             ? `${hits.length} places match; showing the first ${shown.length}:`
             : `${hits.length} place${hits.length === 1 ? '' : 's'} match:`;
-        return [widened, header, ...shown.map(p => formatPlace(p))].filter(Boolean).join('\n\n');
+        // Single newlines: a place is one line now, so blank lines between them were buying
+        // nothing but tokens in a window that re-sends this result on every later round.
+        return [widened, header, ...shown.map(p => formatPlace(p))].filter(Boolean).join('\n');
     }
 
+    /* "What's the rating for Kasama", "the address of the Puerto Rican museum", "what's the
+       description of this place" all land here. Two things make them work: the name is
+       matched loosely, because a visitor types "the bean" and the sheet says "Cloud Gate";
+       and `fields` keeps the answer to the field asked about instead of returning a card
+       the model then has to pick through. */
     if (name === 'get_place_details') {
-        const q = String(args.name || '').toLowerCase();
-        const exact = catalog.places.find(p => p.name.toLowerCase() === q);
-        const match = exact || catalog.places.find(p => p.name.toLowerCase().includes(q));
-        if (!match) return `No place named "${args.name}" found in the catalog.`;
-        return formatPlace(match, true);
+        const fields  = Array.isArray(args.fields) ? args.fields : [];
+        const matches = matchPlacesByName(args.name, catalog.places);
+
+        if (!matches.length) {
+            return `No place named "${args.name}" is on the map. Try search_places with part of ` +
+                'the name or its type, in case it is saved under a different name.';
+        }
+
+        /* Several equally good matches is a question, not an answer — "the museum" hits a
+           dozen. Handing the model the candidates lets it ask which one rather than
+           silently answering about the first and sounding confident about the wrong place. */
+        if (matches.length > 1) {
+            return [
+                `"${args.name}" matches ${matches.length} saved places. Ask the visitor which one they ` +
+                'mean, listing these by name, and do not answer for any single one yet:',
+                ...matches.slice(0, MAX_TOOL_LIMIT).map(p =>
+                    `- ${p.name} (${p.type || 'Place'}, ${p.neighborhood || 'Chicago'})`)
+            ].join('\n');
+        }
+
+        return formatPlaceDetails(matches[0], fields);
     }
 
     if (name === 'find_nearby') {
@@ -363,18 +405,34 @@ function executeTool(name, args, catalog, point) {
             return wanted.length ? wanted.includes(place.type) : haystack(place).includes(type);
         };
 
-        const ranked = catalog.places
+        const sorted = catalog.places
             .filter(p => p.lon != null)
             .filter(near)
             .map(p => ({ p, miles: haversineMiles(point.lon, point.lat, p.lon, p.lat) }))
-            .filter(hit => hit.miles <= radius)
-            .sort((a, b) => a.miles - b.miles)
-            .slice(0, limit);
+            .sort((a, b) => a.miles - b.miles);
+        const ranked = sorted.filter(hit => hit.miles <= radius).slice(0, limit);
 
-        if (!ranked.length) return `No places within ${radius} miles${type ? ` of type "${args.type}"` : ''}.`;
+        /* An empty radius means two different things, and the answer differs: a quiet block
+           in Chicago should widen, while a visitor in another state should be told they are
+           too far rather than offered a 340-mile drive. Reporting the nearest distance is
+           what lets the model tell those apart — the prompt no longer carries a precomputed
+           "near the visitor" block, so this result is the only place that signal exists. */
+        if (!ranked.length) {
+            if (!sorted.length) return `Nothing on the map matches type "${args.type}".`;
+            const nearest = sorted[0];
+            const away = Math.round(nearest.miles);
+            if (nearest.miles > FAR_AWAY_MI) {
+                return `Nothing within ${radius} mi. The visitor is about ${away} mi from the nearest ` +
+                    `saved place (${nearest.p.name}), so they are too far from Chicago for a "near me" ` +
+                    'answer — say so and offer a neighborhood instead.';
+            }
+            return `No places within ${radius} mi${type ? ` of type "${args.type}"` : ''}. The nearest is ` +
+                `${nearest.p.name} at ${nearest.miles.toFixed(1)} mi — retry with a larger radius_miles.`;
+        }
+
         return ranked.map(({ p, miles }) =>
-            `${formatPlace(p)} | distance: ${miles.toFixed(2)} mi`
-        ).join('\n\n');
+            `${formatPlace(p)} | ${miles.toFixed(2)} mi`
+        ).join('\n');
     }
 
     return `Unknown tool: ${name}`;
@@ -547,6 +605,41 @@ function singular(word) {
     return word;
 }
 
+/* Match a spoken place name to catalog rows, best tier only.
+
+   A visitor asking "what's the rating for Kasama" rarely types what the sheet stores.
+   They drop articles ("the Violet Hour" → "violet hour"), use a nickname, or name a
+   category instead of a place ("the Puerto Rican museum"). The old lookup took the first
+   substring hit, which answered "what's the address of the museum" with whichever museum
+   happened to be first in the sheet — confidently, and usually wrong.
+
+   So matching runs in tiers and returns only the best one that hit: exact, then prefix,
+   then substring, then all-words-present. One result is an answer; several mean the
+   question was ambiguous and the caller asks which was meant. Returning a tier at a time
+   is what keeps "Kasama" from being drowned out by the places whose notes mention it. */
+function matchPlacesByName(asked, places) {
+    const q = String(asked || '').toLowerCase().replace(/\s+/g, ' ').trim();
+    if (!q) return [];
+
+    const norm  = p => p.name.toLowerCase().replace(/\s+/g, ' ').trim();
+    const bare  = text => text.replace(/^(the|a|an)\s+/, '');
+    const qBare = bare(q);
+
+    const tiers = [
+        places.filter(p => norm(p) === q || bare(norm(p)) === qBare),
+        places.filter(p => bare(norm(p)).startsWith(qBare)),
+        places.filter(p => norm(p).includes(q)),
+        // Last resort: every word the visitor said appears in the name, in any order.
+        (() => {
+            const words = qBare.split(' ').filter(w => w.length > 2);
+            if (!words.length) return [];
+            return places.filter(p => words.every(w => norm(p).includes(w)));
+        })()
+    ];
+
+    return tiers.find(tier => tier.length) || [];
+}
+
 /* Which Type values the visitor's word refers to, resolved against the vocabulary as a
    whole rather than one place at a time — that is what lets a direct hit outrank an
    alias. "coffee shops" is Cafe, and without the preference the Retail alias "shop"
@@ -588,18 +681,77 @@ function resolveTypes(asked, types) {
     return viaAlias.filter(hit => hit.at === earliest).map(hit => hit.label);
 }
 
-/* Format a single place as a readable block for tool results. */
-function formatPlace(p, full = false) {
+/* Every field a visitor can ask about, in one place: the label the model reads, and how
+   to render the value from a catalog row. get_place_details walks this table, so adding a
+   column to the sheet means adding one entry here rather than touching the formatter, the
+   tool schema and the prompt separately. `list` marks the fields cheap and identifying
+   enough to repeat on every row of a list answer. */
+const PLACE_FIELDS = [
+    { key: 'type',         list: true,  label: 'type',         read: p => p.type || 'Place' },
+    { key: 'neighborhood', list: true,  label: 'neighborhood', read: p => p.neighborhood || 'Chicago' },
+    { key: 'address',      list: true,  label: 'address',      read: p => p.address },
+    /* Review count is blank for most rows, and blank is a string rather than null here, so a
+       `!= null` guard rendered "4.6★ ( reviews)". Both halves are checked for content. */
+    { key: 'rating',       list: true,  label: 'rating',       read: p => {
+        const avg = String(p.ratingsAverage ?? '').trim();
+        if (!avg) return '';
+        const total = String(p.ratingsTotal ?? '').trim();
+        return `${avg}★${total ? ` (${total} reviews)` : ''}`;
+    } },
+    { key: 'category',     list: true,  label: 'category',     read: p => descriptionTag(p.description) },
+    { key: 'description',  list: false, label: 'description',  read: p => p.description },
+    { key: 'notes',        list: false, label: 'notes',        read: p => clip(p.notes, MAX_NOTES_CHARS) },
+    { key: 'phone',        list: false, label: 'phone',        read: p => p.phone },
+    { key: 'website',      list: false, label: 'website',      read: p => p.website }
+];
+
+const PLACE_FIELD_KEYS = PLACE_FIELDS.map(f => f.key).join(', ');
+
+function clip(text, max) {
+    const value = String(text || '').trim();
+    return value.length > max ? `${value.slice(0, max - 1).trimEnd()}…` : value;
+}
+
+/* One place, as a line for a list result.
+
+   This used to print every field it had, including the full description and the untrimmed
+   review notes, which made a 20-place answer 5.8K characters — more than the system
+   prompt, inside an 8K window, re-sent on every round of the tool loop. A list answer only
+   ever reads out name, type, neighborhood, rating and address, so the list form now carries
+   exactly those, on one line, and everything else is a get_place_details call away. */
+function formatPlace(p) {
+    const parts = PLACE_FIELDS
+        .filter(field => field.list && field.key !== 'type' && field.key !== 'neighborhood')
+        .map(field => field.read(p))
+        .filter(Boolean);
+    return `${p.name} (${p.type || 'Place'}, ${p.neighborhood || 'Chicago'})` +
+        (parts.length ? ` | ${parts.join(' | ')}` : '');
+}
+
+/* One place, in full or field by field.
+
+   `fields` is what makes "what's the rating for Kasama" cost one short line instead of a
+   whole card: the model names the field it was asked about, gets that field, and has
+   nothing else to wade through or accidentally volunteer. An unknown field name falls back
+   to the full card rather than erroring, because the model picking a word the table does
+   not have is not a reason to fail a question that the full card answers anyway. */
+function formatPlaceDetails(p, fields = []) {
+    const asked = fields
+        .map(name => String(name || '').toLowerCase().trim())
+        .filter(Boolean);
+    const wanted = asked.length
+        ? PLACE_FIELDS.filter(field => asked.includes(field.key))
+        : PLACE_FIELDS;
+    const chosen = wanted.length ? wanted : PLACE_FIELDS;
+
     const lines = [`${p.name} (${p.type || 'Place'}) — ${p.neighborhood || 'Chicago'}`];
-    if (p.address)        lines.push(`address: ${p.address}`);
-    if (p.ratingsAverage != null) {
-        const rev = p.ratingsTotal != null ? ` (${p.ratingsTotal} reviews)` : '';
-        lines.push(`rating: ${p.ratingsAverage}★${rev}`);
-    }
-    if (p.description)    lines.push(`description: ${p.description}`);
-    if (p.notes)          lines.push(`notes: ${p.notes}`);
-    if (full || p.phone)  lines.push(`phone: ${p.phone || 'not listed'}`);
-    if (full || p.website)lines.push(`website: ${p.website || 'not listed'}`);
+    chosen.forEach(field => {
+        if (field.key === 'type' || field.key === 'neighborhood') return;
+        const value = field.read(p);
+        // "not listed" is said out loud rather than omitted: a missing field is an answer
+        // to "what's the phone number", and silence invites the model to invent one.
+        lines.push(`${field.label}: ${value || 'not listed'}`);
+    });
     return lines.join('\n');
 }
 
@@ -639,7 +791,7 @@ function buildBody(provider, { model, systemText, turns }) {
         return JSON.stringify({
             systemInstruction: { parts: [{ text: systemText }] },
             contents,
-            tools: [{ functionDeclarations: TOOL_DECLARATIONS }],
+            tools: [{ functionDeclarations: toolDeclarations() }],
             generationConfig: {
                 maxOutputTokens: MODEL_MAX_TOKENS + REASONING_HEADROOM,
                 temperature:     MODEL_TEMPERATURE
@@ -674,7 +826,7 @@ function buildBody(provider, { model, systemText, turns }) {
     return JSON.stringify({
         model,
         messages,
-        tools: TOOL_DECLARATIONS.map(d => ({
+        tools: toolDeclarations().map(d => ({
             type: 'function',
             function: { name: d.name, description: d.description, parameters: d.parameters }
         })),
@@ -1032,95 +1184,51 @@ async function upstreamMessage(res) {
    ("Books", "Colombian restaurant"), finds nothing, and reports that the map is empty on
    a subject where it holds dozens of places. Actual place data still comes back only
    through tool results, which are precise and complete. */
-function systemPrompt(catalog, _near, hasPoint) {
+function systemPrompt(catalog, visitorHood, hasPoint) {
     const lines = [
-        'You are Chicago Assistant, a guide to a personal Chicago TODO map of saved places.',
-        `The map holds ${catalog.places.length} saved places across ${catalog.hoods.length} neighborhoods.`,
+        `Chicago Assistant: guide to a personal map of ${catalog.places.length} saved Chicago places ` +
+            `in ${catalog.hoods.length} neighborhoods.`,
         '',
-        'Tools:',
-        '- search_places: find places by keyword, type, or neighborhood. query takes a comma-separated list and matches ANY term against a place\'s name, type, sub-category, and notes, so one call can cover a whole theme.',
-        '- get_place_details: every available field for one specific place (address, rating, review count, description, notes, phone, website).',
-        '- find_nearby: places closest to the visitor\'s current location, sorted by distance.',
+        `TYPES (closed set): ${vocabLine(catalog.types)}`,
+        `SUB-CATEGORIES (searchable): ${vocabLine(catalog.tags, MAX_VOCAB_CHARS)}`,
         '',
-        'TYPE is a closed set. These are the only values in the map, with counts:',
-        vocabLine(catalog.types),
+        'SEARCHING',
+        '- Translate the ask into the words above; visitors do not use them. Books=bookstores, Cafe=coffee,',
+        '  Brunch=breakfast, Retail/Market=shops, Bar/Club=nightlife, Snack=dessert, Landmark=sights.',
+        `- Region words are auto-expanded to every country, cuisine and dish: ${THEME_NAMES}.`,
+        '  Pass one alone as query; never list the countries yourself or narrow to one.',
+        '- Other themes: expand yourself into ONE comma-separated query of stems ("argentin", "taco").',
+        '- Query alone first. A cuisine spans Types (Cuban places are Bars and Cafes too); add type only',
+        '  to narrow a long result, drop it if thin. A pure Type ask needs type only, no query.',
+        '- Drop hits whose Type contradicts the ask: "puerto ric" matches a museum, which is not food.',
+        '  Food = Restaurant, Bar, Brunch, Cafe, Snack, Market, Club only. Count survivors and report',
+        '  that number, not the search total, and do not pad the wording to cover what you dropped.',
+        '- Before saying the map has none: add keywords, shorten to stems, or drop type/neighborhood and',
+        '  retry. Exception: a region above was already exhaustive, so empty means none.',
         '',
-        'Most places also carry a finer sub-category, which search_places matches. Those present:',
-        vocabLine(catalog.tags),
-        '',
-        'Reading the question — do this before calling anything:',
-        '- Decide whether the ask names a Type, a sub-category, or a theme spanning several, then translate it into the vocabulary above. The visitor will not use the sheet\'s words.',
-        '- Everyday words for a Type: bookstores are Books, coffee is Cafe, breakfast is Brunch, shops are Retail or Market, nightlife is Bar and Club, desserts and ice cream are Snack, sights are Landmark.',
-        `- These region words are expanded for you into every cuisine, country and dish they cover: ${THEME_NAMES}. Pass the region as a single query term — query "caribbean" already searches Cuban, Puerto Rican, Jamaican, Haitian, Dominican, Trinidadian and the rest, and query "latino" already searches every Latin American country. Do not list the countries yourself and do not narrow a region to the one country you thought of first.`,
-        '- A theme outside that list is still not a search term. Expand it yourself into every sub-category, country and dish that belongs to it and send them as ONE comma-separated query. Use stems so a term covers variants — "argentin" catches Argentine and Argentinian, "taco" catches tacos and taqueria.',
-        '  "bookstores": type "Books" — no query needed, the Type already is the answer.',
-        '- A cuisine is not confined to one Type: Cuban, Mexican and Peruvian places are filed under Bar, Brunch and Cafe as well as Restaurant. Send the query on its own first; add a type only to narrow a long result, and drop it again if that comes back thin.',
-        '- Then read the Type of every hit and drop the ones that do not fit the ask. A keyword match is not a guarantee — the National Museum of Puerto Rican Arts & Culture matches "puerto ric" and is not a restaurant.',
-        '  Asked about eating or drinking, keep only Restaurant, Bar, Brunch, Cafe, Snack, Market and Club. Museum, Landmark, Park, Books, Retail, Activity and Beach are never food, whatever they matched on.',
-        '  Then count what is left and report that number. Do not quote the search total as if every hit survived, and do not widen the wording to cover what you dropped — no "and related venues".',
-        '- Never say the map has nothing after one narrow attempt. Add keywords, shorten them to stems, or drop the type or neighborhood, and search again before reporting none. The exception is a region from the list above: that search was already exhaustive, so an empty result is the answer — report none rather than retrying it country by country.',
-        '',
-        'Answering:',
-        '- Always call a tool before answering. Never invent or guess any detail — all facts come from tool results.',
-        '- For a specific place question (phone, rating, address, website, description), call get_place_details and quote the result exactly. If a field is absent in the result, say it is not listed.',
-        '- For "near me" questions, call find_nearby. If no location is available, tell the visitor to allow location access or name a neighborhood.',
-        `- For list questions, call search_places. Use "- " bullets, at most ${MAX_RESULTS} results, note the total when there are more.`,
-        '- Always include Type and neighborhood in your reply. Add the address when the visitor is heading somewhere.',
-        '- After interpreting a broad ask, open with one short line saying what you took it to mean, naming the region and a few of the cuisines that actually turned up, e.g. "Caribbean spots on the map — Cuban, Puerto Rican and Jamaican:". Name only cuisines present in the results.',
-        '- Plain text only, no markdown headings or tables. Skip preamble and pleasantries.'
+        'ANSWERING',
+        '- Always call a tool first. Every fact comes from a tool result; never guess or invent one.',
+        `- One place, one detail ("rating for X", "address of the museum", "what's the description"):`,
+        `  get_place_details with name plus fields, e.g. fields:["rating"]. Fields: ${PLACE_FIELD_KEYS}.`,
+        '  Answer just what was asked, quoted exactly. "not listed" means say it is not listed.',
+        '  Omit fields for a full rundown. If it returns several matches, ask which one they meant.',
+        '- A follow-up without a name ("what about its hours", "the rating?") means the place last named',
+        '  in the conversation. Reuse that name; do not search again.',
+        '- Hours are not in the map: say so and point to the website field.',
+        '- "Near me": find_nearby. No location means ask them to allow it or name a neighborhood.',
+        `- Lists: search_places, "- " bullets, at most ${MAX_RESULTS}, note the total when more match.`,
+        '  Give Type and neighborhood for each; add the address when they are heading there.',
+        '- Broad ask: open with one line on how you read it, naming only cuisines actually in the results.',
+        '- Plain text, no markdown or tables. No preamble or pleasantries.'
     ];
 
-    if (!hasPoint) {
-        lines.push('', '- The visitor has not shared their location. find_nearby is unavailable until they do.');
-    }
+    /* Where they are, not what is near them — one line instead of fifty, and it is the part
+       the model cannot get from a tool: find_nearby returns distances, but naming the
+       neighborhood lets the assistant say "you're in Pilsen" without a round trip. */
+    if (!hasPoint) lines.push('- No visitor location shared; find_nearby is unavailable until they allow it.');
+    else if (visitorHood) lines.push(`- The visitor is in or near ${visitorHood}.`);
 
     return lines.join('\n');
-}
-
-/* Places sorted by real distance from the visitor, so the model never has to do
-   geometry — it only has to read a list that is already in the right order. */
-function nearbyBlock(catalog, point) {
-    if (!point) return '';
-
-    const ranked = catalog.places
-        .filter(place => place.lon != null)
-        .map(place => ({ place, miles: haversineMiles(point.lon, point.lat, place.lon, place.lat) }))
-        .sort((a, b) => a.miles - b.miles);
-    if (!ranked.length) return '';
-
-    // Out-of-town visitor: three nearest for context, and a heading that tells the
-    // model to say so rather than presenting a 340-mile drive as "nearby".
-    if (ranked[0].miles > FAR_AWAY_MI) {
-        return [
-            `NEAR THE VISITOR: nothing is close. They are ${Math.round(ranked[0].miles)} miles from the ` +
-            'nearest saved place, so tell them they are too far from Chicago for a "near me" answer ' +
-            'and offer a neighborhood instead. The closest few, for reference:',
-            ...ranked.slice(0, 3).map(hit => nearLine(hit, 0))
-        ].join('\n');
-    }
-
-    // Widen the radius until enough places qualify, so a quiet block still gets a list.
-    const widest = NEAR_RADII_MI[NEAR_RADII_MI.length - 1];
-    const radius = NEAR_RADII_MI.find(mi => ranked.filter(hit => hit.miles <= mi).length >= NEAR_MIN) || widest;
-    const within = ranked.filter(hit => hit.miles <= radius);
-    const shown = (within.length ? within : ranked).slice(0, NEAR_MAX);
-    const area = nearestHood(catalog, point);
-
-    return [
-        `NEAR THE VISITOR (straight-line miles from where they are${area ? `, which is in ${area}` : ''}, ` +
-        `nearest first, ${shown.length} shown):`,
-        ...shown.map(hit => nearLine(hit, 1))
-    ].join('\n');
-}
-
-function nearLine(hit, decimals) {
-    const place = hit.place;
-    const rating = place.ratingsAverage != null
-        ? ` | ${place.ratingsAverage}★${place.ratingsTotal != null ? ` (${place.ratingsTotal})` : ''}`
-        : '';
-    const address = place.address ? ` | ${place.address}` : '';
-    return `- ${place.name} (${place.type || 'Place'}) | ${hit.miles.toFixed(decimals)} mi | ` +
-        `${place.neighborhood || 'Chicago'}${rating}${address}`;
 }
 
 /* Which neighborhood the visitor is standing in, from the average coordinates of the
@@ -1216,11 +1324,30 @@ function descriptionTag(description) {
     return head.split(/\s+/).length <= MAX_TAG_WORDS ? head : '';
 }
 
-/* A vocabulary as one prompt line. Counts are included because they tell the model what
-   to expect: "Colombian restaurant (1)" makes a single hit a complete answer, not a
-   failed search worth retrying. */
-function vocabLine(entries) {
-    return entries.map(entry => `${entry.label} (${entry.count})`).join(', ');
+/* A vocabulary as one prompt line, capped in characters.
+
+   Counts used to be printed for every entry, which is the right idea on the Type list —
+   "Colombian restaurant (1)" makes a single hit a complete answer rather than a failed
+   search worth retrying — and the wrong one on the sub-category list, where 300-odd
+   mostly-unique labels spent 2.8K characters of an 8K window on " (1)" repeated 250
+   times. Counts are now kept only where they carry information (count > 1), and the long
+   tail is cut with a note that it exists, since the tail is exactly the set the model
+   should search for rather than assume: a label it cannot see is still findable by
+   keyword, but a model told the list is complete would stop looking. */
+function vocabLine(entries, maxChars = 0) {
+    const part = entry => (entry.count > 1 ? `${entry.label} (${entry.count})` : entry.label);
+    if (!maxChars) return entries.map(part).join(', ');
+
+    const kept = [];
+    let used = 0;
+    for (const entry of entries) {
+        const text = part(entry);
+        if (used + text.length + 2 > maxChars) break;
+        kept.push(text);
+        used += text.length + 2;
+    }
+    const dropped = entries.length - kept.length;
+    return kept.join(', ') + (dropped > 0 ? `, +${dropped} rarer ones not listed` : '');
 }
 
 /* Build the catalog the tools search. Entries are deduplicated by name + address
@@ -1334,10 +1461,14 @@ function fromSnapshot(json) {
             address:        String(props.address || '').trim(),
             phone:          String(props.phone || '').trim(),
             website:        String(props.website || '').trim(),
-            ratingsAverage: typeof props.ratingsAverage === 'number' ? props.ratingsAverage : null,
-            ratingsTotal:   typeof props.ratingsTotal === 'number' ? props.ratingsTotal : null,
-            lon:            typeof coords[0] === 'number' ? coords[0] : null,
-            lat:            typeof coords[1] === 'number' ? coords[1] : null
+            /* Coerced with the same number() the sheet path uses, rather than required to be
+               a number already. The snapshot is generated from the sheet and stores these as
+               strings ("4.6", and "" where unrated), so a typeof check dropped the rating of
+               all 548 places — every "what's the rating for X" answered "not listed". */
+            ratingsAverage: number(props.ratingsAverage),
+            ratingsTotal:   number(props.ratingsTotal),
+            lon:            number(coords[0]),
+            lat:            number(coords[1])
         };
     }).filter(row => row.name);
 }
