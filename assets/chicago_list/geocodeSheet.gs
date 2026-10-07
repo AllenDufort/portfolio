@@ -38,14 +38,13 @@
  *   • No Google Places API key or billing account is required.
  */
 
-var SPREADSHEET_ID = '18rG-azfyKrziKuDm3WBHD2UyMeeD5T8BMugFG7j5fw4';
-var SHEET_GID      = 2011978534;   // numeric gid from the sheet URL
-var BATCH_LIMIT    = 400;          // max geocode calls per manual run
-var LAT_HEADER     = 'Lat';
-var LON_HEADER     = 'Lon';
-var ADDR_HEADER    = 'Address';
-var NAME_HEADER    = 'Place';
-var REGION         = 'us';
+var SHEET_NAME  = '';       // '' = active sheet
+var BATCH_LIMIT = 400;      // max geocode calls per manual run
+var LAT_HEADER  = 'Lat';
+var LON_HEADER  = 'Lon';
+var ADDR_HEADER = 'Address';
+var NAME_HEADER = 'Place';
+var REGION      = 'us';
 
 // Columns enriched by doGet from Nominatim place-details.
 // Key = sheet header (matched case-insensitively).
@@ -63,17 +62,13 @@ var ENRICH_FIELDS = {
 // ── Menu ──────────────────────────────────────────────────────────────────────
 
 function onOpen() {
-  try {
-    SpreadsheetApp.getUi()
-      .createMenu('Chicago Map')
-      .addItem('Geocode missing rows',      'geocodeMissingRows')
-      .addItem('Re-geocode selected rows',  'geocodeSelectedRows')
-      .addSeparator()
-      .addItem('Enrich missing fields now', 'enrichMissingFieldsMenu')
-      .addToUi();
-  } catch (e) {
-    // No UI context (e.g. called from a web app request) — skip the menu.
-  }
+  SpreadsheetApp.getUi()
+    .createMenu('Chicago Map')
+    .addItem('Geocode missing rows',     'geocodeMissingRows')
+    .addItem('Re-geocode selected rows', 'geocodeSelectedRows')
+    .addSeparator()
+    .addItem('Enrich missing fields now','enrichMissingFieldsMenu')
+    .addToUi();
 }
 
 // ── Manual geocoding (unchanged) ──────────────────────────────────────────────
@@ -82,7 +77,7 @@ function geocodeMissingRows()  { run(null); }
 
 function geocodeSelectedRows() {
   var range = SpreadsheetApp.getActiveRange();
-  if (!range) { alertUi_('Select the rows to re-geocode first.'); return; }
+  if (!range) { SpreadsheetApp.getUi().alert('Select the rows to re-geocode first.'); return; }
   var rows = [];
   for (var r = range.getRow(); r < range.getRow() + range.getNumRows(); r++) rows.push(r);
   run(rows);
@@ -95,7 +90,7 @@ function run(onlyRows) {
 
   var header = values[0].map(function(h){ return String(h).trim(); });
   var addrCol = indexOfHeader_(header, ADDR_HEADER);
-  if (addrCol < 0) { alertUi_('No "' + ADDR_HEADER + '" column found.'); return; }
+  if (addrCol < 0) { SpreadsheetApp.getUi().alert('No "' + ADDR_HEADER + '" column found.'); return; }
 
   var latCol = indexOfHeader_(header, LAT_HEADER);
   var lonCol = indexOfHeader_(header, LON_HEADER);
@@ -123,15 +118,19 @@ function run(onlyRows) {
     }
   }
 
-  toastUi_('Geocoded ' + done + ' row(s). ' + skipped + ' already had coordinates. ' + failed.length + ' failed.');
+  SpreadsheetApp.getActive().toast(
+    'Geocoded ' + done + ' row(s). ' + skipped + ' already had coordinates. ' +
+    failed.length + ' failed.', 'Chicago Map', 10);
   if (failed.length) Logger.log('Could not geocode:\n' + failed.join('\n'));
-  if (done === BATCH_LIMIT) alertUi_('Stopped at the ' + BATCH_LIMIT + '-row batch limit. Run it again to continue.');
+  if (done === BATCH_LIMIT) SpreadsheetApp.getUi().alert('Stopped at the ' + BATCH_LIMIT + '-row batch limit. Run it again to continue.');
 }
 
 /** Menu shortcut so the user can trigger enrichment manually too. */
 function enrichMissingFieldsMenu() {
   var result = enrichMissingFields_();
-  toastUi_('Enriched ' + result.enriched + ' row(s). ' + result.skipped + ' already complete. ' + result.failed + ' failed.');
+  SpreadsheetApp.getActive().toast(
+    'Enriched ' + result.enriched + ' row(s). ' + result.skipped + ' already complete. ' +
+    result.failed + ' failed.', 'Chicago Map', 10);
 }
 
 // ── Web App entry point ───────────────────────────────────────────────────────
@@ -268,7 +267,7 @@ function enrichMissingFields_() {
         }
 
         // Fill Lat/Lon from Nominatim if Maps.newGeocoder didn't resolve them.
-        if (isEmpty_(row[latCol]) && nom.lat && !writesHas_(writes, latCol)) {
+        if (isEmpty_(row[latCol]) && nom.lat && isEmpty_(writes, latCol)) {
           var nLat = parseFloat(nom.lat);
           var nLon = parseFloat(nom.lon);
           if (!isNaN(nLat) && !isNaN(nLon)) {
@@ -374,19 +373,10 @@ function encodePlusCode_(lat, lon) {
 
 // ── Utilities ─────────────────────────────────────────────────────────────────
 
-/**
- * Always returns the correct sheet by spreadsheet ID + GID.
- * Works in every execution context: menu run, web app doGet, time-based trigger.
- * Never relies on "active sheet", which is undefined in a web app request.
- */
 function getSheet_() {
-  var ss = SpreadsheetApp.openById(SPREADSHEET_ID);
-  var sheets = ss.getSheets();
-  for (var i = 0; i < sheets.length; i++) {
-    if (sheets[i].getSheetId() === SHEET_GID) return sheets[i];
-  }
-  // Fallback: first sheet (should never be needed if SHEET_GID is correct).
-  return ss.getSheets()[0];
+  return SHEET_NAME
+    ? SpreadsheetApp.getActive().getSheetByName(SHEET_NAME)
+    : SpreadsheetApp.getActiveSheet();
 }
 
 function indexOfHeader_(header, name) {
@@ -418,14 +408,4 @@ function toSet_(list) {
   var s = {};
   for (var i = 0; i < list.length; i++) s[list[i]] = true;
   return s;
-}
-
-/** Show a toast when a UI context is available; log otherwise. */
-function toastUi_(msg) {
-  try { SpreadsheetApp.openById(SPREADSHEET_ID).toast(msg, 'Chicago Map', 10); } catch (e) { Logger.log(msg); }
-}
-
-/** Show an alert when a UI context is available; log otherwise. */
-function alertUi_(msg) {
-  try { SpreadsheetApp.getUi().alert(msg); } catch (e) { Logger.log(msg); }
 }
