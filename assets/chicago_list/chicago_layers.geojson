@@ -1470,30 +1470,6 @@
             "geometry": {
                 "type": "Point",
                 "coordinates": [
-                    -87.6319061,
-                    41.910533
-                ]
-            },
-            "properties": {
-                "name": "PiniPico Coffee & Empanadas",
-                "type": "Cafe",
-                "neighborhood": "Gold Coast",
-                "address": "1538 N Clark St, Chicago, IL 60610",
-                "reviews": "",
-                "description": "",
-                "phone": "(312) 624-8389",
-                "website": "http://cash.app/$tarsilacafe",
-                "ratingsAverage": "4.4",
-                "ratingsTotal": "",
-                "plusCode": "W969+66 Chicago, Illinois",
-                "originalUrl": "https://www.google.com/maps/place/PiniPico+Coffee+%26+Empanadas/data=!4m2!3m1!1s0x880fd33054f2ecbd:0x4599e6b81a92cfd3"
-            }
-        },
-        {
-            "type": "Feature",
-            "geometry": {
-                "type": "Point",
-                "coordinates": [
                     -87.6291801,
                     41.9032745
                 ]
