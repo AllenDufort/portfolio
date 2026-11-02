@@ -81,7 +81,6 @@ const COLUMNS = {
     website:        ['website'],
     ratingsAverage: ['ratingsaverage', 'rating', 'ratingaverage'],
     ratingsTotal:   ['ratingstotal', 'ratingcount', 'ratingtotal'],
-    originalUrl:    ['originalurl', 'original_url'],
     lat:            ['lat', 'latitude'],
     lon:            ['lon', 'lng', 'long', 'longitude']
 };

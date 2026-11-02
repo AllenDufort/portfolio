@@ -34,7 +34,6 @@
         ratingsAverage: ['ratingsaverage', 'rating', 'ratingaverage'],
         ratingsTotal:   ['ratingstotal', 'ratingcount', 'ratingtotal'],
         plusCode:       ['pluscode', 'plus_code'],
-        originalUrl:    ['originalurl', 'original_url'],
         lat:            ['lat', 'latitude'],
         lon:            ['lon', 'lng', 'long', 'longitude']
     };
@@ -78,7 +77,6 @@
                 ratingsAverage: number(cell(row, at.ratingsAverage)),
                 ratingsTotal:   number(cell(row, at.ratingsTotal)),
                 plusCode:       cell(row, at.plusCode),
-                originalUrl:    cell(row, at.originalUrl),
                 lon:            number(cell(row, at.lon)),
                 lat:            number(cell(row, at.lat))
             }))
@@ -130,8 +128,7 @@
                 website:        row.website,
                 ratingsAverage: row.ratingsAverage,
                 ratingsTotal:   row.ratingsTotal,
-                plusCode:       row.plusCode,
-                originalUrl:    row.originalUrl
+                plusCode:       row.plusCode
             }
         };
     }
