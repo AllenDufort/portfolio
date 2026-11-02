@@ -44,7 +44,6 @@ COLUMNS = {
     'website':        ['website'],
     'ratingsAverage': ['ratingsaverage', 'rating', 'ratingaverage'],
     'ratingsTotal':   ['ratingstotal', 'ratingcount', 'ratingtotal'],
-    'plusCode':       ['pluscode', 'plus_code'],
     'lat':            ['lat', 'latitude'],
     'lon':            ['lon', 'lng', 'long', 'longitude'],
 }
@@ -103,7 +102,6 @@ for row in table:
         'website':        cell(row, at['website']),
         'ratingsAverage': cell(row, at['ratingsAverage']),
         'ratingsTotal':   cell(row, at['ratingsTotal']),
-        'plusCode':       cell(row, at['plusCode']),
         'coord':          [lon, lat] if (lon is not None and lat is not None) else None,
     })
 
@@ -195,8 +193,7 @@ for r in rows:
             "phone":          r['phone'],
             "website":        r['website'],
             "ratingsAverage": r['ratingsAverage'],
-            "ratingsTotal":   r['ratingsTotal'],
-            "plusCode":       r['plusCode']
+            "ratingsTotal":   r['ratingsTotal']
         }
     }
 

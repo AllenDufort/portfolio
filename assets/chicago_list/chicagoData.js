@@ -33,7 +33,6 @@
         website:        ['website'],
         ratingsAverage: ['ratingsaverage', 'rating', 'ratingaverage'],
         ratingsTotal:   ['ratingstotal', 'ratingcount', 'ratingtotal'],
-        plusCode:       ['pluscode', 'plus_code'],
         lat:            ['lat', 'latitude'],
         lon:            ['lon', 'lng', 'long', 'longitude']
     };
@@ -76,7 +75,6 @@
                 website:        cell(row, at.website),
                 ratingsAverage: number(cell(row, at.ratingsAverage)),
                 ratingsTotal:   number(cell(row, at.ratingsTotal)),
-                plusCode:       cell(row, at.plusCode),
                 lon:            number(cell(row, at.lon)),
                 lat:            number(cell(row, at.lat))
             }))
@@ -127,8 +125,7 @@
                 phone:          row.phone,
                 website:        row.website,
                 ratingsAverage: row.ratingsAverage,
-                ratingsTotal:   row.ratingsTotal,
-                plusCode:       row.plusCode
+                ratingsTotal:   row.ratingsTotal
             }
         };
     }
