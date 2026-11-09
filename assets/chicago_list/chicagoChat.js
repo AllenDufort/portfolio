@@ -1,3 +1,6 @@
+import { renderMarkdown, populateModelSelect } from '../shared/ui.js';
+import { workerEndpoint, readEventStream } from '../shared/worker-client.js';
+
 /* ── Chicago Assistant — LLM chat widget ──────────────────────────────────
    Every answer comes from a model; there is no local retrieval or fallback. The widget
    collects a question, optionally the visitor's coordinates, and streams the reply back.
@@ -6,390 +9,325 @@
    API key in a static page is a public key. The Worker also owns all place knowledge — it
    exposes the map's Google Sheet to the model as search tools rather than pasting every
    place into the 8K context window — so this file needs no place data and never waits on
-   ChicagoData.load(). The Model dropdown offers Gemini and Groq; the Worker validates the
+   the map's data loader. The Model dropdown offers Gemini and Groq; the Worker validates the
    choice and normalises both providers to one SSE shape, so nothing here depends on which
    one answered.
 
    Location questions are the one thing a prompt cannot answer alone: NEAR_ME_RE spots
    them, the browser asks permission, and the coordinates ride along with the question —
    rounded to ~11 m, sent only on those questions, never stored. */
-(function () {
-    'use strict';
 
-    // The deployed Worker in ./worker; the URL changes only if its wrangler.toml `name` does.
-    const WORKER_URL = 'https://chicago-chat.chicagochat.workers.dev';
-    const DEV_WORKER_URL = 'http://127.0.0.1:8787';       // wrangler dev in worker/
+// The deployed Worker in ./worker; the URL changes only if its wrangler.toml `name` does.
+const WORKER_URL = 'https://chicago-chat.chicagochat.workers.dev';
+const DEV_WORKER_URL = 'http://127.0.0.1:8787';       // wrangler dev in worker/
 
-    const REQUEST_TIMEOUT_MS = 90000;   // a large model on a free endpoint can be slow
-    const SLOW_HINT_MS = 9000;          // when to admit it is taking a while
-    const MAX_QUESTION_CHARS = 500;     // matches the Worker's own cap
-    const HISTORY_TURNS = 4;            // matches the Worker's cap; see its MAX_HISTORY_TURNS
-    const LOCATION_TTL_MS = 5 * 60 * 1000;
-    const GEO_TIMEOUT_MS = 12000;
-    const COORD_PRECISION = 4;          // ~11 m — enough for "near me", not a doorstep
+const REQUEST_TIMEOUT_MS = 90000;   // a large model on a free endpoint can be slow
+const SLOW_HINT_MS = 9000;          // when to admit it is taking a while
+const MAX_QUESTION_CHARS = 500;     // matches the Worker's own cap
+const HISTORY_TURNS = 4;            // matches the Worker's cap; see its MAX_HISTORY_TURNS
+const LOCATION_TTL_MS = 5 * 60 * 1000;
+const GEO_TIMEOUT_MS = 12000;
+const COORD_PRECISION = 4;          // ~11 m — enough for "near me", not a doorstep
 
-    /* The one hardcoded piece of language understanding left, and it decides exactly one
-       thing: whether to ask the browser for coordinates before sending. What the answer
-       says is the model's job. */
-    const NEAR_ME_RE = /\b(?:near|around|close to|closest to|by)\s+(?:me|here|us|my\s+location)\b|\bnear\s?by\b|\bwalking distance\b|\bmy location\b|\baround here\b|\bclose by\b|\bwhere i am\b/i;
+/* The one hardcoded piece of language understanding left, and it decides exactly one
+   thing: whether to ask the browser for coordinates before sending. What the answer
+   says is the model's job. */
+const NEAR_ME_RE = /\b(?:near|around|close to|closest to|by)\s+(?:me|here|us|my\s+location)\b|\bnear\s?by\b|\bwalking distance\b|\bmy location\b|\baround here\b|\bclose by\b|\bwhere i am\b/i;
 
-    const toggle   = document.getElementById('chat-toggle');
-    const panel    = document.getElementById('chat-panel');
-    const closeBtn = document.getElementById('chat-close');
-    const msgs     = document.getElementById('chat-messages');
-    const sugBox   = document.getElementById('chat-suggestions');
-    const input    = document.getElementById('chat-input');
-    const sendBtn  = document.getElementById('chat-send');
-    const modelSel = document.getElementById('chat-model');
+const toggle   = document.getElementById('chat-toggle');
+const panel    = document.getElementById('chat-panel');
+const closeBtn = document.getElementById('chat-close');
+const msgs     = document.getElementById('chat-messages');
+const sugBox   = document.getElementById('chat-suggestions');
+const input    = document.getElementById('chat-input');
+const sendBtn  = document.getElementById('chat-send');
+const modelSel = document.getElementById('chat-model');
 
-    const MODEL_KEY = 'chicagoChat.model';   // remembers the picker across reloads
+populateModelSelect(modelSel);
 
-    /* The only hint a visitor gets about what the assistant can field, so they span the
-       range instead of showing five versions of one question: a neighborhood list, a
-       location question, a count, and two single-field lookups — the last to teach that
-       naming one place and one fact is supported, not just browsing. */
-    const OPENING_CHIPS = [
-        'What food spots are in South Loop?',
-        'What food spots are near me?',
-        'How many places are there?',
-        "What's the rating for Aba?",
-        'What is the address of the Art Institute?'
-    ];
-    // Offered when a location question cannot be answered, so there is still a way forward.
-    const NO_LOCATION_CHIPS = [
-        'What food spots are in West Town?',
-        'Clubs in River North',
-        'Show me activities in the Loop'
-    ];
+const MODEL_KEY = 'chicagoChat.model';   // remembers the picker across reloads
 
-    let busy = false;
-    let history = [];          // [{role, content}] — the last HISTORY_TURNS messages
-    let spot = null;           // {lat, lon, at} once the visitor has shared their location
+/* The only hint a visitor gets about what the assistant can field, so they span the
+   range instead of showing five versions of one question: a neighborhood list, a
+   location question, a count, and two single-field lookups — the last to teach that
+   naming one place and one fact is supported, not just browsing. */
+const OPENING_CHIPS = [
+    'What food spots are in South Loop?',
+    'What food spots are near me?',
+    'How many places are there?',
+    "What's the rating for Aba?",
+    'What is the address of the Art Institute?'
+];
+// Offered when a location question cannot be answered, so there is still a way forward.
+const NO_LOCATION_CHIPS = [
+    'What food spots are in West Town?',
+    'Clubs in River North',
+    'Show me activities in the Loop'
+];
 
-    toggle.addEventListener('click', () => {
-        const isHidden = panel.hidden;
-        panel.hidden = !isHidden;
-        if (isHidden) {
-            input.focus();
-            if (msgs.children.length === 0) {
-                addBot('Hi! I’m your Chicago assistant 🏙️ Ask me about food spots, activities, ' +
-                    'a neighborhood, or what’s near you — or about one place: its rating, ' +
-                    'address, phone, website or description.');
-                renderChips(OPENING_CHIPS);
-            }
+let busy = false;
+let history = [];          // [{role, content}] — the last HISTORY_TURNS messages
+let spot = null;           // {lat, lon, at} once the visitor has shared their location
+
+toggle.addEventListener('click', () => {
+    const isHidden = panel.hidden;
+    panel.hidden = !isHidden;
+    if (isHidden) {
+        input.focus();
+        if (msgs.children.length === 0) {
+            addBot('Hi! I’m your Chicago assistant 🏙️ Ask me about food spots, activities, ' +
+                'a neighborhood, or what’s near you — or about one place: its rating, ' +
+                'address, phone, website or description.');
+            renderChips(OPENING_CHIPS);
         }
-    });
-    closeBtn.addEventListener('click', () => { panel.hidden = true; });
+    }
+});
+closeBtn.addEventListener('click', () => { panel.hidden = true; });
 
-    /* The model is remembered per browser. The Worker validates it against its own
-       allowlist, so a stale value costs nothing. One no longer in the list is ignored here
-       too, so the select never ends up blank. */
+/* The model is remembered per browser. The Worker validates it against its own
+   allowlist, so a stale value costs nothing. One no longer in the list is ignored here
+   too, so the select never ends up blank. */
+try {
+    const saved = localStorage.getItem(MODEL_KEY);
+    if (saved && Array.from(modelSel.options).some(o => o.value === saved)) {
+        modelSel.value = saved;
+    }
+} catch (err) { /* storage blocked — the default selection stands */ }
+
+modelSel.addEventListener('change', () => {
+    try { localStorage.setItem(MODEL_KEY, modelSel.value); }
+    catch (err) { /* storage blocked — the choice still applies for this visit */ }
+});
+
+function chosenModel() { return modelSel ? modelSel.value : ''; }
+
+sendBtn.addEventListener('click', submit);
+input.addEventListener('keydown', e => { if (e.key === 'Enter' && !e.shiftKey) submit(); });
+
+function submit() {
+    if (busy) return;
+    const text = input.value.trim().slice(0, MAX_QUESTION_CHARS);
+    if (!text) return;
+    input.value = '';
+    sugBox.innerHTML = '';
+    addUser(text);
+    ask(text);
+}
+
+/* One question: resolve location if asked for, stream the reply into a bubble, keep the
+   exchange in history. Failures show as themselves — with no local answer to fall back
+   on, a quiet substitute would only look like a bad reply. */
+async function ask(question) {
+    setBusy(true);
+
+    const bubble = document.createElement('div');
+    bubble.className = 'chat-msg bot';
+    msgs.appendChild(bubble);
+    setStatus(bubble, 'Thinking…');
+
+    /* A note from the Worker says why the wait is happening, which this timer cannot,
+       so it suppresses the generic hint. */
+    let noticed = false;
+    const slowHint = setTimeout(() => {
+        if (!bubble.dataset.streaming && !noticed) {
+            setStatus(bubble, 'Still thinking — the free model is slow…');
+        }
+    }, SLOW_HINT_MS);
+
     try {
-        const saved = localStorage.getItem(MODEL_KEY);
-        if (saved && Array.from(modelSel.options).some(o => o.value === saved)) {
-            modelSel.value = saved;
-        }
-    } catch (err) { /* storage blocked — the default selection stands */ }
-
-    modelSel.addEventListener('change', () => {
-        try { localStorage.setItem(MODEL_KEY, modelSel.value); }
-        catch (err) { /* storage blocked — the choice still applies for this visit */ }
-    });
-
-    function chosenModel() { return modelSel ? modelSel.value : ''; }
-
-    sendBtn.addEventListener('click', submit);
-    input.addEventListener('keydown', e => { if (e.key === 'Enter' && !e.shiftKey) submit(); });
-
-    function submit() {
-        if (busy) return;
-        const text = input.value.trim().slice(0, MAX_QUESTION_CHARS);
-        if (!text) return;
-        input.value = '';
-        sugBox.innerHTML = '';
-        addUser(text);
-        ask(text);
-    }
-
-    /* One question: resolve location if asked for, stream the reply into a bubble, keep the
-       exchange in history. Failures show as themselves — with no local answer to fall back
-       on, a quiet substitute would only look like a bad reply. */
-    async function ask(question) {
-        setBusy(true);
-
-        const bubble = document.createElement('div');
-        bubble.className = 'chat-msg bot';
-        msgs.appendChild(bubble);
-        setStatus(bubble, 'Thinking…');
-
-        /* A note from the Worker says why the wait is happening, which this timer cannot,
-           so it suppresses the generic hint. */
-        let noticed = false;
-        const slowHint = setTimeout(() => {
-            if (!bubble.dataset.streaming && !noticed) {
-                setStatus(bubble, 'Still thinking — the free model is slow…');
-            }
-        }, SLOW_HINT_MS);
-
-        try {
-            const coords = await coordsFor(question, bubble);
-            const reply = await stream(question, coords, text => {
-                bubble.dataset.streaming = '1';
-                bubble.innerHTML = renderMarkdown(visible(text)) + '<span class="chat-cursor">▋</span>';
-                msgs.scrollTop = msgs.scrollHeight;
-            }, note => {
-                if (bubble.dataset.streaming) return;   // never write over a reply in progress
-                noticed = true;
-                setStatus(bubble, note);
-            });
-
-            const answer = visible(reply).trim();
-            if (!answer) throw new ChatError('The model sent back an empty reply — try asking again.');
-            bubble.innerHTML = renderMarkdown(answer);
-            remember(question, answer);
-        } catch (err) {
-            bubble.innerHTML = renderMarkdown(err instanceof ChatError
-                ? err.message
-                : 'Something went wrong reaching the assistant — try again in a moment.');
-            bubble.classList.add('chat-msg-error');
-            if (err instanceof ChatError && err.chips) renderChips(err.chips);
-        } finally {
-            clearTimeout(slowHint);
-            delete bubble.dataset.streaming;
+        const coords = await coordsFor(question, bubble);
+        const reply = await stream(question, coords, text => {
+            bubble.dataset.streaming = '1';
+            bubble.innerHTML = renderMarkdown(visible(text)) + '<span class="chat-cursor">▋</span>';
             msgs.scrollTop = msgs.scrollHeight;
-            setBusy(false);
-        }
-    }
-
-    // Errors written for the visitor rather than for a console.
-    class ChatError extends Error {
-        constructor(message, chips) {
-            super(message);
-            this.chips = chips;
-        }
-    }
-
-    function setBusy(state) {
-        busy = state;
-        sendBtn.disabled = state;
-        input.disabled = state;
-        if (!state) input.focus();
-    }
-
-    function remember(question, answer) {
-        history.push({ role: 'user', content: question }, { role: 'assistant', content: answer });
-        history = history.slice(-HISTORY_TURNS);
-    }
-
-    /* ── Talking to the Worker ───────────────────────────────────────────── */
-
-    // Served from localhost? talk to `wrangler dev`. Otherwise the deployed Worker.
-    function endpoint() {
-        if (/^(localhost|127\.0\.0\.1)$/.test(window.location.hostname)) return DEV_WORKER_URL;
-        return WORKER_URL;
-    }
-
-    /* Read the Worker's event stream. Whatever the provider sent arrives in one shape —
-       {"delta"} text, {"notice"} progress, {"error"} for a generation that failed halfway,
-       trailing [DONE] — so this side only accumulates. */
-    async function stream(question, coords, onText, onNotice) {
-        const controller = new AbortController();
-        const timer = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
-
-        try {
-            const res = await fetch(endpoint(), {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    question,
-                    history,
-                    coords: coords || undefined,
-                    model: chosenModel() || undefined
-                }),
-                signal: controller.signal
-            });
-            if (!res.ok) throw new ChatError(await failureMessage(res));
-
-            // No streaming body (an old browser, or a proxy that buffered it): the SSE
-            // text is all there at once, and the same parser handles it.
-            if (!res.body || !res.body.getReader) {
-                const whole = consume(await res.text(), '', onNotice);
-                onText(whole);
-                return whole;
-            }
-
-            const reader = res.body.getReader();
-            const decoder = new TextDecoder();
-            let buffer = '';
-            let text = '';
-
-            for (;;) {
-                const { value, done } = await reader.read();
-                if (done) break;
-                buffer += decoder.decode(value, { stream: true });
-                const blocks = buffer.split('\n\n');
-                buffer = blocks.pop() || '';          // keep the unfinished block for later
-                const next = consume(blocks.join('\n\n'), text, onNotice);
-                if (next !== text) {
-                    text = next;
-                    onText(text);
-                }
-            }
-            return text;
-        } catch (err) {
-            if (err && err.name === 'AbortError') {
-                throw new ChatError('That took too long, so I stopped waiting. Try a shorter question.');
-            }
-            if (err instanceof ChatError) throw err;
-            throw new ChatError('I couldn’t reach the assistant — check your connection and try again.');
-        } finally {
-            clearTimeout(timer);
-        }
-    }
-
-    /* Fold SSE blocks onto the text so far, raising anything the Worker flagged. A notice
-       is status, not content: it goes to the caller and never into the text, so it cannot
-       end up in the rendered answer or in the history sent with the next question. */
-    function consume(chunk, seed, onNotice) {
-        let text = seed;
-        chunk.split('\n').forEach(rawLine => {
-            const line = rawLine.trim();
-            if (!line.startsWith('data:')) return;
-            const payload = line.slice(5).trim();
-            if (!payload || payload === '[DONE]') return;
-
-            let data;
-            try { data = JSON.parse(payload); } catch (err) { return; }
-            if (data.error) throw new ChatError(data.error);
-            if (typeof data.notice === 'string' && onNotice) onNotice(data.notice);
-            if (typeof data.delta === 'string') text += data.delta;
+        }, note => {
+            if (bubble.dataset.streaming) return;   // never write over a reply in progress
+            noticed = true;
+            setStatus(bubble, note);
         });
-        return text;
+
+        const answer = visible(reply).trim();
+        if (!answer) throw new ChatError('The model sent back an empty reply — try asking again.');
+        bubble.innerHTML = renderMarkdown(answer);
+        remember(question, answer);
+    } catch (err) {
+        bubble.innerHTML = renderMarkdown(err instanceof ChatError
+            ? err.message
+            : 'Something went wrong reaching the assistant — try again in a moment.');
+        bubble.classList.add('chat-msg-error');
+        if (err instanceof ChatError && err.chips) renderChips(err.chips);
+    } finally {
+        clearTimeout(slowHint);
+        delete bubble.dataset.streaming;
+        msgs.scrollTop = msgs.scrollHeight;
+        setBusy(false);
     }
+}
 
-    // The Worker answers failures with {"error": "..."} and a real status code.
-    async function failureMessage(res) {
-        try {
-            const data = await res.json();
-            if (data && data.error) return data.error;
-        } catch (err) { /* fall through to the status */ }
-        if (res.status === 429) return 'Too many questions at once — give it a minute.';
-        return `The assistant returned an error (HTTP ${res.status}).`;
+// Errors written for the visitor rather than for a console.
+class ChatError extends Error {
+    constructor(message, chips) {
+        super(message);
+        this.chips = chips;
     }
+}
 
-    /* ── Location ────────────────────────────────────────────────────────── */
+function setBusy(state) {
+    busy = state;
+    sendBtn.disabled = state;
+    input.disabled = state;
+    if (!state) input.focus();
+}
 
-    /* Coordinates go out on a "near me" question, then on every question afterwards, so a
-       follow-up like "any bars instead?" stays anchored where the visitor is standing. */
-    async function coordsFor(question, bubble) {
-        const known = fresh(spot);
-        if (known || !NEAR_ME_RE.test(question)) return known;
+function remember(question, answer) {
+    history.push({ role: 'user', content: question }, { role: 'assistant', content: answer });
+    history = history.slice(-HISTORY_TURNS);
+}
 
-        setStatus(bubble, 'Getting your location…');
-        spot = await getPosition();
-        return fresh(spot);
-    }
+/* ── Talking to the Worker ───────────────────────────────────────────── */
 
-    function fresh(saved) {
-        if (!saved || Date.now() - saved.at > LOCATION_TTL_MS) return null;
-        return { lat: saved.lat, lon: saved.lon };
-    }
+// Served from localhost? talk to `wrangler dev`. Otherwise the deployed Worker.
+const endpoint = () => workerEndpoint(WORKER_URL, DEV_WORKER_URL);
 
-    function getPosition() {
-        if (!navigator.geolocation || !window.isSecureContext) {
-            throw new ChatError('This browser won’t share a location with the page, so I can’t do ' +
-                '“near me”. Name a neighborhood and I’ll take it from there.', NO_LOCATION_CHIPS);
-        }
-        return new Promise((resolve, reject) => {
-            navigator.geolocation.getCurrentPosition(
-                pos => resolve({
-                    lat: round(pos.coords.latitude),
-                    lon: round(pos.coords.longitude),
-                    at: Date.now()
-                }),
-                err => reject(locationError(err)),
-                { enableHighAccuracy: false, timeout: GEO_TIMEOUT_MS, maximumAge: LOCATION_TTL_MS }
-            );
+/* Read the Worker's event stream. Whatever the provider sent arrives in one shape —
+   {"delta"} text, {"notice"} progress, {"error"} for a generation that failed halfway,
+   trailing [DONE] — so this side only accumulates. */
+async function stream(question, coords, onText, onNotice) {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+
+    try {
+        const res = await fetch(endpoint(), {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                question,
+                history,
+                coords: coords || undefined,
+                model: chosenModel() || undefined
+            }),
+            signal: controller.signal
         });
-    }
+        if (!res.ok) throw new ChatError(await failureMessage(res));
 
-    function locationError(err) {
-        if (err && err.code === 1) {
-            return new ChatError('I need location access for “near me”, and the browser blocked it. ' +
-                'You can allow it from the icon in the address bar, or just name a neighborhood.',
-                NO_LOCATION_CHIPS);
-        }
-        return new ChatError('Your location didn’t come through. Try again, or name a neighborhood ' +
-            'instead.', NO_LOCATION_CHIPS);
-    }
-
-    function round(value) {
-        const factor = Math.pow(10, COORD_PRECISION);
-        return Math.round(value * factor) / factor;
-    }
-
-    /* ── Rendering ───────────────────────────────────────────────────────── */
-
-    function setStatus(el, label) {
-        el.innerHTML = `<span class="chat-cursor">▋</span><span class="chat-note">${label}</span>`;
-        msgs.scrollTop = msgs.scrollHeight;
-    }
-
-    /* A reasoning model can leak a <think> block into the stream. Drop closed ones; hide an
-       open one and everything after it, so a half-streamed thought never shows. */
-    function visible(text) {
-        return String(text)
-            .replace(/<think>[\s\S]*?<\/think>/gi, '')
-            .replace(/<think>[\s\S]*$/i, '')
-            .replace(/^\s+/, '');
-    }
-
-    // Escape first, then the small subset of markdown the model is asked to use.
-    function renderMarkdown(text) {
-        const escaped = String(text)
-            .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
-            .replace(/\*\*([^*\n]+)\*\*/g, '<strong>$1</strong>')
-            .replace(/\*([^*\n]+)\*/g, '<em>$1</em>');
-
-        return escaped
-            .split('\n')
-            .map(line => /^\s*[-•*]\s+/.test(line)
-                ? `<li>${line.replace(/^\s*[-•*]\s+/, '')}</li>`
-                : line)
-            .join('\n')
-            // Consecutive list items become one list; ordinary lines keep their breaks.
-            .replace(/(?:<li>.*?<\/li>\n?)+/g, run => `<ul>${run.replace(/\n/g, '')}</ul>`)
-            .replace(/\n/g, '<br>');
-    }
-
-    function addBot(text) {
-        const d = document.createElement('div');
-        d.className = 'chat-msg bot';
-        d.textContent = text;
-        msgs.appendChild(d);
-        msgs.scrollTop = msgs.scrollHeight;
-    }
-
-    function addUser(text) {
-        const d = document.createElement('div');
-        d.className = 'chat-msg user';
-        d.textContent = text;
-        msgs.appendChild(d);
-        msgs.scrollTop = msgs.scrollHeight;
-    }
-
-    function renderChips(chips) {
-        sugBox.innerHTML = '';
-        chips.forEach(chip => {
-            const btn = document.createElement('button');
-            btn.className = 'chat-chip';
-            btn.textContent = chip;
-            btn.addEventListener('click', () => {
-                if (busy) return;
-                input.value = chip;
-                submit();
-            });
-            sugBox.appendChild(btn);
+        return await readEventStream(res, {
+            onText, onNotice, createError: message => new ChatError(message)
         });
+    } catch (err) {
+        if (err && err.name === 'AbortError') {
+            throw new ChatError('That took too long, so I stopped waiting. Try a shorter question.');
+        }
+        if (err instanceof ChatError) throw err;
+        throw new ChatError('I couldn’t reach the assistant — check your connection and try again.');
+    } finally {
+        clearTimeout(timer);
     }
-})();
+}
+
+// The Worker answers failures with {"error": "..."} and a real status code.
+async function failureMessage(res) {
+    try {
+        const data = await res.json();
+        if (data && data.error) return data.error;
+    } catch (err) { /* fall through to the status */ }
+    if (res.status === 429) return 'Too many questions at once — give it a minute.';
+    return `The assistant returned an error (HTTP ${res.status}).`;
+}
+
+/* ── Location ────────────────────────────────────────────────────────── */
+
+/* Coordinates go out on a "near me" question, then on every question afterwards, so a
+   follow-up like "any bars instead?" stays anchored where the visitor is standing. */
+async function coordsFor(question, bubble) {
+    const known = fresh(spot);
+    if (known || !NEAR_ME_RE.test(question)) return known;
+
+    setStatus(bubble, 'Getting your location…');
+    spot = await getPosition();
+    return fresh(spot);
+}
+
+function fresh(saved) {
+    if (!saved || Date.now() - saved.at > LOCATION_TTL_MS) return null;
+    return { lat: saved.lat, lon: saved.lon };
+}
+
+function getPosition() {
+    if (!navigator.geolocation || !window.isSecureContext) {
+        throw new ChatError('This browser won’t share a location with the page, so I can’t do ' +
+            '“near me”. Name a neighborhood and I’ll take it from there.', NO_LOCATION_CHIPS);
+    }
+    return new Promise((resolve, reject) => {
+        navigator.geolocation.getCurrentPosition(
+            pos => resolve({
+                lat: round(pos.coords.latitude),
+                lon: round(pos.coords.longitude),
+                at: Date.now()
+            }),
+            err => reject(locationError(err)),
+            { enableHighAccuracy: false, timeout: GEO_TIMEOUT_MS, maximumAge: LOCATION_TTL_MS }
+        );
+    });
+}
+
+function locationError(err) {
+    if (err && err.code === 1) {
+        return new ChatError('I need location access for “near me”, and the browser blocked it. ' +
+            'You can allow it from the icon in the address bar, or just name a neighborhood.',
+            NO_LOCATION_CHIPS);
+    }
+    return new ChatError('Your location didn’t come through. Try again, or name a neighborhood ' +
+        'instead.', NO_LOCATION_CHIPS);
+}
+
+function round(value) {
+    const factor = Math.pow(10, COORD_PRECISION);
+    return Math.round(value * factor) / factor;
+}
+
+/* ── Rendering ───────────────────────────────────────────────────────── */
+
+function setStatus(el, label) {
+    el.innerHTML = `<span class="chat-cursor">▋</span><span class="chat-note">${label}</span>`;
+    msgs.scrollTop = msgs.scrollHeight;
+}
+
+/* A reasoning model can leak a <think> block into the stream. Drop closed ones; hide an
+   open one and everything after it, so a half-streamed thought never shows. */
+function visible(text) {
+    return String(text)
+        .replace(/<think>[\s\S]*?<\/think>/gi, '')
+        .replace(/<think>[\s\S]*$/i, '')
+        .replace(/^\s+/, '');
+}
+
+function addBot(text) {
+    const d = document.createElement('div');
+    d.className = 'chat-msg bot';
+    d.textContent = text;
+    msgs.appendChild(d);
+    msgs.scrollTop = msgs.scrollHeight;
+}
+
+function addUser(text) {
+    const d = document.createElement('div');
+    d.className = 'chat-msg user';
+    d.textContent = text;
+    msgs.appendChild(d);
+    msgs.scrollTop = msgs.scrollHeight;
+}
+
+function renderChips(chips) {
+    sugBox.innerHTML = '';
+    chips.forEach(chip => {
+        const btn = document.createElement('button');
+        btn.className = 'chat-chip';
+        btn.textContent = chip;
+        btn.addEventListener('click', () => {
+            if (busy) return;
+            input.value = chip;
+            submit();
+        });
+        sugBox.appendChild(btn);
+    });
+}

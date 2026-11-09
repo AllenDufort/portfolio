@@ -3,7 +3,7 @@
 #
 #   bash assets/travel/worker/deploy.sh        # sets the secret and deploys
 #
-# The deployed URL goes in WORKER_URL at the top of ../travel.js.
+# The deployed URL goes in WORKER_URL at the top of ../travel-api.js.
 
 name = "travel-planner"
 main = "worker.js"

@@ -1,3 +1,6 @@
+import { ALLOWED_MODELS } from '../../shared/models.js';
+import { SHEET_URL, readSheetRows, number } from '../sheet.js';
+
 /* ── Chicago Assistant API — Cloudflare Worker ─────────────────────────────
    A key shipped to a static GitHub Pages widget is public, so the Gemini and Groq keys live
    here as Worker secrets. The Worker builds the whole prompt itself and the page only sends a
@@ -10,7 +13,7 @@
             — the --config flag matters, or wrangler picks up the repo-root wrangler.jsonc. */
 
 /* Overridable in wrangler.toml [vars]. MODEL is the fallback when the page asks for nothing,
-   or for something not on the allowlist below. */
+   or for something not in the shared model catalog. */
 const DEFAULTS = {
     MODEL: 'openai/gpt-oss-120b',
     ALLOWED_ORIGINS: [
@@ -21,34 +24,6 @@ const DEFAULTS = {
     SNAPSHOT_URL: 'https://allendufort.github.io/portfolio/assets/chicago_list/chicago_layers.geojson',
     COORDS_URL: 'https://allendufort.github.io/portfolio/assets/chicago_list/geocode_cache.json'
 };
-
-/* The page names the model, so without an allowlist a scripted caller could spend the keys on
-   anything. An unlisted id is discarded for DEFAULTS.MODEL, and everything here is flash-tier,
-   Gemma, or a small Groq model — no pro models, which keeps a public URL on a paid key
-   affordable. Keep in sync with <select id="chat-model"> in ../../../chicagoMap.html. */
-const ALLOWED_MODELS = [
-    // Groq
-    'openai/gpt-oss-120b',
-    'openai/gpt-oss-20b',
-    'qwen/qwen3.8-27b',
-    // Gemini (flash tier only)
-    'gemini-3.8-flash',
-    'gemini-3.7-flash',
-    'gemini-3.6-flash',
-    'gemini-3.5-flash',
-    'gemini-3.5-flash-lite',
-    'gemini-3.1-flash-lite',
-    /* Gemma 4 — open weights, but served by the Gemini endpoint (see providerFor) and verified
-       to accept systemInstruction and functionDeclarations, so the tool loop works unchanged. */
-    'gemma-4-31b-it',
-    'gemma-4-26b-a4b-it'
-];
-
-// Same sheet chicagoData.js reads, so the chat and the map never disagree.
-const SHEET_ID  = '18rG-azfyKrziKuDm3WBHD2UyMeeD5T8BMugFG7j5fw4';
-const SHEET_GID = '2011978534';
-const SHEET_URL = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq` +
-    `?tqx=out:csv&gid=${SHEET_GID}`;
 
 const SHEET_TIMEOUT_MS = 8000;
 const CATALOG_TTL_MS   = 5 * 60 * 1000;   // rebuild the prompt from the sheet this often
@@ -68,22 +43,6 @@ const FAR_AWAY_MI   = 25;                 // past this, tell the model the visit
 
 const MODEL_MAX_TOKENS = 700;
 const MODEL_TEMPERATURE = 0.3;
-
-// Sheet headers are matched by name, so columns can be reordered or added freely.
-const COLUMNS = {
-    name:           ['place', 'name'],
-    type:           ['type', 'category'],
-    neighborhood:   ['neighborhood', 'neighbourhood', 'area'],
-    notes:          ['reviews', 'notes', 'review'],
-    description:    ['description'],
-    address:        ['address'],
-    phone:          ['phone'],
-    website:        ['website'],
-    ratingsAverage: ['ratingsaverage', 'rating', 'ratingaverage'],
-    ratingsTotal:   ['ratingstotal', 'ratingcount', 'ratingtotal'],
-    lat:            ['lat', 'latitude'],
-    lon:            ['lon', 'lng', 'long', 'longitude']
-};
 
 /* Module scope, so a warm isolate reuses the built catalog instead of refetching the sheet
    per question. A cold isolate pays one extra fetch — cheaper than wiring up a KV store. */
@@ -1267,27 +1226,7 @@ function titleCase(text) {
 /* ── Sheet parsing ───────────────────────────────────────────────────────── */
 
 function fromSheet(csv) {
-    const table = parseCsv(csv);
-    const header = table.shift() || [];
-    const at = columnIndex(header);
-    if (at.name == null) throw new Error('no Place column in sheet');
-
-    return table
-        .map(row => ({
-            name:           cell(row, at.name),
-            type:           cell(row, at.type),
-            neighborhood:   cell(row, at.neighborhood),
-            notes:          cell(row, at.notes),
-            description:    cell(row, at.description),
-            address:        cell(row, at.address),
-            phone:          cell(row, at.phone),
-            website:        cell(row, at.website),
-            ratingsAverage: number(cell(row, at.ratingsAverage)),
-            ratingsTotal:   number(cell(row, at.ratingsTotal)),
-            lon:            number(cell(row, at.lon)),
-            lat:            number(cell(row, at.lat))
-        }))
-        .filter(row => row.name);
+    return readSheetRows(csv).map(({ reviews, ...row }) => ({ ...row, notes: reviews }));
 }
 
 function fromSnapshot(json) {
@@ -1314,64 +1253,6 @@ function fromSnapshot(json) {
             lat:            number(coords[1])
         };
     }).filter(row => row.name);
-}
-
-// Map each known column name to its position in this sheet's header row.
-function columnIndex(header) {
-    const normalized = header.map(h => String(h || '').trim().toLowerCase());
-    const at = {};
-    Object.keys(COLUMNS).forEach(field => {
-        at[field] = null;
-        COLUMNS[field].some(alias => {
-            const i = normalized.indexOf(alias);
-            if (i === -1) return false;
-            at[field] = i;
-            return true;
-        });
-    });
-    return at;
-}
-
-function cell(row, i) {
-    return i == null ? '' : String(row[i] == null ? '' : row[i]).trim();
-}
-
-function number(text) {
-    if (!text) return null;
-    const value = Number(text);
-    return Number.isFinite(value) ? value : null;
-}
-
-/* A real CSV scan, not a line split: some Reviews cells contain newlines and escaped quotes,
-   so splitting on "\n" would shear rows apart. Same parser as chicagoData.js. */
-function parseCsv(text) {
-    const rows = [];
-    let row = [];
-    let field = '';
-    let quoted = false;
-
-    for (let i = 0; i < text.length; i++) {
-        const ch = text[i];
-        if (quoted) {
-            if (ch !== '"') { field += ch; continue; }
-            if (text[i + 1] === '"') { field += '"'; i++; continue; }
-            quoted = false;
-        } else if (ch === '"') {
-            quoted = true;
-        } else if (ch === ',') {
-            row.push(field);
-            field = '';
-        } else if (ch === '\n') {
-            row.push(field);
-            rows.push(row);
-            row = [];
-            field = '';
-        } else if (ch !== '\r') {
-            field += ch;
-        }
-    }
-    if (field !== '' || row.length) { row.push(field); rows.push(row); }
-    return rows;
 }
 
 async function fetchText(url) {

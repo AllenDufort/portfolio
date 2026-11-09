@@ -10,7 +10,7 @@
 
    Deploy:
      bash assets/travel/worker/deploy.sh        # sets the secrets and deploys
-   Then put the deployed URL in WORKER_URL at the top of ../travel.js.
+   Then put the deployed URL in WORKER_URL at the top of ../travel-api.js.
 
    Local development:
      cp .dev.vars.example .dev.vars             # paste your API keys

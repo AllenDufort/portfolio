@@ -1,51 +1,29 @@
 document.addEventListener('DOMContentLoaded', () => {
-    const indexTextElement = document.getElementById('animated-index');
-    const indexText = "Hi, I'm Allen!";
-    const draftbearsTextElement = document.getElementById('animated-draftbears');
-    const draftbearsText = "DraftBears Sportsbook";
-    const iterativeTextElement = document.getElementById('animated-iterative');
-    const iterativeText = "Sesame: Iterative Design";
-    const redesignTextElement = document.getElementById('animated-redesign');
-    const redesignText = "Responsive Redesign";
-    const personasTextElement = document.getElementById('animated-personas');
-    const personasText = "Personas and Storyboards";
-    const reaiTextElement = document.getElementById('animated-reai');
-    const reaiText = "Reintegrating AI";
-    const nlpTextElement = document.getElementById('animated-nlp');
-    const nlpText = "L'Union Fait La Force";
-    const chicagoTextElement = document.getElementById('animated-chicago');
-    const chicagoText = "Chicago TODO Map";
-    const travelTextElement = document.getElementById('animated-travel');
-    const travelText = "AI Travel Planner";
+    const titles = {
+        'animated-index': "Hi, I'm Allen!",
+        'animated-draftbears': 'DraftBears Sportsbook',
+        'animated-iterative': 'Sesame: Iterative Design',
+        'animated-redesign': 'Responsive Redesign',
+        'animated-personas': 'Personas and Storyboards',
+        'animated-reai': 'Reintegrating AI',
+        'animated-nlp': "L'Union Fait La Force",
+        'animated-chicago': 'Chicago TODO Map',
+        'animated-travel': 'AI Travel Planner',
+    };
 
-    function animateText(textElement, text) {
-        // Check if the element exists before trying to animate it
-        if (!textElement) {
-            console.warn(`Element not found for text: "${text}"`);
-            return; // Skip animation if element doesn't exist
-        }
-        
+    for (const [id, text] of Object.entries(titles)) {
+        const element = document.getElementById(id);
+        if (!element) continue;
         let index = 0;
         function type() {
-            if (index < text.length) {
-                textElement.innerHTML = text.substring(0, index + 1) + '<span class="blink">|</span>';
-                index++;
-                setTimeout(type, 100); // Adjust typing speed here
-            }
+            if (index >= text.length) return;
+            element.textContent = text.slice(0, ++index);
+            const cursor = document.createElement('span');
+            cursor.className = 'blink';
+            cursor.textContent = '|';
+            element.appendChild(cursor);
+            setTimeout(type, 100);
         }
-        console.log("Typing text: " + text);
         type();
-        console.log("Done text: " + text);
     }
-
-    console.log("Test statement: Animation starting...");
-    animateText(indexTextElement, indexText);
-    animateText(iterativeTextElement, iterativeText);
-    animateText(draftbearsTextElement, draftbearsText);
-    animateText(redesignTextElement, redesignText);
-    animateText(personasTextElement, personasText);
-    animateText(reaiTextElement, reaiText);
-    animateText(nlpTextElement, nlpText);
-    animateText(chicagoTextElement, chicagoText);
-    animateText(travelTextElement, travelText);
 });

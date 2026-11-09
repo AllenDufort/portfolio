@@ -1,3 +1,5 @@
+import { load } from './chicagoData.js';
+
 document.addEventListener('DOMContentLoaded', () => {
     const CHICAGO_CENTER = [41.8781, -87.6298];
     const map = L.map('map', { zoomControl: false }).setView(CHICAGO_CENTER, 11);
@@ -222,7 +224,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // The sheet is the source of truth; chicagoData.js falls back to the committed
     // GeoJSON on its own, so anything that reaches .catch here is a real failure.
-    window.ChicagoData.load()
+    load()
         .then(({ features, meta }) => {
             const bounds = [];
 

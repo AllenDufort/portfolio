@@ -16,7 +16,7 @@ enabled = true
 
 [vars]
 # The default model, used when the page sends nothing or sends an id that is not in
-# ALLOWED_MODELS in worker.js — that list, not this setting, is what stops a leaked
+# ALLOWED_MODELS in ../../shared/models.js — that list is what stops a leaked
 # endpoint being pointed at an expensive model. An id starting with "gemini-" goes to
 # Gemini, anything else to Groq.
 #   https://ai.google.dev/gemini-api/docs/models
