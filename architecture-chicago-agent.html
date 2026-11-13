@@ -153,6 +153,16 @@ ol.steps li::marker { font-family: var(--font-mono); color: var(--accent); }
             <p class="result"><b>Result</b>Searches use terms that actually exist in the data.</p>
         </div>
         <div class="card">
+            <h3>Meaning as well as keywords</h3>
+            <p>Keywords only find what the sheet literally says, so "somewhere cozy for a rainy day" missed places noted as "candlelit" or "low-lit". <code>search_places</code> now takes a <code>vibe</code>: places are embedded from their name, type, sub-category and notes, and ranked by similarity to the question, alongside the keyword match.</p>
+            <p class="result"><b>Result</b>Vague asks return fitting places. Vectors are built offline and committed, so a question costs one embedding call, and everything falls back to keywords if embeddings are unavailable.</p>
+        </div>
+        <div class="card">
+            <h3>Measure changes with an evaluation set</h3>
+            <p>Prompt and tool edits used to be judged by trying a few questions. <code>eval/cases.json</code> holds 21 questions with the tools each should trigger and the places the answer should name, and <code>eval/run.mjs</code> scores every allowlisted model on tool choice and answer accuracy.</p>
+            <p class="result"><b>Result</b>A prompt change can be re-run against a saved baseline and shows which cases it fixed or broke, per model.</p>
+        </div>
+        <div class="card">
             <h3>Answers stay grounded</h3>
             <p>Tools return match counts ("8 of 41"), report missing fields as "not listed", and compute distances themselves, so the model never estimates one.</p>
             <p class="result"><b>Result</b>Less room for made-up facts, ratings or distances.</p>
@@ -263,7 +273,7 @@ ol.steps li::marker { font-family: var(--font-mono); color: var(--accent); }
     <table>
         <thead><tr><th>Tool</th><th>Arguments</th><th>Behavior</th></tr></thead>
         <tbody>
-            <tr><td>search_places</td><td><code>query</code>, <code>type</code>, <code>neighborhood</code>, <code>limit</code></td><td>Comma-separated terms are OR-matched across name, type, sub-category and notes. Returns one line per place plus the total match count, so the model can say "8 of 41". Region words such as "caribbean" expand to every country, demonym and dish under them.</td></tr>
+            <tr><td>search_places</td><td><code>query</code>, <code>vibe</code>, <code>type</code>, <code>neighborhood</code>, <code>limit</code></td><td>Comma-separated terms are OR-matched across name, type, sub-category and notes. Returns one line per place plus the total match count, so the model can say "8 of 41". Region words such as "caribbean" expand to every country, demonym and dish under them. <code>vibe</code> takes a mood or occasion in plain words and ranks places by embedding similarity; keyword hits get a small boost, and the result is labelled a ranking rather than a complete list.</td></tr>
             <tr><td>get_place_details</td><td><code>name</code>, <code>fields[]</code></td><td>Matches the name in tiers (exact, prefix, substring, all words present) and returns only the best tier. Several matches come back as candidates for the model to ask about. A missing field is reported as "not listed" so the model does not invent one.</td></tr>
             <tr><td>find_nearby</td><td><code>type</code>, <code>radius_miles</code>, <code>limit</code></td><td>Sorts saved places by haversine distance from the visitor, nearest first. Beyond 25 miles it reports that the visitor is out of town. Unavailable until the visitor shares a location.</td></tr>
         </tbody>
@@ -300,6 +310,7 @@ ol.steps li::marker { font-family: var(--font-mono); color: var(--accent); }
             <tr><td>Temperature</td><td class="num">0.3</td><td>Pinned server-side; the page cannot change it.</td></tr>
             <tr><td>Rate limit</td><td class="num">12 / min / IP</td><td>Held in Worker memory. Keeps one script from using the day's free quota.</td></tr>
             <tr><td>Provider 429 retry</td><td class="num">1 retry, 45 s</td><td>Honors <code>Retry-After</code> between 1 and 20 seconds; the budget is shared across all rounds.</td></tr>
+            <tr><td>Place embeddings</td><td class="num">256-d, offline</td><td><code>embed.mjs</code> writes <code>embeddings.json</code>, keyed by a hash of each place's text. The Worker embeds only the question, plus up to 30 rows edited since the last build.</td></tr>
             <tr><td>Catalog cache</td><td class="num">5 min</td><td>A burst of questions costs one sheet fetch.</td></tr>
             <tr><td>Client timeout</td><td class="num">90 s</td><td>The widget shows a "still thinking" hint at 9 seconds and gives up at 90.</td></tr>
         </tbody>
@@ -313,6 +324,7 @@ ol.steps li::marker { font-family: var(--font-mono); color: var(--accent); }
         <li><strong>Normal case keeps real status codes.</strong> The Worker holds its response until the loop finishes, so a failure can still be returned as a 4xx or 5xx with a sentence the visitor can act on.</li>
         <li><strong>Rate-limit waits open the stream early.</strong> If a provider returns 429, the Worker starts the response and sends a <code>{"notice"}</code> frame saying it is waiting. A later failure then arrives as an <code>{"error"}</code> frame, since the status code is already spent.</li>
         <li><strong>Searching without answering.</strong> If every round was spent on tools and no text came back, the visitor is told to try a simpler question.</li>
+        <li><strong>Semantic search degrades to keywords.</strong> With no Gemini key, a missing <code>embeddings.json</code> or an embedding error, the vibe argument is ignored and the keyword search runs, so it can only add matches.</li>
         <li><strong>No canned fallback.</strong> There is no local retrieval. If the model cannot be reached, the widget says so.</li>
         <li><strong>Prompt injection through history.</strong> Only user and assistant turns are forwarded, so an injected system turn is dropped.</li>
         <li><strong>Not a general relay.</strong> The page cannot supply a prompt, only a question, so a leaked endpoint can only answer questions about this map.</li>
@@ -322,8 +334,8 @@ ol.steps li::marker { font-family: var(--font-mono); color: var(--accent); }
 <section>
     <h2>What I'd build next</h2>
     <ul class="notes">
-        <li><strong>An evaluation set.</strong> A list of questions with the places each one should return, used to score tool choice and answer accuracy for every allowlisted model and re-run after prompt changes.</li>
-        <li><strong>Semantic search.</strong> Embeddings over notes and sub-categories, alongside the keyword matching, so vague questions ("somewhere cozy for a rainy day") still find good matches.</li>
+        <li><strong>A judge for open questions.</strong> The evaluation set checks names in the answer against a hand-written pool. A model-graded pass could score whether a "cozy" answer actually reads as cozy.</li>
+        <li><strong>Embeddings on a schedule.</strong> <code>embed.mjs</code> is run by hand after sheet edits. A scheduled job could rebuild and commit it, and a CI run of the evaluation set could gate prompt changes.</li>
         <li><strong>Usage analytics.</strong> Anonymous logs of which tools get called and which questions return nothing, to show where the vocabulary or the data has gaps.</li>
     </ul>
 </section>

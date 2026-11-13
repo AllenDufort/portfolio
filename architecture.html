@@ -278,7 +278,7 @@ ul.notes { margin: 0; padding-left: 20px; display: flex; flex-direction: column;
         <span><i class="k-cf"></i>Cloudflare (Workers, KV)</span>
         <span><i class="k-ext"></i>Third-party service</span>
     </div>
-    <p class="muted">Not drawn: if the sheet is unreachable, both the map page and the chicago-chat Worker fall back to <code>chicago_layers.geojson</code> on GitHub Pages. The Worker also reads <code>geocode_cache.json</code> from there for rows that have no coordinates in the sheet.</p>
+    <p class="muted">Not drawn: if the sheet is unreachable, both the map page and the chicago-chat Worker fall back to <code>chicago_layers.geojson</code> on GitHub Pages. The Worker also reads <code>geocode_cache.json</code> from there for rows that have no coordinates in the sheet, and <code>embeddings.json</code> (place vectors for the semantic <code>vibe</code> search, built offline by <code>embed.mjs</code>). The question itself is embedded through the Gemini API at request time.</p>
 </section>
 
 <section>
