@@ -1,0 +1,311 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Travel Planner AI Design</title>
+<meta name="description" content="Case study: an LLM trip planner using structured JSON generation and a streaming concierge chat on a Cloudflare Worker, by Allen Dufort.">
+<link rel="icon" href="assets/logos/silhouette.png" type="image/x-icon">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600&family=Geist+Mono:wght@400;500;600&display=swap">
+<style>
+/* Layout: one reading column; the request diagram is the only wide element.
+   Palette and mono face follow the site's own style.css (off-black, link blue, orange). */
+:root {
+    color-scheme: dark;
+    --bg: #1a1a1a;
+    --surface: #212325;
+    --line: #34383d;
+    --text: #f0f0f0;
+    --muted: #a3a9b1;
+    --accent: #6aa6ec;
+    --edge: #ff9a40;
+    --edge-fill: #2b241d;
+    --font-body: 'Geist', system-ui, -apple-system, 'Segoe UI', sans-serif;
+    --font-mono: 'Geist Mono', ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+}
+@media (prefers-color-scheme: light) {
+    :root {
+        color-scheme: light;
+        --bg: #fbfbfc;
+        --surface: #f1f3f5;
+        --line: #d5d9de;
+        --text: #1a1a1a;
+        --muted: #5b626b;
+        --accent: #2468b8;
+        --edge: #b85400;
+        --edge-fill: #fdf1e4;
+    }
+}
+* { box-sizing: border-box; }
+body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font: 15px/1.6 var(--font-body);
+    padding: 32px max(16px, env(safe-area-inset-right, 0px)) 80px max(16px, env(safe-area-inset-left, 0px));
+}
+main { max-width: 1040px; margin: 0 auto; display: flex; flex-direction: column; gap: 56px; }
+section { display: flex; flex-direction: column; gap: 16px; }
+h1, h2, h3 { font-family: var(--font-mono); font-weight: 600; margin: 0; text-wrap: balance; }
+h1 { font-size: 30px; letter-spacing: -0.02em; line-height: 1.2; }
+h2 { font-size: 18px; padding-bottom: 8px; border-bottom: 1px solid var(--line); }
+h3 { font-size: 14px; }
+p { margin: 0; max-width: 68ch; }
+a { color: var(--accent); }
+a:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.eyebrow { font: 500 12px var(--font-mono); letter-spacing: 0.08em; text-transform: uppercase; color: var(--accent); }
+.lede { font-size: 17px; color: var(--muted); }
+.muted { color: var(--muted); }
+code { font: 0.9em var(--font-mono); background: var(--surface); padding: 1px 5px; border-radius: 4px; }
+header { display: flex; flex-direction: column; gap: 12px; }
+nav { display: flex; flex-wrap: wrap; gap: 4px 20px; font: 13px var(--font-mono); padding-bottom: 12px; border-bottom: 1px solid var(--line); }
+nav a { text-decoration: none; color: var(--muted); }
+nav a:hover { color: var(--text); }
+nav a[aria-current] { color: var(--text); font-weight: 600; }
+nav a.home { color: var(--accent); margin-right: auto; }
+.actions { display: flex; flex-wrap: wrap; gap: 10px; }
+.actions a { font: 500 13px var(--font-mono); text-decoration: none; padding: 7px 14px; border: 1px solid var(--line); border-radius: 6px; color: var(--text); }
+.actions a:hover { border-color: var(--accent); }
+.actions a.primary { background: var(--accent); border-color: var(--accent); color: var(--bg); }
+.tags { display: flex; flex-wrap: wrap; gap: 6px; list-style: none; margin: 0; padding: 0; }
+.tags li { font: 12px var(--font-mono); color: var(--muted); border: 1px solid var(--line); border-radius: 999px; padding: 2px 10px; }
+.cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 16px; }
+.card { background: var(--surface); border: 1px solid var(--line); border-radius: 8px; padding: 16px 18px; display: flex; flex-direction: column; gap: 8px; }
+.card p { font-size: 14px; color: var(--muted); }
+.card .result { color: var(--text); }
+.card .result b { font: 500 11px var(--font-mono); letter-spacing: 0.08em; text-transform: uppercase; color: var(--edge); margin-right: 6px; }
+footer.page { border-top: 1px solid var(--line); padding-top: 16px; display: flex; flex-wrap: wrap; gap: 8px 20px; font: 13px var(--font-mono); color: var(--muted); }
+footer.page a { color: var(--muted); text-decoration: none; }
+footer.page a:hover { color: var(--text); }
+
+.scroll { overflow-x: auto; }
+.diagram { border: 1px solid var(--line); border-radius: 8px; background: var(--surface); padding: 12px; }
+.diagram svg { display: block; width: 100%; min-width: 820px; height: auto; }
+svg text { font-family: var(--font-mono); fill: var(--text); }
+svg .lane { font-size: 11px; letter-spacing: 0.08em; fill: var(--muted); }
+svg .t { font-size: 13px; font-weight: 600; }
+svg .s { font-size: 11px; fill: var(--muted); }
+svg .lbl { font-size: 11px; fill: var(--muted); text-anchor: middle; }
+svg .node { fill: var(--bg); stroke: var(--line); stroke-width: 1.2; }
+svg .ext { fill: var(--bg); stroke: var(--muted); stroke-width: 1.2; stroke-dasharray: 5 4; }
+svg .cf { fill: var(--edge-fill); stroke: var(--edge); stroke-width: 1.2; }
+svg .frame { fill: none; stroke: var(--edge); stroke-dasharray: 2 5; }
+svg .wire { fill: none; stroke: var(--accent); stroke-width: 1.4; }
+svg .head { fill: var(--accent); }
+.legend { display: flex; flex-wrap: wrap; gap: 8px 24px; font: 12px var(--font-mono); color: var(--muted); }
+.legend span { display: inline-flex; align-items: center; gap: 8px; }
+.legend i { width: 18px; height: 12px; border-radius: 3px; border: 1.2px solid var(--line); background: var(--bg); }
+.legend .k-cf { border-color: var(--edge); background: var(--edge-fill); }
+.legend .k-ext { border: 1.2px dashed var(--muted); }
+
+table { border-collapse: collapse; width: 100%; min-width: 620px; font-size: 14px; }
+th, td { text-align: left; vertical-align: top; padding: 10px 16px 10px 0; border-bottom: 1px solid var(--line); }
+th { font: 500 11px var(--font-mono); letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); }
+td:first-child { font-family: var(--font-mono); font-size: 13px; white-space: nowrap; }
+ol.steps, ul.notes { margin: 0; padding-left: 20px; display: flex; flex-direction: column; gap: 8px; max-width: 72ch; }
+ol.steps li::marker { font-family: var(--font-mono); color: var(--accent); }
+.two { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 32px; }
+.two > div { display: flex; flex-direction: column; gap: 12px; }
+</style>
+</head>
+<body>
+<main>
+
+<nav aria-label="Architecture pages">
+    <a class="home" href="index.html">&larr; Portfolio home</a>
+    <a href="architecture.html">System overview</a>
+    <a href="architecture-chicago-agent.html">Chicago assistant</a>
+    <a href="architecture-travel-agent.html" aria-current="page">Travel Planner AI</a>
+</nav>
+
+<header>
+    <div class="eyebrow">Case study · AI engineering</div>
+    <h1>Travel Planner: structured generation and streaming chat</h1>
+    <p class="lede">A trip planner that turns a short form into a full plan: an itinerary, attractions, dining, hidden gems and etiquette, plus a concierge chat that knows your preferences. Each request makes a single model call, and my code controls the flow. The model writes content into a fixed JSON schema, and the parts that should be predictable are computed in code.</p>
+    <div class="actions">
+        <a class="primary" href="travel.html">Try it live</a>
+        <a href="https://github.com/AllenDufort/portfolio/blob/main/assets/travel/worker/worker.js" target="_blank" rel="noopener noreferrer">Read the Worker source</a>
+        <a href="architecture.html#compare">Compare with the Chicago agent</a>
+    </div>
+    <ul class="tags" aria-label="Skills shown">
+        <li>Structured LLM output (JSON)</li>
+        <li>Prompt design</li>
+        <li>Input validation</li>
+        <li>SSE stream normalization</li>
+        <li>Gemini · Groq APIs</li>
+        <li>Cloudflare Workers + KV</li>
+        <li>Vanilla JS app architecture</li>
+    </ul>
+</header>
+
+<section>
+    <h2>Key decisions</h2>
+    <div class="cards">
+        <div class="card">
+            <h3>The model writes content, code controls the flow</h3>
+            <p>No agent loop. Every request does one known thing, and the page decides what happens next.</p>
+            <p class="result"><b>Why</b>Predictable latency and cost, and far fewer ways for a request to fail.</p>
+        </div>
+        <div class="card">
+            <h3>Schema-first generation</h3>
+            <p>The prompt includes the exact JSON schema the plan must follow, the call runs in JSON mode, and the Worker strips code fences before parsing.</p>
+            <p class="result"><b>Result</b>The UI renders straight from the parsed plan. Malformed output becomes a clear "try again" error instead of a broken page.</p>
+        </div>
+        <div class="card">
+            <h3>Predictable parts are computed, not generated</h3>
+            <p>The budget breakdown, packing list and countdown timeline come from simple rules in the browser.</p>
+            <p class="result"><b>Result</b>Fewer tokens per plan, and the numbers come out the same every time.</p>
+        </div>
+        <div class="card">
+            <h3>One stream format for two providers</h3>
+            <p>Gemini and Groq stream in different formats. The Worker converts both to one <code>{"delta"}</code> frame format and drops Gemini's hidden reasoning text.</p>
+            <p class="result"><b>Result</b>The chat UI works the same whichever provider the visitor picks.</p>
+        </div>
+    </div>
+</section>
+
+<section>
+    <h2>Three request types, one endpoint</h2>
+    <div class="scroll diagram">
+        <svg viewBox="0 0 1070 366" role="img" aria-label="The travel page sends three request types to one Worker: generate makes a single JSON-mode model call, concierge streams a chat reply from the model, and db reads and writes Workers KV.">
+            <defs>
+                <marker id="arr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+                    <path class="head" d="M0 0 L10 5 L0 10 z"/>
+                </marker>
+            </defs>
+
+            <text class="lane" x="20" y="20">BROWSER</text>
+            <text class="lane" x="340" y="20">TRAVEL-PLANNER WORKER</text>
+            <text class="lane" x="830" y="20">UPSTREAM</text>
+            <rect class="frame" x="326" y="30" width="368" height="322" rx="8"/>
+
+            <rect class="node" x="20" y="140" width="210" height="120" rx="6"/>
+            <text class="t" x="34" y="167">travel.js</text>
+            <text class="s" x="34" y="189">plan form, concierge chat</text>
+            <text class="s" x="34" y="207">local budget, packing and</text>
+            <text class="s" x="34" y="225">timeline rules</text>
+            <text class="s" x="34" y="246">via travel-api.js</text>
+
+            <rect class="cf" x="340" y="46" width="340" height="72" rx="6"/>
+            <text class="t" x="354" y="73">handleGenerate</text>
+            <text class="s" x="354" y="93">validates the form, writes one prompt,</text>
+            <text class="s" x="354" y="109">strips code fences, parses the JSON</text>
+
+            <rect class="cf" x="340" y="156" width="340" height="72" rx="6"/>
+            <text class="t" x="354" y="183">handleConcierge</text>
+            <text class="s" x="354" y="203">system prompt from saved preferences,</text>
+            <text class="s" x="354" y="219">relays the provider stream as SSE</text>
+
+            <rect class="cf" x="340" y="266" width="340" height="72" rx="6"/>
+            <text class="t" x="354" y="293">handleDb</text>
+            <text class="s" x="354" y="313">15 operations on preferences, trips,</text>
+            <text class="s" x="354" y="329">expenses and bucket list. No model.</text>
+
+            <rect class="ext" x="830" y="46" width="220" height="182" rx="6"/>
+            <text class="t" x="844" y="88">Gemini, Gemma</text>
+            <text class="s" x="844" y="106">ids gemini-*, gemma-*</text>
+            <text class="t" x="844" y="186">Groq</text>
+            <text class="s" x="844" y="204">all other ids</text>
+
+            <rect class="cf" x="830" y="266" width="220" height="72" rx="6"/>
+            <text class="t" x="844" y="296">KV: TRAVEL_DB</text>
+            <text class="s" x="844" y="316">keys: prefs, trips</text>
+
+            <path class="wire" d="M230 172 H284 V82 H340" marker-start="url(#arr)" marker-end="url(#arr)"/>
+            <text class="lbl" x="284" y="70">type: generate</text>
+            <path class="wire" d="M230 200 H340" marker-start="url(#arr)" marker-end="url(#arr)"/>
+            <text class="lbl" x="288" y="192">concierge</text>
+            <path class="wire" d="M230 228 H284 V302 H340" marker-start="url(#arr)" marker-end="url(#arr)"/>
+            <text class="lbl" x="284" y="322">type: db</text>
+
+            <path class="wire" d="M680 82 H830" marker-end="url(#arr)"/>
+            <text class="lbl" x="755" y="74">one call, JSON mode</text>
+            <path class="wire" d="M680 192 H830" marker-end="url(#arr)"/>
+            <text class="lbl" x="755" y="184">stream: true</text>
+            <path class="wire" d="M680 302 H830" marker-start="url(#arr)" marker-end="url(#arr)"/>
+            <text class="lbl" x="755" y="294">get / put</text>
+        </svg>
+    </div>
+    <div class="legend">
+        <span><i></i>Browser</span>
+        <span><i class="k-cf"></i>Cloudflare (Worker, KV)</span>
+        <span><i class="k-ext"></i>Model provider</span>
+    </div>
+</section>
+
+<section>
+    <h2>Generating a plan</h2>
+    <ol class="steps">
+        <li>The visitor fills in city, country, duration, climate, budget tier, pace and activities, and picks a model.</li>
+        <li><code>travel.js</code> loads saved preferences and sends a <code>generate</code> request with the form values plus interests and dietary restrictions.</li>
+        <li>The Worker clamps every field: duration 1 to 30 days, pace and budget tier from fixed lists, at most 10 activities of 60 characters each.</li>
+        <li>It writes one prompt containing the trip details and the exact JSON schema to return. The itinerary is capped at 7 days even for longer trips.</li>
+        <li>It makes a single non-streamed call with JSON mode on and up to 4,096 reply tokens, plus 1,024 of headroom for hidden reasoning.</li>
+        <li>It strips any Markdown code fences, parses the JSON, and returns it. Malformed JSON becomes a 502 asking the visitor to try again.</li>
+        <li>The page saves the trip with <code>add_trip</code>, then attaches the AI content and the locally computed sections with <code>update_trip</code>.</li>
+        <li>The results tabs render from the saved trip, so a reload shows the same plan.</li>
+    </ol>
+</section>
+
+<section>
+    <h2>Which parts of a plan come from the model</h2>
+    <div class="scroll">
+    <table>
+        <thead><tr><th>Section</th><th>Source</th><th>Detail</th></tr></thead>
+        <tbody>
+            <tr><td>Summary</td><td>Model</td><td><code>destination_summary</code>, one or two sentences.</td></tr>
+            <tr><td>Attractions</td><td>Model</td><td>Name, why it fits, estimated cost, best time of day.</td></tr>
+            <tr><td>Dining</td><td>Model</td><td>Restaurant, cuisine, price range, a tip.</td></tr>
+            <tr><td>Hidden gems</td><td>Model</td><td>Title and short description.</td></tr>
+            <tr><td>Etiquette</td><td>Model</td><td>A list of cultural tips.</td></tr>
+            <tr><td>Itinerary</td><td>Model</td><td>Per day: theme, morning, afternoon, evening and three meals.</td></tr>
+            <tr><td>Budget</td><td>Page code</td><td><code>calcBudgetBreakdown</code> splits the total by fixed percentages per budget tier.</td></tr>
+            <tr><td>Packing</td><td>Page code</td><td><code>fallbackPacking</code> picks a clothing list from the climate.</td></tr>
+            <tr><td>Timeline</td><td>Page code</td><td><code>fallbackTimeline</code> builds a checklist from days until departure.</td></tr>
+        </tbody>
+    </table>
+    </div>
+    <p class="muted">The budget, packing and timeline sections are always computed in the browser. Despite the "fallback" names, the model is never asked for them.</p>
+</section>
+
+<section>
+    <h2>Concierge chat</h2>
+    <div class="two">
+        <div>
+            <ol class="steps">
+                <li>The page sends the question, the last 8 chat messages, the chosen model, and three saved preferences: interests, dietary restrictions and pace.</li>
+                <li>The Worker cuts the question to 600 characters and keeps only user and assistant turns, 800 characters each.</li>
+                <li>It builds a short system prompt that names the traveler's preferences.</li>
+                <li>It calls the provider with streaming on and a 700-token reply cap.</li>
+                <li>Each provider's stream is converted to the shared <code>{"delta"}</code> frames and relayed as it arrives.</li>
+            </ol>
+        </div>
+        <div>
+            <p>The concierge has no access to saved trips, the current plan or any tools. Its only personal context is the three preference fields, so it cannot answer questions like "what is on day 2 of my Lisbon trip?".</p>
+            <p>The stream conversion handles one provider difference directly: Gemini separates events with CRLF and Groq with LF. It also drops Gemini's "thought" parts so reasoning text never reaches the chat.</p>
+        </div>
+    </div>
+</section>
+
+<section>
+    <h2>Limitations and next steps</h2>
+    <ul class="notes">
+        <li><strong>Grounding.</strong> Attractions, restaurants and prices come from the model's own knowledge, so they can be out of date. The next step is a places-lookup tool that verifies recommendations, the way the Chicago agent's tools do.</li>
+        <li><strong>Concierge memory.</strong> The concierge sees only three preference fields, not saved trips. Adding the current plan to its context would let it answer questions like "what's on day 2 of my Lisbon trip?".</li>
+        <li><strong>Per-visitor storage.</strong> In this demo, KV holds one shared preferences record and one shared trips record. Real users would need per-visitor keys and sign-in.</li>
+        <li><strong>Shared code without a build step.</strong> Provider routing is copied from the Chicago Worker so each Worker deploys as one file. If more Workers are added, a small shared module would be worth a build step.</li>
+    </ul>
+</section>
+
+<footer class="page">
+    <span>Allen Dufort</span>
+    <a href="travel.html">Try the Travel Planner</a>
+    <a href="index.html">Portfolio</a>
+    <a href="https://github.com/AllenDufort" target="_blank" rel="noopener noreferrer">GitHub</a>
+    <a href="https://linkedin.com/in/allen-dufort" target="_blank" rel="noopener noreferrer">LinkedIn</a>
+</footer>
+
+</main>
+</body>
+</html>

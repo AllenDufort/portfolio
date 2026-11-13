@@ -34,6 +34,7 @@
                     <li class="nav-item"><a class="nav-link" href="#" data-page="concierge">💬 Concierge</a></li>
                     <li class="nav-item"><a class="nav-link" href="#" data-page="budget">💵 Budget</a></li>
                     <li class="nav-item"><a class="nav-link" href="#" data-page="profile">👤 Profile</a></li>
+                    <li class="nav-item"><a class="nav-link" href="architecture-travel-agent.html">🧩 How It Works</a></li>
                 </ul>
             </div>
         </div>
@@ -72,10 +73,9 @@
             </li>
         </ul>
         <hr>
-        <div class="sidebar-model-select">
-            <label class="sidebar-label">Model</label>
-            <select id="model-select" class="tp-select tp-select-sm"></select>
-        </div>
+        <a class="nav-link text-white" href="architecture-travel-agent.html">
+            <i class="bi bi-diagram-3 me-1"></i> How It Works
+        </a>
     </div>
 
     <!-- Main content area -->
@@ -86,7 +86,8 @@
             <div id="page-dashboard" class="tp-page active">
                 <div class="container tp-container">
                     <h1 id="animated-travel">AI Travel Planner</h1>
-                    <p class="tp-subtitle">Plan, manage, and track your trips powered by AI.</p>
+                    <p class="tp-subtitle">Plan, manage, and track your trips powered by AI.
+                        <a href="architecture-travel-agent.html" class="text-decoration-none">See how it's built &rarr;</a></p>
 
                     <div class="tp-stats-row" id="stats-row">
                         <div class="tp-stat-card">
@@ -208,9 +209,16 @@
                         </div>
                     </div>
 
-                    <button class="tp-btn tp-btn-primary" id="plan-generate-btn">
-                        <i class="bi bi-stars me-1"></i> Generate AI Vacation Plan
-                    </button>
+                    <div class="tp-generate-row">
+                        <div class="tp-model-field">
+                            <label class="tp-label" for="plan-model">AI model</label>
+                            <select id="plan-model" class="tp-select tp-model-select"></select>
+                        </div>
+                        <button class="tp-btn tp-btn-primary" id="plan-generate-btn">
+                            <i class="bi bi-stars me-1"></i> Generate AI Vacation Plan
+                        </button>
+                    </div>
+                    <p class="tp-model-hint">Flash-lite and smaller models answer faster; larger models write more detailed plans.</p>
 
                     <div id="plan-status-msg" class="tp-status-msg" hidden></div>
 
@@ -291,6 +299,10 @@
                     <p class="tp-subtitle">Ask anything — packing tips, restaurant ideas, visa questions, day trips.</p>
 
                     <div class="tp-chat-wrap">
+                        <div class="tp-chat-toolbar">
+                            <label for="concierge-model"><i class="bi bi-cpu me-1"></i>Model</label>
+                            <select id="concierge-model" class="tp-select tp-select-sm tp-model-select"></select>
+                        </div>
                         <div id="concierge-messages" class="tp-chat-messages"></div>
                         <div id="concierge-suggestions" class="tp-chat-suggestions"></div>
                         <div class="tp-chat-input-row">

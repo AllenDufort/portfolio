@@ -29,6 +29,7 @@
                 <ul class="navbar-nav ms-auto">
                     <li class="nav-item"><a class="nav-link" href="#about">About</a></li>
                     <li class="nav-item"><a class="nav-link" href="#projects">Projects</a></li>
+                    <li class="nav-item"><a class="nav-link" href="architecture.html">Architecture</a></li>
                     <li class="nav-item"><a class="nav-link" href="#resume">Resume</a></li>
                     <li class="nav-item"><a class="nav-link" href="#contact">Contact</a></li>
                 </ul>
@@ -42,6 +43,7 @@
         <ul class="nav flex-column">
             <li class="nav-item"><a class="nav-link text-white" href="#about">About</a></li>
             <li class="nav-item"><a class="nav-link text-white" href="#projects">Projects</a></li>
+            <li class="nav-item"><a class="nav-link text-white" href="architecture.html">Architecture</a></li>
             <li class="nav-item"><a class="nav-link text-white" href="#resume">Resume</a></li>
             <li class="nav-item"><a class="nav-link text-white" href="#contact">Contact</a></li>
         </ul>
@@ -107,15 +109,15 @@
                             <div class="card-body">
                                 <h5 class="card-title">AI Travel Planner</h5>
                                 <div class="">
-                                    <span class="badge text-success bg-success-subtle">Python</span>
-                                    <span class="badge text-success bg-success-subtle">Streamlit</span>
-                                    <span class="badge text-success bg-success-subtle">Artificial Intelligence</span>
+                                    <span class="badge text-success bg-success-subtle">JavaScript</span>
                                     <span class="badge text-success bg-success-subtle">LLM</span>
-                                    <span class="badge text-success bg-success-subtle">Data Visualization</span>
+                                    <span class="badge text-success bg-success-subtle">Structured Output</span>
+                                    <span class="badge text-success bg-success-subtle">Gemini / Groq</span>
+                                    <span class="badge text-success bg-success-subtle">Cloudflare Workers</span>
                                 </div>
                                 <p class="card-text fw-light">
-                                    AI-powered travel planning app with itinerary generation,
-                                    budget tracking, and a local LLM concierge chat
+                                    AI travel planner that generates full itineraries as structured JSON,
+                                    with budget tracking and a streaming concierge chat
                                 </p>
                             </div>
                         </a>
@@ -129,14 +131,14 @@
                                 <h5 class="card-title">Chicago TODO Map</h5>
                                 <div class="">
                                     <span class="badge text-success bg-success-subtle">JavaScript</span>
-                                    <span class="badge text-success bg-success-subtle">HTML</span>
-                                    <span class="badge text-success bg-success-subtle">CSS</span>
-                                    <span class="badge text-success bg-success-subtle">Google Maps API</span>
-                                    <span class="badge text-success bg-success-subtle">Data Visualization</span>
+                                    <span class="badge text-success bg-success-subtle">LLM Agent</span>
+                                    <span class="badge text-success bg-success-subtle">Tool Calling</span>
+                                    <span class="badge text-success bg-success-subtle">Leaflet</span>
+                                    <span class="badge text-success bg-success-subtle">Geospatial Data</span>
                                 </div>
                                 <p class="card-text fw-light">
-                                    Interactive map showcasing Chicago attractions and
-                                    places to visit with custom markers and layers
+                                    Live map of ~550 saved Chicago places with an AI assistant
+                                    that answers questions by searching the data with tools
                                 </p>
                             </div>
                         </a>
@@ -209,6 +211,15 @@
                     </div>
                 </div>
             </div>
+        </div>
+
+        <div class="container mx-auto mb-4">
+            <p class="mt-4">
+                <i class="bi bi-diagram-3 me-1"></i>
+                Want to see how this site works under the hood? Read the
+                <a href="architecture.html" class="text-decoration-none">architecture write-up</a>
+                covering the serverless back end, the LLM agent design, and the data pipeline.
+            </p>
         </div>
 
         <div class="container mx-auto mb-4" id="resume">

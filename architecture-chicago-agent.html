@@ -1,0 +1,341 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Chicago Assistant Design</title>
+<meta name="description" content="Case study: a tool-calling LLM agent that answers questions about ~550 saved Chicago places, built on a Cloudflare Worker by Allen Dufort.">
+<link rel="icon" href="assets/logos/silhouette.png" type="image/x-icon">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600&family=Geist+Mono:wght@400;500;600&display=swap">
+<style>
+/* Layout: one reading column; the loop diagram is the only wide element.
+   Palette and mono face follow the site's own style.css (off-black, link blue, orange). */
+:root {
+    color-scheme: dark;
+    --bg: #1a1a1a;
+    --surface: #212325;
+    --line: #34383d;
+    --text: #f0f0f0;
+    --muted: #a3a9b1;
+    --accent: #6aa6ec;
+    --edge: #ff9a40;
+    --edge-fill: #2b241d;
+    --font-body: 'Geist', system-ui, -apple-system, 'Segoe UI', sans-serif;
+    --font-mono: 'Geist Mono', ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+}
+@media (prefers-color-scheme: light) {
+    :root {
+        color-scheme: light;
+        --bg: #fbfbfc;
+        --surface: #f1f3f5;
+        --line: #d5d9de;
+        --text: #1a1a1a;
+        --muted: #5b626b;
+        --accent: #2468b8;
+        --edge: #b85400;
+        --edge-fill: #fdf1e4;
+    }
+}
+* { box-sizing: border-box; }
+body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font: 15px/1.6 var(--font-body);
+    padding: 32px max(16px, env(safe-area-inset-right, 0px)) 80px max(16px, env(safe-area-inset-left, 0px));
+}
+main { max-width: 1040px; margin: 0 auto; display: flex; flex-direction: column; gap: 56px; }
+section { display: flex; flex-direction: column; gap: 16px; }
+h1, h2, h3 { font-family: var(--font-mono); font-weight: 600; margin: 0; text-wrap: balance; }
+h1 { font-size: 30px; letter-spacing: -0.02em; line-height: 1.2; }
+h2 { font-size: 18px; padding-bottom: 8px; border-bottom: 1px solid var(--line); }
+h3 { font-size: 14px; }
+p { margin: 0; max-width: 68ch; }
+a { color: var(--accent); }
+a:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.eyebrow { font: 500 12px var(--font-mono); letter-spacing: 0.08em; text-transform: uppercase; color: var(--accent); }
+.lede { font-size: 17px; color: var(--muted); }
+.muted { color: var(--muted); }
+code { font: 0.9em var(--font-mono); background: var(--surface); padding: 1px 5px; border-radius: 4px; }
+header { display: flex; flex-direction: column; gap: 12px; }
+nav { display: flex; flex-wrap: wrap; gap: 4px 20px; font: 13px var(--font-mono); padding-bottom: 12px; border-bottom: 1px solid var(--line); }
+nav a { text-decoration: none; color: var(--muted); }
+nav a:hover { color: var(--text); }
+nav a[aria-current] { color: var(--text); font-weight: 600; }
+nav a.home { color: var(--accent); margin-right: auto; }
+.actions { display: flex; flex-wrap: wrap; gap: 10px; }
+.actions a { font: 500 13px var(--font-mono); text-decoration: none; padding: 7px 14px; border: 1px solid var(--line); border-radius: 6px; color: var(--text); }
+.actions a:hover { border-color: var(--accent); }
+.actions a.primary { background: var(--accent); border-color: var(--accent); color: var(--bg); }
+.tags { display: flex; flex-wrap: wrap; gap: 6px; list-style: none; margin: 0; padding: 0; }
+.tags li { font: 12px var(--font-mono); color: var(--muted); border: 1px solid var(--line); border-radius: 999px; padding: 2px 10px; }
+.cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 16px; }
+.card { background: var(--surface); border: 1px solid var(--line); border-radius: 8px; padding: 16px 18px; display: flex; flex-direction: column; gap: 8px; }
+.card p { font-size: 14px; color: var(--muted); }
+.card .result { color: var(--text); }
+.card .result b { font: 500 11px var(--font-mono); letter-spacing: 0.08em; text-transform: uppercase; color: var(--edge); margin-right: 6px; }
+footer.page { border-top: 1px solid var(--line); padding-top: 16px; display: flex; flex-wrap: wrap; gap: 8px 20px; font: 13px var(--font-mono); color: var(--muted); }
+footer.page a { color: var(--muted); text-decoration: none; }
+footer.page a:hover { color: var(--text); }
+
+.scroll { overflow-x: auto; }
+.diagram { border: 1px solid var(--line); border-radius: 8px; background: var(--surface); padding: 12px; }
+.diagram svg { display: block; width: 100%; min-width: 860px; height: auto; }
+svg text { font-family: var(--font-mono); fill: var(--text); }
+svg .lane { font-size: 11px; letter-spacing: 0.08em; fill: var(--muted); }
+svg .t { font-size: 13px; font-weight: 600; }
+svg .s { font-size: 11px; fill: var(--muted); }
+svg .lbl { font-size: 11px; fill: var(--muted); text-anchor: middle; }
+svg .node { fill: var(--bg); stroke: var(--line); stroke-width: 1.2; }
+svg .ext { fill: var(--bg); stroke: var(--muted); stroke-width: 1.2; stroke-dasharray: 5 4; }
+svg .cf { fill: var(--edge-fill); stroke: var(--edge); stroke-width: 1.2; }
+svg .frame { fill: none; stroke: var(--edge); stroke-dasharray: 2 5; }
+svg .wire { fill: none; stroke: var(--accent); stroke-width: 1.4; }
+svg .head { fill: var(--accent); }
+.legend { display: flex; flex-wrap: wrap; gap: 8px 24px; font: 12px var(--font-mono); color: var(--muted); }
+.legend span { display: inline-flex; align-items: center; gap: 8px; }
+.legend i { width: 18px; height: 12px; border-radius: 3px; border: 1.2px solid var(--line); background: var(--bg); }
+.legend .k-cf { border-color: var(--edge); background: var(--edge-fill); }
+.legend .k-ext { border: 1.2px dashed var(--muted); }
+
+table { border-collapse: collapse; width: 100%; min-width: 620px; font-size: 14px; }
+th, td { text-align: left; vertical-align: top; padding: 10px 16px 10px 0; border-bottom: 1px solid var(--line); }
+th { font: 500 11px var(--font-mono); letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); }
+td:first-child { font-family: var(--font-mono); font-size: 13px; white-space: nowrap; }
+td.num { font-family: var(--font-mono); font-size: 13px; white-space: nowrap; font-variant-numeric: tabular-nums; }
+ol.steps, ul.notes { margin: 0; padding-left: 20px; display: flex; flex-direction: column; gap: 8px; max-width: 72ch; }
+ol.steps li::marker { font-family: var(--font-mono); color: var(--accent); }
+</style>
+</head>
+<body>
+<main>
+
+<nav aria-label="Architecture pages">
+    <a class="home" href="index.html">&larr; Portfolio home</a>
+    <a href="architecture.html">System overview</a>
+    <a href="architecture-chicago-agent.html" aria-current="page">Chicago assistant</a>
+    <a href="architecture-travel-agent.html">Travel Planner AI</a>
+</nav>
+
+<header>
+    <div class="eyebrow">Case study · AI engineering</div>
+    <h1>Chicago assistant: a tool-calling agent</h1>
+    <p class="lede">An LLM agent that answers questions like "any Caribbean food near me?" using a personal map of about 550 saved places. The model never sees the place list. It gets the map's vocabulary and three search tools that I wrote, and a serverless back end runs those tools in a loop until the model can answer from real data.</p>
+    <div class="actions">
+        <a class="primary" href="chicagoMap.html">Try it live</a>
+        <a href="https://github.com/AllenDufort/portfolio/blob/main/assets/chicago_list/worker/worker.js" target="_blank" rel="noopener noreferrer">Read the Worker source</a>
+        <a href="architecture.html">System overview</a>
+    </div>
+    <ul class="tags" aria-label="Skills shown">
+        <li>Agentic tool calling</li>
+        <li>Context engineering</li>
+        <li>Retrieval &amp; search design</li>
+        <li>Token budgeting</li>
+        <li>Geospatial (haversine)</li>
+        <li>Gemini · Groq APIs</li>
+        <li>SSE streaming</li>
+        <li>Prompt-injection defense</li>
+    </ul>
+</header>
+
+<section>
+    <h2>Key decisions</h2>
+    <div class="cards">
+        <div class="card">
+            <h3>Retrieve with tools, don't stuff the prompt</h3>
+            <p>The allowlisted models have an 8,000-token context, so all 550 rows can't go in the prompt. The model searches the data through three tools instead.</p>
+            <p class="result"><b>Result</b>Fixed overhead is about 2,900 tokens, which leaves room for a question that takes three tool rounds.</p>
+        </div>
+        <div class="card">
+            <h3>Give the model the data's vocabulary</h3>
+            <p>Early on, the model searched with its own wording and reported that a map with 40 Latin American places had none. The prompt now lists the sheet's actual types and sub-categories, and region words expand to countries and dishes.</p>
+            <p class="result"><b>Result</b>Searches use terms that actually exist in the data.</p>
+        </div>
+        <div class="card">
+            <h3>Answers stay grounded</h3>
+            <p>Tools return match counts ("8 of 41"), report missing fields as "not listed", and compute distances themselves, so the model never estimates one.</p>
+            <p class="result"><b>Result</b>Less room for made-up facts, ratings or distances.</p>
+        </div>
+        <div class="card">
+            <h3>Streaming UX with honest errors</h3>
+            <p>The tool loop runs before any output is sent, and the final text is then streamed in chunks. During provider rate-limit waits, a notice frame tells the visitor what's happening.</p>
+            <p class="result"><b>Result</b>Errors keep real HTTP status codes, and the chat still streams like a normal chat.</p>
+        </div>
+    </div>
+</section>
+
+<section>
+    <h2>Request path and tool loop</h2>
+    <div class="scroll diagram">
+        <svg viewBox="0 0 1140 396" role="img" aria-label="Request path: the chat widget posts a question to the Worker, which gates it, builds context, then loops between a model call and tool execution against a cached catalog before framing the final text as server-sent events back to the browser.">
+            <defs>
+                <marker id="arr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+                    <path class="head" d="M0 0 L10 5 L0 10 z"/>
+                </marker>
+            </defs>
+
+            <text class="lane" x="20" y="22">BROWSER</text>
+            <text class="lane" x="260" y="22">WORKER, BEFORE THE MODEL</text>
+            <text class="lane" x="716" y="22">TOOL LOOP: UP TO 5 TOOL ROUNDS, THEN ONE ANSWER PASS</text>
+            <rect class="frame" x="706" y="32" width="420" height="250" rx="8"/>
+
+            <rect class="node" x="20" y="66" width="190" height="64" rx="6"/>
+            <text class="t" x="34" y="93">chicagoChat.js</text>
+            <text class="s" x="34" y="113">question, history, coords</text>
+
+            <rect class="cf" x="260" y="66" width="190" height="64" rx="6"/>
+            <text class="t" x="274" y="93">Gate</text>
+            <text class="s" x="274" y="113">origin, rate limit, caps</text>
+
+            <rect class="cf" x="500" y="66" width="190" height="64" rx="6"/>
+            <text class="t" x="514" y="93">Context</text>
+            <text class="s" x="514" y="113">prompt + trimmed history</text>
+
+            <rect class="cf" x="726" y="66" width="160" height="64" rx="6"/>
+            <text class="t" x="740" y="93">Model call</text>
+            <text class="s" x="740" y="113">whole JSON reply</text>
+
+            <rect class="cf" x="966" y="50" width="144" height="96" rx="6"/>
+            <text class="t" x="980" y="75">executeTool</text>
+            <text class="s" x="980" y="96">search_places</text>
+            <text class="s" x="980" y="114">get_place_details</text>
+            <text class="s" x="980" y="132">find_nearby</text>
+
+            <rect class="cf" x="966" y="200" width="144" height="60" rx="6"/>
+            <text class="t" x="980" y="226">Catalog</text>
+            <text class="s" x="980" y="245">in memory, 5 min</text>
+
+            <rect class="cf" x="726" y="210" width="160" height="60" rx="6"/>
+            <text class="t" x="740" y="236">streamAnswer</text>
+            <text class="s" x="740" y="255">90-char SSE frames</text>
+
+            <rect class="ext" x="966" y="322" width="144" height="60" rx="6"/>
+            <text class="t" x="980" y="348">Google Sheet</text>
+            <text class="s" x="980" y="367">else snapshot</text>
+
+            <path class="wire" d="M210 98 H260" marker-end="url(#arr)"/>
+            <path class="wire" d="M450 98 H500" marker-end="url(#arr)"/>
+            <path class="wire" d="M690 98 H726" marker-end="url(#arr)"/>
+
+            <path class="wire" d="M886 86 H966" marker-end="url(#arr)"/>
+            <text class="lbl" x="926" y="78">tool calls</text>
+            <path class="wire" d="M966 112 H886" marker-end="url(#arr)"/>
+            <text class="lbl" x="926" y="128">results</text>
+
+            <path class="wire" d="M1038 200 V146" marker-end="url(#arr)"/>
+            <path class="wire" d="M1038 322 V260" marker-end="url(#arr)"/>
+
+            <path class="wire" d="M806 130 V210" marker-end="url(#arr)"/>
+            <text class="s" x="816" y="174">no tool calls:</text>
+            <text class="s" x="816" y="190">text is the answer</text>
+
+            <path class="wire" d="M726 240 H115 V130" marker-end="url(#arr)"/>
+            <text class="lbl" x="420" y="232">SSE: delta, notice, error, [DONE]</text>
+        </svg>
+    </div>
+    <div class="legend">
+        <span><i></i>Browser</span>
+        <span><i class="k-cf"></i>Inside the chicago-chat Worker</span>
+        <span><i class="k-ext"></i>External data</span>
+    </div>
+    <p class="muted">The model call goes to Gemini (ids starting <code>gemini-</code> or <code>gemma-</code>) or Groq (everything else). The transcript is kept in a provider-neutral shape and converted to each API's format only when a request is built.</p>
+</section>
+
+<section>
+    <h2>One question, step by step</h2>
+    <ol class="steps">
+        <li>The widget sends <code>{question, history, coords?, model?}</code>. Coordinates are requested from the browser only when the question matches a "near me" pattern, and are rounded to 4 decimals.</li>
+        <li>The Worker rejects foreign origins (403), throttles to 12 requests a minute per IP (429), and cuts the question to 500 characters.</li>
+        <li>It resolves the model against the allowlist. Anything else silently becomes the default model.</li>
+        <li>It loads the catalog: the sheet's rows, or the GeoJSON snapshot if the sheet fails. A warm Worker reuses the copy it built in the last 5 minutes.</li>
+        <li>It writes the system prompt and appends the last 4 history messages (280 characters each, user and assistant roles only) plus the question.</li>
+        <li>It calls the model without streaming, because a tool call can only be read from a complete JSON body.</li>
+        <li>If the reply contains tool calls, the Worker runs each one against the catalog, appends the calls and results to the transcript, and calls the model again.</li>
+        <li>If the reply has no tool calls, that text is the answer. After 5 tool rounds the next reply is taken as the answer regardless.</li>
+        <li>The finished text is split on whitespace into chunks of about 90 characters and sent as <code>{"delta"}</code> frames, ending with <code>[DONE]</code>.</li>
+    </ol>
+</section>
+
+<section>
+    <h2>Tools</h2>
+    <div class="scroll">
+    <table>
+        <thead><tr><th>Tool</th><th>Arguments</th><th>Behavior</th></tr></thead>
+        <tbody>
+            <tr><td>search_places</td><td><code>query</code>, <code>type</code>, <code>neighborhood</code>, <code>limit</code></td><td>Comma-separated terms are OR-matched across name, type, sub-category and notes. Returns one line per place plus the total match count, so the model can say "8 of 41". Region words such as "caribbean" expand to every country, demonym and dish under them.</td></tr>
+            <tr><td>get_place_details</td><td><code>name</code>, <code>fields[]</code></td><td>Matches the name in tiers (exact, prefix, substring, all words present) and returns only the best tier. Several matches come back as candidates for the model to ask about. A missing field is reported as "not listed" so the model does not invent one.</td></tr>
+            <tr><td>find_nearby</td><td><code>type</code>, <code>radius_miles</code>, <code>limit</code></td><td>Sorts saved places by haversine distance from the visitor, nearest first. Beyond 25 miles it reports that the visitor is out of town. Unavailable until the visitor shares a location.</td></tr>
+        </tbody>
+    </table>
+    </div>
+    <p class="muted">Every tool returns plain text, caps <code>limit</code> at 12, and resolves everyday type words ("bookstore", "coffee shops") to the sheet's own Type labels.</p>
+</section>
+
+<section>
+    <h2>What the model is given</h2>
+    <div class="scroll">
+    <table>
+        <thead><tr><th>Part</th><th>Contents</th><th>Why it is shaped this way</th></tr></thead>
+        <tbody>
+            <tr><td>System prompt</td><td>Place and neighborhood counts, the closed list of Types, the searchable sub-categories, then searching and answering rules.</td><td>Carries vocabulary, not rows. Without the real words, a model searched its own phrasing and reported a map with 40 Latin American places as empty.</td></tr>
+            <tr><td>Location line</td><td>The visitor's nearest neighborhood, or a note that no location was shared.</td><td>Distances come from <code>find_nearby</code>, so the model never estimates one.</td></tr>
+            <tr><td>Tool schema</td><td>Three terse declarations, written once in Gemini's format and mapped to Groq's.</td><td>The schema is re-sent every round, so long guidance lives in the prompt, which is sent once.</td></tr>
+            <tr><td>History</td><td>Last 4 messages, 280 characters each.</td><td>Enough for follow-ups like "what about its rating?" without growing the request.</td></tr>
+            <tr><td>Tool results</td><td>List rows hold name, type, sub-category, neighborhood, rating and address only.</td><td>Full detail per row costs about 3 times as much. The rest is one <code>get_place_details</code> call away.</td></tr>
+        </tbody>
+    </table>
+    </div>
+    <p>The allowlisted models have an 8,000-token context, and everything above is re-sent on each round. The fixed overhead sits near 2,900 tokens, which leaves room for a three-round question.</p>
+</section>
+
+<section>
+    <h2>Guardrails and budgets</h2>
+    <div class="scroll">
+    <table>
+        <thead><tr><th>Setting</th><th>Value</th><th>Purpose</th></tr></thead>
+        <tbody>
+            <tr><td>Tool rounds</td><td class="num">5 + 1</td><td>Stops a runaway loop while still giving the model a turn to write.</td></tr>
+            <tr><td>Reply tokens</td><td class="num">700 + 1,024</td><td>The extra 1,024 is headroom for hidden reasoning, which bills against the same cap.</td></tr>
+            <tr><td>Temperature</td><td class="num">0.3</td><td>Pinned server-side; the page cannot change it.</td></tr>
+            <tr><td>Rate limit</td><td class="num">12 / min / IP</td><td>Held in Worker memory. Keeps one script from using the day's free quota.</td></tr>
+            <tr><td>Provider 429 retry</td><td class="num">1 retry, 45 s</td><td>Honors <code>Retry-After</code> between 1 and 20 seconds; the budget is shared across all rounds.</td></tr>
+            <tr><td>Catalog cache</td><td class="num">5 min</td><td>A burst of questions costs one sheet fetch.</td></tr>
+            <tr><td>Client timeout</td><td class="num">90 s</td><td>The widget shows a "still thinking" hint at 9 seconds and gives up at 90.</td></tr>
+        </tbody>
+    </table>
+    </div>
+</section>
+
+<section>
+    <h2>Failure handling</h2>
+    <ul class="notes">
+        <li><strong>Normal case keeps real status codes.</strong> The Worker holds its response until the loop finishes, so a failure can still be returned as a 4xx or 5xx with a sentence the visitor can act on.</li>
+        <li><strong>Rate-limit waits open the stream early.</strong> If a provider returns 429, the Worker starts the response and sends a <code>{"notice"}</code> frame saying it is waiting. A later failure then arrives as an <code>{"error"}</code> frame, since the status code is already spent.</li>
+        <li><strong>Searching without answering.</strong> If every round was spent on tools and no text came back, the visitor is told to try a simpler question.</li>
+        <li><strong>No canned fallback.</strong> There is no local retrieval. If the model cannot be reached, the widget says so.</li>
+        <li><strong>Prompt injection through history.</strong> Only user and assistant turns are forwarded, so an injected system turn is dropped.</li>
+        <li><strong>Not a general relay.</strong> The page cannot supply a prompt, only a question, so a leaked endpoint can only answer questions about this map.</li>
+    </ul>
+</section>
+
+<section>
+    <h2>What I'd build next</h2>
+    <ul class="notes">
+        <li><strong>An evaluation set.</strong> A list of questions with the places each one should return, used to score tool choice and answer accuracy for every allowlisted model and re-run after prompt changes.</li>
+        <li><strong>Semantic search.</strong> Embeddings over notes and sub-categories, alongside the keyword matching, so vague questions ("somewhere cozy for a rainy day") still find good matches.</li>
+        <li><strong>Usage analytics.</strong> Anonymous logs of which tools get called and which questions return nothing, to show where the vocabulary or the data has gaps.</li>
+    </ul>
+</section>
+
+<footer class="page">
+    <span>Allen Dufort</span>
+    <a href="chicagoMap.html">Try the Chicago map</a>
+    <a href="index.html">Portfolio</a>
+    <a href="https://github.com/AllenDufort" target="_blank" rel="noopener noreferrer">GitHub</a>
+    <a href="https://linkedin.com/in/allen-dufort" target="_blank" rel="noopener noreferrer">LinkedIn</a>
+</footer>
+
+</main>
+</body>
+</html>

@@ -1,0 +1,433 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Portfolio Architecture</title>
+<meta name="description" content="How Allen Dufort's portfolio is built: two LLM-powered apps on serverless Cloudflare Workers, a live Google Sheet data pipeline, and a static front end with no build step.">
+<link rel="icon" href="assets/logos/silhouette.png" type="image/x-icon">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600&family=Geist+Mono:wght@400;500;600&display=swap">
+<style>
+/* Layout: one reading column; the system diagram is the only wide element.
+   Palette and mono face follow the site's own style.css (off-black, link blue, orange). */
+:root {
+    color-scheme: dark;
+    --bg: #1a1a1a;
+    --surface: #212325;
+    --line: #34383d;
+    --text: #f0f0f0;
+    --muted: #a3a9b1;
+    --accent: #6aa6ec;
+    --edge: #ff9a40;
+    --edge-fill: #2b241d;
+    --font-body: 'Geist', system-ui, -apple-system, 'Segoe UI', sans-serif;
+    --font-mono: 'Geist Mono', ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+}
+@media (prefers-color-scheme: light) {
+    :root {
+        color-scheme: light;
+        --bg: #fbfbfc;
+        --surface: #f1f3f5;
+        --line: #d5d9de;
+        --text: #1a1a1a;
+        --muted: #5b626b;
+        --accent: #2468b8;
+        --edge: #b85400;
+        --edge-fill: #fdf1e4;
+    }
+}
+* { box-sizing: border-box; }
+body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font: 15px/1.6 var(--font-body);
+    padding: 56px max(16px, env(safe-area-inset-right, 0px)) 80px max(16px, env(safe-area-inset-left, 0px));
+}
+main { max-width: 1040px; margin: 0 auto; display: flex; flex-direction: column; gap: 56px; }
+section { display: flex; flex-direction: column; gap: 16px; }
+h1, h2, h3 { font-family: var(--font-mono); font-weight: 600; margin: 0; text-wrap: balance; }
+h1 { font-size: 30px; letter-spacing: -0.02em; line-height: 1.2; }
+h2 { font-size: 18px; padding-bottom: 8px; border-bottom: 1px solid var(--line); }
+h3 { font-size: 14px; }
+p { margin: 0; max-width: 68ch; }
+.eyebrow { font: 500 12px var(--font-mono); letter-spacing: 0.08em; text-transform: uppercase; color: var(--accent); }
+.lede { font-size: 17px; color: var(--muted); }
+.muted { color: var(--muted); }
+code { font: 0.9em var(--font-mono); background: var(--surface); padding: 1px 5px; border-radius: 4px; }
+header { display: flex; flex-direction: column; gap: 12px; }
+
+nav { display: flex; flex-wrap: wrap; gap: 4px 20px; font: 13px var(--font-mono); padding-bottom: 12px; border-bottom: 1px solid var(--line); }
+nav a { text-decoration: none; color: var(--muted); }
+nav a:hover { color: var(--text); }
+nav a[aria-current] { color: var(--text); font-weight: 600; }
+nav a.home { color: var(--accent); margin-right: auto; }
+a { color: var(--accent); }
+a:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.actions { display: flex; flex-wrap: wrap; gap: 10px; }
+.actions a { font: 500 13px var(--font-mono); text-decoration: none; padding: 7px 14px; border: 1px solid var(--line); border-radius: 6px; color: var(--text); }
+.actions a:hover { border-color: var(--accent); }
+.actions a.primary { background: var(--accent); border-color: var(--accent); color: var(--bg); }
+.tags { display: flex; flex-wrap: wrap; gap: 6px; list-style: none; margin: 0; padding: 0; }
+.tags li { font: 12px var(--font-mono); color: var(--muted); border: 1px solid var(--line); border-radius: 999px; padding: 2px 10px; }
+.cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 16px; }
+.card { background: var(--surface); border: 1px solid var(--line); border-radius: 8px; padding: 16px 18px; display: flex; flex-direction: column; gap: 8px; }
+.card p { font-size: 14px; color: var(--muted); }
+.card .result { color: var(--text); }
+.card .result b { font: 500 11px var(--font-mono); letter-spacing: 0.08em; text-transform: uppercase; color: var(--edge); margin-right: 6px; }
+footer.page { border-top: 1px solid var(--line); padding-top: 16px; display: flex; flex-wrap: wrap; gap: 8px 20px; font: 13px var(--font-mono); color: var(--muted); }
+footer.page a { color: var(--muted); text-decoration: none; }
+footer.page a:hover { color: var(--text); }
+.scroll { overflow-x: auto; }
+.diagram { border: 1px solid var(--line); border-radius: 8px; background: var(--surface); padding: 12px; }
+.diagram svg { display: block; width: 100%; min-width: 860px; height: auto; }
+svg text { font-family: var(--font-mono); fill: var(--text); }
+svg .lane { font-size: 11px; letter-spacing: 0.08em; fill: var(--muted); }
+svg .t { font-size: 13px; font-weight: 600; }
+svg .s { font-size: 11px; fill: var(--muted); }
+svg .lbl { font-size: 11px; fill: var(--muted); text-anchor: middle; }
+svg .node { fill: var(--bg); stroke: var(--line); stroke-width: 1.2; }
+svg .ext { fill: var(--bg); stroke: var(--muted); stroke-width: 1.2; stroke-dasharray: 5 4; }
+svg .cf { fill: var(--edge-fill); stroke: var(--edge); stroke-width: 1.2; }
+svg .frame { fill: none; stroke: var(--line); stroke-dasharray: 2 5; }
+svg .wire { fill: none; stroke: var(--accent); stroke-width: 1.4; }
+svg .head { fill: var(--accent); }
+.legend { display: flex; flex-wrap: wrap; gap: 8px 24px; font: 12px var(--font-mono); color: var(--muted); }
+.legend span { display: inline-flex; align-items: center; gap: 8px; }
+.legend i { width: 18px; height: 12px; border-radius: 3px; border: 1.2px solid var(--line); background: var(--bg); }
+.legend .k-cf { border-color: var(--edge); background: var(--edge-fill); }
+.legend .k-ext { border: 1.2px dashed var(--muted); }
+
+table { border-collapse: collapse; width: 100%; min-width: 620px; font-size: 14px; }
+th, td { text-align: left; vertical-align: top; padding: 10px 16px 10px 0; border-bottom: 1px solid var(--line); }
+th { font: 500 11px var(--font-mono); letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); }
+td:first-child { font-family: var(--font-mono); font-size: 13px; white-space: nowrap; }
+
+.flows { display: grid; grid-template-columns: repeat(auto-fit, minmax(290px, 1fr)); gap: 32px; }
+.flow { display: flex; flex-direction: column; gap: 10px; }
+.flow ol { margin: 0; padding-left: 20px; display: flex; flex-direction: column; gap: 8px; font-size: 14px; }
+.flow ol li::marker { font-family: var(--font-mono); color: var(--accent); }
+pre { margin: 0; font: 13px/1.7 var(--font-mono); background: var(--surface); border: 1px solid var(--line); border-radius: 8px; padding: 16px; }
+pre .c { color: var(--muted); }
+.two { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 24px; }
+ul.notes { margin: 0; padding-left: 20px; display: flex; flex-direction: column; gap: 8px; max-width: 72ch; }
+</style>
+</head>
+<body>
+<main>
+
+<nav aria-label="Architecture pages">
+    <a class="home" href="index.html">&larr; Portfolio home</a>
+    <a href="architecture.html" aria-current="page">System overview</a>
+    <a href="architecture-chicago-agent.html">Chicago assistant</a>
+    <a href="architecture-travel-agent.html">Travel Planner AI</a>
+</nav>
+
+<header>
+    <div class="eyebrow">Engineering write-up · Allen Dufort</div>
+    <h1>How this portfolio is built</h1>
+    <p class="lede">Two of the projects on this site are full-stack AI apps. One is a tool-calling agent that answers questions about a live dataset of about 550 Chicago places. The other is an LLM trip planner with a streaming concierge chat. Both run on serverless back ends I wrote, with no framework, no build step and no API keys in the browser.</p>
+    <div class="actions">
+        <a class="primary" href="https://github.com/AllenDufort/portfolio" target="_blank" rel="noopener noreferrer">View source on GitHub</a>
+        <a href="architecture-chicago-agent.html">Chicago agent deep dive</a>
+        <a href="architecture-travel-agent.html">Travel Planner deep dive</a>
+    </div>
+    <ul class="tags" aria-label="Skills shown">
+        <li>LLM agents &amp; tool calling</li>
+        <li>Context engineering</li>
+        <li>Multi-provider LLM APIs</li>
+        <li>Serverless (Cloudflare Workers)</li>
+        <li>Streaming (SSE)</li>
+        <li>Data pipelines &amp; geocoding</li>
+        <li>Geospatial</li>
+        <li>API security</li>
+        <li>Vanilla JS · Python</li>
+    </ul>
+</header>
+
+<section>
+    <h2>At a glance</h2>
+    <div class="cards">
+        <div class="card">
+            <h3>Two LLM providers, one interface</h3>
+            <p>Gemini, Gemma and Groq-hosted models sit behind one provider-neutral message format. Visitors pick a model and the back end routes by model id.</p>
+            <p class="result"><b>Why</b>Free-tier quotas run out. Being able to switch providers keeps the demos running.</p>
+        </div>
+        <div class="card">
+            <h3>Live data, no rebuild</h3>
+            <p>A Google Sheet is the source of truth. Rows are parsed by header name, geocoded with Apps Script and Python, and backed by a GeoJSON snapshot.</p>
+            <p class="result"><b>Result</b>A place added to the sheet shows up on the map and in the agent's answers on the next load.</p>
+        </div>
+        <div class="card">
+            <h3>Keys never reach the browser</h3>
+            <p>Model keys live as Worker secrets behind an origin allowlist, per-IP rate limits and server-written prompts.</p>
+            <p class="result"><b>Result</b>Public demos with no exposed credentials, and the endpoints can't be used as a general-purpose LLM relay.</p>
+        </div>
+        <div class="card">
+            <h3>Zero dependencies</h3>
+            <p>Native ES modules in the browser, single-file Workers, and test suites that run on Node's built-in runner.</p>
+            <p class="result"><b>Result</b>Nothing to install or bundle. A clone runs with one command.</p>
+        </div>
+    </div>
+</section>
+
+<section>
+    <h2>System architecture</h2>
+    <div class="scroll diagram">
+        <svg viewBox="0 0 1140 524" role="img" aria-label="System diagram: GitHub Pages serves static pages to the browser; the Chicago map page reads a Google Sheet and OpenStreetMap; both app pages call Cloudflare Workers, which call Gemini or Groq; the travel Worker stores data in Workers KV.">
+            <defs>
+                <marker id="arr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+                    <path class="head" d="M0 0 L10 5 L0 10 z"/>
+                </marker>
+            </defs>
+
+            <text class="lane" x="20" y="22">DATA &amp; HOSTING</text>
+            <text class="lane" x="350" y="22">BROWSER</text>
+            <text class="lane" x="700" y="22">CLOUDFLARE WORKERS</text>
+            <text class="lane" x="1000" y="22">MODEL APIS</text>
+
+            <rect class="frame" x="336" y="36" width="268" height="412" rx="8"/>
+
+            <!-- column 1 -->
+            <rect class="node" x="20" y="50" width="210" height="64" rx="6"/>
+            <text class="t" x="34" y="77">GitHub Pages</text>
+            <text class="s" x="34" y="97">HTML, CSS, JS, snapshot</text>
+
+            <rect class="ext" x="20" y="146" width="210" height="60" rx="6"/>
+            <text class="t" x="34" y="172">OpenStreetMap</text>
+            <text class="s" x="34" y="191">tiles · Nominatim search</text>
+
+            <rect class="ext" x="20" y="236" width="210" height="64" rx="6"/>
+            <text class="t" x="34" y="263">Google Sheet</text>
+            <text class="s" x="34" y="283">~550 places · source of truth</text>
+
+            <!-- column 2 -->
+            <rect class="node" x="350" y="50" width="240" height="64" rx="6"/>
+            <text class="t" x="364" y="77">index.html + case studies</text>
+            <text class="s" x="364" y="97">style.css · animate.js</text>
+
+            <rect class="node" x="350" y="180" width="240" height="104" rx="6"/>
+            <text class="t" x="364" y="207">chicagoMap.html</text>
+            <text class="s" x="364" y="229">chicagoData.js · chicagoMap.js</text>
+            <text class="s" x="364" y="247">chicagoChat.js</text>
+            <text class="s" x="364" y="268">Leaflet · MarkerCluster</text>
+
+            <rect class="node" x="350" y="350" width="240" height="84" rx="6"/>
+            <text class="t" x="364" y="377">travel.html</text>
+            <text class="s" x="364" y="399">travel.js · travel-api.js</text>
+            <text class="s" x="364" y="417">travel-export.js (print to PDF)</text>
+
+            <!-- column 3 -->
+            <rect class="cf" x="700" y="180" width="210" height="104" rx="6"/>
+            <text class="t" x="714" y="207">chicago-chat</text>
+            <text class="s" x="714" y="229">builds prompt from sheet</text>
+            <text class="s" x="714" y="247">tool loop · SSE reply</text>
+            <text class="s" x="714" y="268">CORS allowlist · rate limit</text>
+
+            <rect class="cf" x="700" y="350" width="210" height="84" rx="6"/>
+            <text class="t" x="714" y="377">travel-planner</text>
+            <text class="s" x="714" y="399">generate · concierge · db</text>
+            <text class="s" x="714" y="417">CORS allowlist · rate limit</text>
+
+            <rect class="cf" x="700" y="466" width="210" height="46" rx="6"/>
+            <text class="t" x="714" y="486">KV: TRAVEL_DB</text>
+            <text class="s" x="714" y="502">keys: prefs, trips</text>
+
+            <!-- column 4 -->
+            <rect class="ext" x="1000" y="180" width="120" height="254" rx="6"/>
+            <text class="t" x="1014" y="237">Gemini</text>
+            <text class="s" x="1014" y="255">gemini-*</text>
+            <text class="s" x="1014" y="271">gemma-*</text>
+            <text class="t" x="1014" y="381">Groq</text>
+            <text class="s" x="1014" y="399">all other ids</text>
+
+            <!-- wires -->
+            <path class="wire" d="M230 82 H336" marker-end="url(#arr)"/>
+            <text class="lbl" x="283" y="74">static files</text>
+
+            <path class="wire" d="M230 192 H350" marker-end="url(#arr)"/>
+            <text class="lbl" x="290" y="184">tiles, search</text>
+
+            <path class="wire" d="M230 262 H350" marker-end="url(#arr)"/>
+            <text class="lbl" x="290" y="254">CSV per load</text>
+
+            <path class="wire" d="M125 300 V322 H805 V284" marker-end="url(#arr)"/>
+            <text class="lbl" x="470" y="314">sheet CSV, cached 5 min</text>
+
+            <path class="wire" d="M590 214 H700" marker-end="url(#arr)"/>
+            <text class="lbl" x="645" y="206">POST question</text>
+            <path class="wire" d="M700 252 H590" marker-end="url(#arr)"/>
+            <text class="lbl" x="645" y="268">SSE reply</text>
+
+            <path class="wire" d="M590 376 H700" marker-end="url(#arr)"/>
+            <text class="lbl" x="645" y="368">POST JSON</text>
+            <path class="wire" d="M700 410 H590" marker-end="url(#arr)"/>
+            <text class="lbl" x="645" y="426">JSON / SSE</text>
+
+            <path class="wire" d="M910 232 H1000" marker-end="url(#arr)"/>
+            <text class="lbl" x="955" y="224">secret key</text>
+            <path class="wire" d="M910 392 H1000" marker-end="url(#arr)"/>
+            <text class="lbl" x="955" y="384">secret key</text>
+
+            <path class="wire" d="M805 434 V466" marker-start="url(#arr)" marker-end="url(#arr)"/>
+        </svg>
+    </div>
+    <div class="legend">
+        <span><i></i>This repository, served statically</span>
+        <span><i class="k-cf"></i>Cloudflare (Workers, KV)</span>
+        <span><i class="k-ext"></i>Third-party service</span>
+    </div>
+    <p class="muted">Not drawn: if the sheet is unreachable, both the map page and the chicago-chat Worker fall back to <code>chicago_layers.geojson</code> on GitHub Pages. The Worker also reads <code>geocode_cache.json</code> from there for rows that have no coordinates in the sheet.</p>
+</section>
+
+<section>
+    <h2>Tech stack</h2>
+    <div class="scroll">
+    <table>
+        <thead><tr><th>Layer</th><th>Technology</th><th>Notes</th></tr></thead>
+        <tbody>
+            <tr><td>Pages</td><td>Hand-written HTML, one file per page at the repo root</td><td>Home page plus eight project pages. Filenames are kept stable so existing links work.</td></tr>
+            <tr><td>Styling</td><td>Bootstrap 5.3.0, Bootstrap Icons 1.10.5, <code>style.css</code></td><td>Bootstrap from jsDelivr. Dark theme set in Geist Mono. Each app adds its own stylesheet.</td></tr>
+            <tr><td>Scripts</td><td>Native ES modules, no bundler, no npm install</td><td><code>assets/shared/</code> holds the model list, safe Markdown rendering and the event-stream reader used by both apps.</td></tr>
+            <tr><td>Map</td><td>Leaflet 1.9.4, MarkerCluster 1.5.3, OpenStreetMap tiles</td><td>Loaded from unpkg. Address search uses Nominatim.</td></tr>
+            <tr><td>Place data</td><td>Google Sheet via the gviz CSV endpoint</td><td>No API key. The sheet must stay shared as "anyone with the link can view".</td></tr>
+            <tr><td>Backend</td><td>Two Cloudflare Workers, deployed with Wrangler</td><td><code>chicago-chat</code> and <code>travel-planner</code>, each a single <code>worker.js</code> with no dependencies.</td></tr>
+            <tr><td>Storage</td><td>Workers KV (<code>TRAVEL_DB</code>), browser <code>localStorage</code></td><td>KV holds travel preferences and trips. localStorage only remembers the chosen model.</td></tr>
+            <tr><td>Models</td><td>Google Gemini and Gemma, Groq-hosted models</td><td>The visitor picks from an allowlist in <code>assets/shared/models.js</code>. The provider follows from the model id.</td></tr>
+            <tr><td>Data tooling</td><td>Google Apps Script, Python 3 standard library</td><td><code>geocodeSheet.gs</code> fills Lat/Lon in the sheet. <code>geocode.py</code> refreshes the offline snapshot.</td></tr>
+            <tr><td>Hosting</td><td>GitHub Pages at allendufort.github.io/portfolio</td><td>A root <code>wrangler.jsonc</code> can also publish the repo as Cloudflare static assets.</td></tr>
+            <tr><td>Tests</td><td><code>node --test</code>, Node 22.7 or newer</td><td>Three dependency-free files covering streaming, Markdown, sheet parsing and the snapshot fallback.</td></tr>
+        </tbody>
+    </table>
+    </div>
+</section>
+
+<section>
+    <h2>Data flow</h2>
+    <div class="flows">
+        <div class="flow">
+            <h3>Chicago map loads</h3>
+            <ol>
+                <li><code>chicagoMap.js</code> calls <code>load()</code> in <code>chicagoData.js</code>.</li>
+                <li>It fetches the sheet as CSV and <code>sheet.js</code> parses rows by header name.</li>
+                <li>Each row takes coordinates from the sheet's Lat/Lon, or else from <code>geocode_cache.json</code>. Rows with neither get no marker.</li>
+                <li>If the sheet fails, the committed GeoJSON snapshot is used instead.</li>
+                <li>Leaflet draws clustered markers and a filter chip per place type.</li>
+            </ol>
+        </div>
+        <div class="flow">
+            <h3>Visitor asks the Chicago assistant</h3>
+            <ol>
+                <li><code>chicagoChat.js</code> POSTs the question, recent history and chosen model. For "near me" questions it adds rounded coordinates.</li>
+                <li>The Worker checks origin and rate limit (12 requests a minute per IP), then trims history to 4 turns.</li>
+                <li>It builds the system prompt from the sheet's vocabulary of types and sub-categories. No place rows go in the prompt.</li>
+                <li>The model calls <code>search_places</code>, <code>get_place_details</code> or <code>find_nearby</code>. The Worker runs them against its cached catalog for up to 5 rounds.</li>
+                <li>The final text is re-framed as server-sent events and painted into the chat as it arrives.</li>
+            </ol>
+        </div>
+        <div class="flow">
+            <h3>Visitor plans a trip</h3>
+            <ol>
+                <li><code>travel.js</code> collects the form and calls <code>travel-api.js</code>, which POSTs one of three request types to the Worker.</li>
+                <li><code>generate</code> asks the model for a full plan as JSON (itinerary capped at 7 days). The Worker returns it in one response.</li>
+                <li>The page saves the trip with <code>db</code> requests such as <code>add_trip</code> and <code>update_trip</code>, which read and write KV.</li>
+                <li><code>concierge</code> streams a chat reply back as server-sent events.</li>
+                <li><code>travel-export.js</code> opens a print window so a results tab can be saved as PDF.</li>
+            </ol>
+        </div>
+    </div>
+</section>
+
+<section id="compare">
+    <h2>Two LLM patterns side by side</h2>
+    <p>I built the two apps differently on purpose. The Chicago assistant has to answer from private data, so it needs an agent with tools. Travel Planner needs creative content in a fixed shape, so one structured call is the simpler and cheaper choice. Details are in the <a href="architecture-chicago-agent.html">Chicago agent</a> and <a href="architecture-travel-agent.html">Travel Planner</a> deep dives.</p>
+    <div class="scroll">
+    <table>
+        <thead><tr><th>Aspect</th><th>Chicago assistant</th><th>Travel Planner</th></tr></thead>
+        <tbody>
+            <tr><td>Pattern</td><td>Tool-calling loop, up to 5 rounds</td><td>Single model call per request</td></tr>
+            <tr><td>Grounding</td><td>Every fact comes from a tool result over the sheet</td><td>The model's own knowledge of the destination</td></tr>
+            <tr><td>Prompt</td><td>Written entirely by the Worker</td><td>Worker template with form values and preferences inserted</td></tr>
+            <tr><td>Streaming</td><td>Reply buffered, then re-framed as SSE</td><td>Concierge relays the provider's stream; generate returns JSON</td></tr>
+            <tr><td>Provider 429</td><td>One retry, with a notice to the visitor</td><td>Returned as an error</td></tr>
+            <tr><td>Rate limit</td><td>12 requests a minute per IP</td><td>15 requests a minute per IP</td></tr>
+            <tr><td>History</td><td>4 messages, 280 characters each</td><td>8 messages, 800 characters each</td></tr>
+            <tr><td>Temperature</td><td>0.3</td><td>0.4</td></tr>
+            <tr><td>Client timeout</td><td>90 seconds</td><td>120 seconds</td></tr>
+        </tbody>
+    </table>
+    </div>
+</section>
+
+<section>
+    <h2>Security and cost controls</h2>
+    <ul class="notes">
+        <li><strong>Keys stay server-side.</strong> <code>GEMINI_API_KEY</code> and <code>GROQ_API_KEY</code> are Worker secrets pushed by each <code>deploy.sh</code> from the git-ignored <code>.env</code>. Nothing in the repo or a response contains them.</li>
+        <li><strong>Origin allowlist.</strong> POSTs are accepted only from the GitHub Pages origin and a few localhost ports. Other origins get a 403.</li>
+        <li><strong>Per-IP rate limits</strong> held in Worker memory, answered with 429 and <code>Retry-After</code>.</li>
+        <li><strong>Model allowlist.</strong> Both Workers check the requested model against the shared list in <code>assets/shared/models.js</code>. Any other id falls back to the default, so a caller can't spend the keys on models the site doesn't offer.</li>
+        <li><strong>Fixed prompt shape (Chicago).</strong> The Worker writes the prompt itself, drops any injected system turn, and pins temperature and token caps.</li>
+        <li><strong>Health check.</strong> <code>GET /</code> on either Worker returns status JSON, including which provider keys are configured.</li>
+    </ul>
+</section>
+
+<section>
+    <h2>Engineering choices</h2>
+    <ul class="notes">
+        <li><strong>No build step, on purpose.</strong> The site is hand-written HTML plus native ES modules, so what's in the repo is exactly what runs. The cost is no type checking or minification, which is acceptable at this size.</li>
+        <li><strong>Two AI patterns, chosen per problem.</strong> The Chicago assistant needs facts from private data, so it uses a tool-calling agent. The Travel Planner needs creative content in a fixed shape, so it uses a single structured-output call. <a href="#compare">See the side-by-side comparison.</a></li>
+        <li><strong>Single-file Workers.</strong> Each back end deploys as one <code>worker.js</code> with no dependencies. Provider-routing code is duplicated between them instead of shared through a package, which keeps deploys simple.</li>
+        <li><strong>Graceful degradation.</strong> If the Google Sheet is unreachable, a committed GeoJSON snapshot keeps both the map and the agent working.</li>
+    </ul>
+</section>
+
+<section>
+    <h2>Limitations and next steps</h2>
+    <ul class="notes">
+        <li><strong>Per-visitor storage.</strong> Travel Planner's KV holds one shared preferences record and one shared trips record, which is fine for a demo. Real users would need per-visitor keys and authentication.</li>
+        <li><strong>Evaluation.</strong> A fixed set of test questions with expected answers would let me compare tool choice and accuracy across the allowlisted models and catch regressions when prompts change.</li>
+        <li><strong>Grounding the trip planner.</strong> Plans come from the model's own knowledge. Adding a places lookup tool, the way the Chicago agent works, would make recommendations verifiable.</li>
+    </ul>
+</section>
+
+<section>
+    <h2>Repository</h2>
+    <div class="two">
+<pre>index.html, travel.html, chicagoMap.html, ...   <span class="c">pages</span>
+style.css, animate.js                           <span class="c">site-wide</span>
+assets/
+  shared/        models.js, ui.js, worker-client.js
+  chicago_list/  map, chat, sheet parsing, snapshot
+    worker/      <span class="c">chicago-chat Worker</span>
+  travel/        UI, API client, PDF export
+    worker/      <span class="c">travel-planner Worker + KV</span>
+  &lt;project&gt;/     <span class="c">images and PDFs per case study</span>
+tests/           <span class="c">node --test suites</span>
+wrangler.jsonc   <span class="c">optional static-asset deploy</span></pre>
+<pre><span class="c"># serve the site (modules need HTTP)</span>
+python3 -m http.server 8000
+
+<span class="c"># run a Worker locally (8787 chicago, 8788 travel)</span>
+cd assets/chicago_list/worker
+npx wrangler dev --config wrangler.toml
+
+<span class="c"># tests</span>
+node --test tests/*.test.mjs
+
+<span class="c"># deploy a Worker (production)</span>
+bash assets/travel/worker/deploy.sh</pre>
+    </div>
+</section>
+
+<footer class="page">
+    <span>Allen Dufort</span>
+    <a href="index.html">Portfolio</a>
+    <a href="https://github.com/AllenDufort" target="_blank" rel="noopener noreferrer">GitHub</a>
+    <a href="https://linkedin.com/in/allen-dufort" target="_blank" rel="noopener noreferrer">LinkedIn</a>
+    <a href="index.html#projects">More projects</a>
+</footer>
+
+</main>
+</body>
+</html>
