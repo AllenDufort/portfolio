@@ -53,6 +53,39 @@
     <div class="content">
         <div class="container" id="overview">
             <h1 id="animated-reai">Reintegrating AI: LLM-generated reward functions</h1>
+
+            <div class="project-summary">
+                <p class="project-lede">
+                    Can an LLM replace the hand-written reward function in reinforcement learning?
+                    We swapped the reward in a Q-learning loop for LLM scoring and tested it
+                    on two Gymnasium environments.
+                </p>
+                <dl class="meta-grid">
+                    <div><dt>Context</dt><dd>CSCI 2951X: Reintegrating AI, Brown University</dd></div>
+                    <div><dt>Team</dt><dd>Team research project</dd></div>
+                    <div><dt>Stack</dt><dd>Python, Jupyter, Q-learning, OpenAI Gymnasium, LLMs including TinyLlama</dd></div>
+                </dl>
+                <ul class="skill-tags" aria-label="Skills">
+                    <li>Reinforcement learning</li>
+                    <li>LLM reward shaping</li>
+                    <li>Prompt engineering</li>
+                    <li>Experiment design</li>
+                    <li>Data analysis</li>
+                </ul>
+                <div class="tldr">
+                    <h2>TL;DR</h2>
+                    <ul>
+                        <li><b>Blackjack:</b> the LLM reward with summary memory won 181 games vs. 153 for the native reward, and reached a 36% win rate after training vs. 33%.</li>
+                        <li><b>Frozen Lake:</b> the LLM reward trained a working agent, but with a lower success rate than the hand-written reward.</li>
+                        <li><b>Lesson:</b> reliable reward signals depended on prompt design (many few-shot examples) and on giving the LLM a memory of earlier moves.</li>
+                    </ul>
+                </div>
+                <div class="project-links">
+                    <a class="primary" href="https://github.com/lost-particles/echoLLM" target="_blank" rel="noopener noreferrer"><i class="bi bi-github me-1"></i>Code</a>
+                    <a href="assets/reAI/Reintegrating_AI_final_report.pdf" target="_blank" rel="noopener noreferrer"><i class="bi bi-file-earmark-text me-1"></i>Final report (PDF)</a>
+                </div>
+            </div>
+
             <h2>Overview</h2>
 
             <h3>Project description</h3>
@@ -69,10 +102,7 @@
             <p>
                 This project was completed for
                 <span class="accent-text">CSCI 2951X: Reintegrating AI</span>,
-                taught by Professor George Konidaris at Brown University. The source
-                code is available on
-                <a href="https://github.com/lost-particles/echoLLM" class="text-decoration-none"
-                    target="_blank" rel="noopener noreferrer">GitHub</a>.
+                taught by Professor George Konidaris at Brown University.
             </p>
 
             <h3>Research questions</h3>
@@ -89,9 +119,9 @@
 
             <h3>Contributions</h3>
             <ul>
-                <li>A generalized way to provide reward functions for training RL agents</li>
-                <li>Integration of LLMs into the model training process, advancing toward AGI</li>
-                <li>Making AI more intuitive and accessible for people with lower technical backgrounds</li>
+                <li>A general, reusable way to supply reward functions for training RL agents</li>
+                <li>An LLM placed directly inside the training loop as the reward signal</li>
+                <li>A path to training agents from plain-language goals, so people without an ML background can do it</li>
             </ul>
         </div>
 
@@ -253,18 +283,22 @@
             <p>
                 Most exciting is the accessibility angle: natural-language reward
                 functions could let people train and specialize RL agents without
-                ever learning the underlying math. In other words, generalizing RL
-                this way moves us toward developing AI and AGI just by
-                <i>saying</i> what we want done. With more compute and larger models,
+                ever learning the underlying math, just by <i>saying</i> what they
+                want done. With more compute and larger models,
                 future work could extend this to more sophisticated environments and
                 richer game rules.
             </p>
         </div>
         <footer class="bg-dark text-white py-4 justify-content-center" id="contact">
             <div class="container text-start">
-                <p style="color: rgba(255,255,255,0.4); font-size: 0.85rem;">
-                    © 2026 Allen Dufort. All rights reserved.
-                </p>
+                <div class="footer-links">
+                    <a href="index.html#projects">&larr; All projects</a>
+                    <a href="assets/resume.pdf" target="_blank" rel="noopener noreferrer">Resume</a>
+                    <a href="https://github.com/AllenDufort" target="_blank" rel="noopener noreferrer">GitHub</a>
+                    <a href="https://linkedin.com/in/allen-dufort" target="_blank" rel="noopener noreferrer">LinkedIn</a>
+                    <a href="mailto:allendufort2020@gmail.com">allendufort2020@gmail.com</a>
+                </div>
+                <p class="footer-copy">© 2026 Allen Dufort. All rights reserved.</p>
             </div>
         </footer>
     </div>

@@ -51,6 +51,35 @@
     <div class="content">
         <div class="container" id="overview">
             <h1 id="animated-draftbears">DraftBears Sportsbook</h1>
+
+            <div class="project-summary">
+                <p class="project-lede">
+                    How do individual NBA player stats relate to team success? We built a
+                    combined dataset from two APIs and ran statistical tests on three
+                    hypotheses.
+                </p>
+                <dl class="meta-grid">
+                    <div><dt>Context</dt><dd>CSCI 1951A: Data Science, Brown University, Spring 2024</dd></div>
+                    <div><dt>Team</dt><dd>Melvin He, José Guallpa, Allen Dufort</dd></div>
+                    <div><dt>Stack</dt><dd>Python, SQL, two NBA data APIs, statistical testing, plotting</dd></div>
+                </dl>
+                <ul class="skill-tags" aria-label="Skills">
+                    <li>Data collection &amp; integration</li>
+                    <li>Database design</li>
+                    <li>Data cleaning</li>
+                    <li>Hypothesis testing</li>
+                    <li>Data visualization</li>
+                </ul>
+                <div class="tldr">
+                    <h2>TL;DR</h2>
+                    <ul>
+                        <li><b>Data engineering:</b> no single source had both player and team data, so we merged two APIs into one multi-table SQL database.</li>
+                        <li><b>Results:</b> plus-minus correlates positively with FG%; FG% in March isn't significantly different from the season average; defensive rebounds correlate positively with personal fouls.</li>
+                        <li><b>Lesson:</b> the plus-minus/FG% link was weaker than expected. Other stats such as steals and rebounds matter too, so we avoided overgeneralizing.</li>
+                    </ul>
+                </div>
+            </div>
+
             <h2>Overview</h2>
 
             <h3>Project description</h3>
@@ -73,7 +102,9 @@
                 Our research question was:
                 "How do player performance metrics impact team success?"
                 We then broke this question down into 3 hypotheses
-                that we could test:
+                that we could test. Hypotheses 2 and 3 are written as null
+                hypotheses, so the question for each was whether the data let
+                us reject it:
             </p>
             <ol>
                 <li>
@@ -107,8 +138,8 @@
             <div class="row">
                 <div class="col-md-6">
                     <p>
-                        <span class="result-accepted">Hypothesis 1: Accepted</span><br>
-                        Strong positive correlation found between plus-minus scores
+                        <span class="result-accepted">Hypothesis 1: Supported</span><br>
+                        Positive correlation found between plus-minus scores
                         and FG%
                     </p>
                     <ul>
@@ -126,8 +157,8 @@
                 </div>
                 <div class="col-md-6">
                     <p>
-                        <span class="result-accepted">Hypothesis 2: Accepted</span><br>
-                        No significant difference found in players' FG% in March vs entire season
+                        <span class="result-accepted">Hypothesis 2: Failed to reject</span><br>
+                        No significant difference found in players' FG% in March vs. the entire season
                     </p>
                     <ul>
                         <li>
@@ -144,7 +175,7 @@
                 <div class="col-md-6">
                     <p>
                         <span class="result-rejected">Hypothesis 3: Rejected</span><br>
-                        Positive correlation found between DRB and PF
+                        Significant positive correlation found between DRB and PF
                     </p>
                     <ul>
                         <li>
@@ -184,9 +215,14 @@
         </div>
         <footer class="bg-dark text-white py-4 justify-content-center" id="contact">
             <div class="container text-start">
-                <p style="color: rgba(255,255,255,0.4); font-size: 0.85rem;">
-                    © 2026 Allen Dufort. All rights reserved.
-                </p>
+                <div class="footer-links">
+                    <a href="index.html#projects">&larr; All projects</a>
+                    <a href="assets/resume.pdf" target="_blank" rel="noopener noreferrer">Resume</a>
+                    <a href="https://github.com/AllenDufort" target="_blank" rel="noopener noreferrer">GitHub</a>
+                    <a href="https://linkedin.com/in/allen-dufort" target="_blank" rel="noopener noreferrer">LinkedIn</a>
+                    <a href="mailto:allendufort2020@gmail.com">allendufort2020@gmail.com</a>
+                </div>
+                <p class="footer-copy">© 2026 Allen Dufort. All rights reserved.</p>
             </div>
         </footer>
     </div>

@@ -4,7 +4,7 @@
 <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <meta name="description" content="Allen Dufort — Data Scientist, AI/ML engineer, and CS graduate of Brown University." />
+    <meta name="description" content="Allen Dufort — Data Scientist at IBM and AI engineer. LLM agents, machine learning research, data analysis, and full-stack code. Brown CS Sc.B. and Sc.M." />
     <title>Allen Dufort</title>
     <link rel="icon" href="assets/logos/silhouette.png" type="image/x-icon" />
     <link rel="stylesheet" href="style.css" />
@@ -28,6 +28,7 @@
             <div class="collapse navbar-collapse" id="mobileNavbar">
                 <ul class="navbar-nav ms-auto">
                     <li class="nav-item"><a class="nav-link" href="#about">About</a></li>
+                    <li class="nav-item"><a class="nav-link" href="#skills">Skills</a></li>
                     <li class="nav-item"><a class="nav-link" href="#projects">Projects</a></li>
                     <li class="nav-item"><a class="nav-link" href="architecture.html">Architecture</a></li>
                     <li class="nav-item"><a class="nav-link" href="#resume">Resume</a></li>
@@ -42,6 +43,7 @@
         <hr>
         <ul class="nav flex-column">
             <li class="nav-item"><a class="nav-link text-white" href="#about">About</a></li>
+            <li class="nav-item"><a class="nav-link text-white" href="#skills">Skills</a></li>
             <li class="nav-item"><a class="nav-link text-white" href="#projects">Projects</a></li>
             <li class="nav-item"><a class="nav-link text-white" href="architecture.html">Architecture</a></li>
             <li class="nav-item"><a class="nav-link text-white" href="#resume">Resume</a></li>
@@ -55,28 +57,31 @@
             <div class="col-xl-8 mb-4 mt-2">
                 <h1 id="animated-index"></h1>
                 <h2 class="mt-4">
-                    I'm passionate about using AI and ML to transform data analysis
-                    and about making technology accessible to everyone.
+                    Data scientist and AI engineer. I analyze data, research ML
+                    methods, and write the code that puts models in front of people.
                 </h2>
                 <p class="mt-4">
-                    My interests include
-                    <span class="result-accepted">data science</span>,
-                    <span class="result-accepted">artificial intelligence</span>,
-                    <span class="result-accepted">visual design</span>,
-                    and <span class="result-accepted">web development</span>.
+                    I'm a <span class="result-accepted">Data Scientist at IBM</span>, where
+                    I apply data analytics and AI techniques to solve complex challenges.
+                    Before that, I worked on projects with NASA, Brown University,
+                    Marqeta, and General Motors.
                 </p>
                 <p>
-                    I recently earned my Sc.M. in Computer Science from Brown University
-                    in May 2025, after also completing my Sc.B. there in CS in 2024.
-                    My academic journey at Brown allowed me to specialize in areas
-                    including generative AI, AI ethics, and software development.
+                    I earned my <span class="result-accepted">Sc.M. in Computer Science</span>
+                    from Brown University in May 2025, after my Sc.B. in CS there in 2024,
+                    focusing on generative AI, AI ethics, and software development.
                 </p>
                 <p>
-                    Currently, I work as a Data Scientist at IBM, where I apply data
-                    analytics and AI techniques to solve complex challenges.
-                    Previously, I've had the privilege of working on projects
-                    with NASA, Brown University, Marqeta, and General Motors.
+                    On this site you'll find two LLM apps I built and deployed, an
+                    agent with tool calling and a structured-output trip planner, plus ML
+                    research, data analysis, and UX work. Across all of it, I care about
+                    making technology that is accessible to everyone.
                 </p>
+                <div class="project-links mb-3">
+                    <a class="primary" href="#projects">See projects</a>
+                    <a href="assets/resume.pdf" target="_blank" rel="noopener noreferrer">Resume (PDF)</a>
+                    <a href="https://github.com/AllenDufort" target="_blank" rel="noopener noreferrer">GitHub</a>
+                </div>
                 <div class="d-flex justify-content-start gap-4">
                     <a href="https://linkedin.com/in/allen-dufort" target="_blank" rel="noopener noreferrer">
                         <img src="assets/logos/linkedin.svg" alt="LinkedIn" class="logo img-fluid"
@@ -87,7 +92,7 @@
                             style="width: 3rem; height: auto; border-radius: 50%;">
                     </a>
                     <a href="mailto:allendufort2020@gmail.com" target="_blank" rel="noopener noreferrer">
-                        <img src="assets/logos/gmail.svg" alt="Gmail" class="logo img-fluid"
+                        <img src="assets/logos/gmail.svg" alt="Email" class="logo img-fluid"
                             style="width: 3rem; height: auto; border-radius: 25%;">
                     </a>
                 </div>
@@ -98,69 +103,107 @@
             </div>
         </div>
 
+        <div class="container mx-auto mb-4" id="skills">
+            <h1>Skills</h1>
+            <div class="skills-grid">
+                <div class="skill-group">
+                    <h3>AI engineering</h3>
+                    <p>LLM agents and tool calling, prompt and context engineering,
+                        structured JSON output, streaming (SSE), Gemini and Groq APIs</p>
+                </div>
+                <div class="skill-group">
+                    <h3>Machine learning &amp; research</h3>
+                    <p>Reinforcement learning (Q-learning), LLM reward shaping,
+                        experiment design, NLP fairness and AI ethics research</p>
+                </div>
+                <div class="skill-group">
+                    <h3>Data science</h3>
+                    <p>Python, SQL, Jupyter, hypothesis testing, data cleaning,
+                        data visualization, geocoding and data pipelines</p>
+                </div>
+                <div class="skill-group">
+                    <h3>Software &amp; design</h3>
+                    <p>JavaScript, HTML/CSS, Cloudflare Workers and KV, Git, automated
+                        tests, Figma, Balsamiq, user research</p>
+                </div>
+            </div>
+        </div>
+
         <div class="container mx-auto" id="projects">
             <h1>Projects</h1>
+
+            <h3 class="project-group-title">AI engineering: live apps</h3>
             <div class="row row-cols-1 row-cols-lg-2 g-4">
+                <div class="col">
+                    <div class="card text-bg-dark h-100">
+                        <a href="chicagoMap.html" class="text-decoration-none">
+                            <img src="assets/chicago_list/chicago_skyline.jpg" class="card-img-top" alt="Chicago skyline">
+                            <div class="card-body">
+                                <h5 class="card-title">Chicago TODO Map <span class="card-flag">Live</span></h5>
+                                <div class="">
+                                    <span class="badge text-success bg-success-subtle">LLM Agent</span>
+                                    <span class="badge text-success bg-success-subtle">Tool Calling</span>
+                                    <span class="badge text-success bg-success-subtle">JavaScript</span>
+                                    <span class="badge text-success bg-success-subtle">Cloudflare Workers</span>
+                                    <span class="badge text-success bg-success-subtle">Geospatial</span>
+                                </div>
+                                <p class="card-text fw-light">
+                                    Live map of ~550 saved Chicago places, with an AI assistant that
+                                    answers questions by searching the data through tools I wrote,
+                                    all within an 8K-token context budget.
+                                </p>
+                            </div>
+                        </a>
+                    </div>
+                </div>
                 <div class="col">
                     <div class="card text-bg-dark h-100">
                         <a href="travel.html" class="text-decoration-none">
                             <img src="assets/logos/travel.png" class="card-img-top" alt="AI Travel Planner"
                                 onerror="this.style.background='#1a1a2e';this.style.minHeight='160px';this.removeAttribute('onerror')">
                             <div class="card-body">
-                                <h5 class="card-title">AI Travel Planner</h5>
+                                <h5 class="card-title">AI Travel Planner <span class="card-flag">Live</span></h5>
                                 <div class="">
-                                    <span class="badge text-success bg-success-subtle">JavaScript</span>
                                     <span class="badge text-success bg-success-subtle">LLM</span>
                                     <span class="badge text-success bg-success-subtle">Structured Output</span>
-                                    <span class="badge text-success bg-success-subtle">Gemini / Groq</span>
-                                    <span class="badge text-success bg-success-subtle">Cloudflare Workers</span>
-                                </div>
-                                <p class="card-text fw-light">
-                                    AI travel planner that generates full itineraries as structured JSON,
-                                    with budget tracking and a streaming concierge chat
-                                </p>
-                            </div>
-                        </a>
-                    </div>
-                </div>
-                <div class="col">
-                    <div class="card text-bg-dark h-100">
-                        <a href="chicagoMap.html" class="text-decoration-none">
-                            <img src="assets/chicago_list/chicago_skyline.jpg" class="card-img-top" alt="Chicago TODO Map">
-                            <div class="card-body">
-                                <h5 class="card-title">Chicago TODO Map</h5>
-                                <div class="">
                                     <span class="badge text-success bg-success-subtle">JavaScript</span>
-                                    <span class="badge text-success bg-success-subtle">LLM Agent</span>
-                                    <span class="badge text-success bg-success-subtle">Tool Calling</span>
-                                    <span class="badge text-success bg-success-subtle">Leaflet</span>
-                                    <span class="badge text-success bg-success-subtle">Geospatial Data</span>
+                                    <span class="badge text-success bg-success-subtle">Cloudflare Workers + KV</span>
                                 </div>
                                 <p class="card-text fw-light">
-                                    Live map of ~550 saved Chicago places with an AI assistant
-                                    that answers questions by searching the data with tools
+                                    Turns a short form into a full itinerary as structured JSON,
+                                    with budget tracking and a streaming concierge chat that works
+                                    across Gemini and Groq models.
                                 </p>
                             </div>
                         </a>
                     </div>
                 </div>
+            </div>
+            <p class="mt-3">
+                <i class="bi bi-diagram-3 me-1"></i>
+                How are these built? Read the
+                <a href="architecture.html" class="text-decoration-none">architecture write-up</a>:
+                serverless back end, agent design, and data pipeline.
+            </p>
+
+            <h3 class="project-group-title">Machine learning &amp; data science</h3>
+            <div class="row row-cols-1 row-cols-lg-2 g-4">
                 <div class="col">
                     <div class="card text-bg-dark h-100">
                         <a href="reAI.html" class="text-decoration-none">
-                            <img src="assets/reAI/final_frozen_lake_ep_loop.gif" class="card-img-top" alt="Reintegrating AI">
+                            <img src="assets/reAI/final_frozen_lake_ep_loop.gif" class="card-img-top" alt="RL agent navigating Frozen Lake">
                             <div class="card-body">
                                 <h5 class="card-title">Reintegrating AI</h5>
                                 <div class="">
                                     <span class="badge text-success bg-success-subtle">Python</span>
-                                    <span class="badge text-success bg-success-subtle">Artificial Intelligence</span>
-                                    <span class="badge text-success bg-success-subtle">Artificial General Intelligence</span>
                                     <span class="badge text-success bg-success-subtle">Reinforcement Learning</span>
-                                    <span class="badge text-success bg-success-subtle">Large Language Models</span>
-                                    <span class="badge text-success bg-success-subtle">Natural Language Processing</span>
+                                    <span class="badge text-success bg-success-subtle">LLMs</span>
+                                    <span class="badge text-success bg-success-subtle">Prompt Engineering</span>
                                 </div>
                                 <p class="card-text fw-light">
-                                    Exploring LLM-generated reward functions for training
-                                    reinforcement learning agents
+                                    Replaced hand-written RL reward functions with LLM scoring. In
+                                    Blackjack, the best LLM reward beat the native one: 36% vs. 33%
+                                    win rate.
                                 </p>
                             </div>
                         </a>
@@ -176,14 +219,12 @@
                                 <div class="">
                                     <span class="badge text-success bg-success-subtle">Python</span>
                                     <span class="badge text-success bg-success-subtle">SQL</span>
-                                    <span class="badge text-success bg-success-subtle">Artificial Intelligence</span>
-                                    <span class="badge text-success bg-success-subtle">ML</span>
+                                    <span class="badge text-success bg-success-subtle">Hypothesis Testing</span>
                                     <span class="badge text-success bg-success-subtle">Data Visualization</span>
-                                    <span class="badge text-success bg-success-subtle">Data Analysis</span>
                                 </div>
                                 <p class="card-text fw-light">
-                                    Analyzing NBA player stats to improve sports
-                                    analytics using data science and machine learning
+                                    Merged two NBA APIs into one SQL database and tested three
+                                    hypotheses about how player stats relate to team success.
                                 </p>
                             </div>
                         </a>
@@ -191,20 +232,77 @@
                 </div>
                 <div class="col">
                     <div class="card text-bg-dark h-100">
+                        <a href="nlpEquality.html" class="text-decoration-none">
+                            <div class="card-text-cover" aria-hidden="true">L'union fait la force</div>
+                            <div class="card-body">
+                                <h5 class="card-title">NLP Equality for Low-Resource Languages</h5>
+                                <div class="">
+                                    <span class="badge text-success bg-success-subtle">NLP</span>
+                                    <span class="badge text-success bg-success-subtle">AI Ethics</span>
+                                    <span class="badge text-success bg-success-subtle">Research</span>
+                                </div>
+                                <p class="card-text fw-light">
+                                    Research paper: I built a framework to score community participation
+                                    in six NLP projects and found the most participatory ones were the
+                                    most robust.
+                                </p>
+                            </div>
+                        </a>
+                    </div>
+                </div>
+            </div>
+
+            <h3 class="project-group-title">Design &amp; UX</h3>
+            <div class="row row-cols-1 row-cols-lg-3 g-4">
+                <div class="col">
+                    <div class="card text-bg-dark h-100">
                         <a href="iterative.html" class="text-decoration-none">
-                            <img src="assets/logos/sesame-1.png" class="card-img-top" alt="Iterative Design">
+                            <img src="assets/logos/sesame-1.png" class="card-img-top" alt="Sesame prototype">
                             <div class="card-body">
                                 <h5 class="card-title">Sesame: Iterative Design</h5>
                                 <div class="">
                                     <span class="badge text-success bg-success-subtle">Figma</span>
-                                    <span class="badge text-success bg-success-subtle">Balsamiq</span>
-                                    <span class="badge text-success bg-success-subtle">User Research</span>
-                                    <span class="badge text-success bg-success-subtle">User Design</span>
                                     <span class="badge text-success bg-success-subtle">Prototyping</span>
                                 </div>
                                 <p class="card-text fw-light">
-                                    Creating website designs iteratively for Sesame,
-                                    a healthcare startup, to improve user experience
+                                    Team redesign of a healthcare startup's site, from sketches to a
+                                    Hi-Fi Figma prototype refined with industry feedback.
+                                </p>
+                            </div>
+                        </a>
+                    </div>
+                </div>
+                <div class="col">
+                    <div class="card text-bg-dark h-100">
+                        <a href="redesign.html" class="text-decoration-none">
+                            <img src="assets/logos/redesign-logo.png" class="card-img-top" alt="Responsive Redesign">
+                            <div class="card-body">
+                                <h5 class="card-title">Responsive Redesign</h5>
+                                <div class="">
+                                    <span class="badge text-success bg-success-subtle">HTML/CSS</span>
+                                    <span class="badge text-success bg-success-subtle">Accessibility</span>
+                                </div>
+                                <p class="card-text fw-light">
+                                    Audited a restaurant site for usability and accessibility, then
+                                    designed and built a responsive replacement.
+                                </p>
+                            </div>
+                        </a>
+                    </div>
+                </div>
+                <div class="col">
+                    <div class="card text-bg-dark h-100">
+                        <a href="personas.html" class="text-decoration-none">
+                            <img src="assets/logos/persona-logo.png" class="card-img-top" alt="Personas and Storyboards">
+                            <div class="card-body">
+                                <h5 class="card-title">Personas &amp; Storyboards</h5>
+                                <div class="">
+                                    <span class="badge text-success bg-success-subtle">User Research</span>
+                                    <span class="badge text-success bg-success-subtle">Personas</span>
+                                </div>
+                                <p class="card-text fw-light">
+                                    Surveyed and observed real users of a confusing microwave, then
+                                    turned the findings into personas and a storyboard.
                                 </p>
                             </div>
                         </a>
@@ -213,16 +311,7 @@
             </div>
         </div>
 
-        <div class="container mx-auto mb-4">
-            <p class="mt-4">
-                <i class="bi bi-diagram-3 me-1"></i>
-                Want to see how this site works under the hood? Read the
-                <a href="architecture.html" class="text-decoration-none">architecture write-up</a>
-                covering the serverless back end, the LLM agent design, and the data pipeline.
-            </p>
-        </div>
-
-        <div class="container mx-auto mb-4" id="resume">
+        <div class="container mx-auto mb-4 mt-5" id="resume">
             <h1>
                 Resume
                 <a href="assets/resume.pdf" class="text-decoration-none" target="_blank" rel="noopener noreferrer">
@@ -252,7 +341,7 @@
                 <p>
                     <a href="mailto:allendufort2020@gmail.com" class="text-decoration-none" target="_blank"
                         rel="noopener noreferrer">
-                        <img src="assets/logos/gmail.svg" alt="Gmail" class="img-fluid"
+                        <img src="assets/logos/gmail.svg" alt="Email" class="img-fluid"
                             style="width: 1.5em; height: auto; border-radius: 25%;">
                         allendufort2020@gmail.com
                     </a>

@@ -57,6 +57,34 @@
     <div class="content">
         <div class="container" id="overview">
             <h1 id="animated-chicago">Chicago TODO Map</h1>
+
+            <div class="project-summary">
+                <p class="project-lede">
+                    A live map of about 550 places I've saved around Chicago, plus an AI
+                    assistant (bottom-right) that answers questions like "any Caribbean
+                    food near me?" by searching the data with tools, not guessing.
+                </p>
+                <dl class="meta-grid">
+                    <div><dt>Built</dt><dd>Solo: design, front end, back end, data pipeline</dd></div>
+                    <div><dt>Front end</dt><dd>JavaScript (ES modules), Leaflet, MarkerCluster</dd></div>
+                    <div><dt>Back end</dt><dd>Cloudflare Worker, Gemini and Groq APIs</dd></div>
+                    <div><dt>Data</dt><dd>Google Sheet, Apps Script and Python geocoding, GeoJSON fallback</dd></div>
+                </dl>
+                <ul class="skill-tags" aria-label="Skills">
+                    <li>LLM agent</li>
+                    <li>Tool calling</li>
+                    <li>Context engineering</li>
+                    <li>Geospatial</li>
+                    <li>Serverless</li>
+                    <li>SSE streaming</li>
+                </ul>
+                <div class="project-links">
+                    <a class="primary" href="#map-section"><i class="bi bi-map me-1"></i>Explore the map</a>
+                    <a href="architecture-chicago-agent.html"><i class="bi bi-diagram-3 me-1"></i>How the agent works</a>
+                    <a href="https://github.com/AllenDufort/portfolio/tree/main/assets/chicago_list" target="_blank" rel="noopener noreferrer"><i class="bi bi-github me-1"></i>Source</a>
+                </div>
+            </div>
+
             <h2>Overview</h2>
             <p>
                 An interactive map of places to visit, eat, and explore around
@@ -107,9 +135,14 @@
 
         <footer class="bg-dark text-white py-4 justify-content-center" id="contact">
             <div class="container text-start">
-                <p style="color: rgba(255,255,255,0.4); font-size: 0.85rem;">
-                    © 2026 Allen Dufort. All rights reserved.
-                </p>
+                <div class="footer-links">
+                    <a href="index.html#projects">&larr; All projects</a>
+                    <a href="assets/resume.pdf" target="_blank" rel="noopener noreferrer">Resume</a>
+                    <a href="https://github.com/AllenDufort" target="_blank" rel="noopener noreferrer">GitHub</a>
+                    <a href="https://linkedin.com/in/allen-dufort" target="_blank" rel="noopener noreferrer">LinkedIn</a>
+                    <a href="mailto:allendufort2020@gmail.com">allendufort2020@gmail.com</a>
+                </div>
+                <p class="footer-copy">© 2026 Allen Dufort. All rights reserved.</p>
             </div>
         </footer>
     </div>

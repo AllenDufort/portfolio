@@ -86,8 +86,30 @@
             <div id="page-dashboard" class="tp-page active">
                 <div class="container tp-container">
                     <h1 id="animated-travel">AI Travel Planner</h1>
-                    <p class="tp-subtitle">Plan, manage, and track your trips powered by AI.
-                        <a href="architecture-travel-agent.html" class="text-decoration-none">See how it's built &rarr;</a></p>
+                    <p class="tp-subtitle">Plan, manage, and track your trips powered by AI.</p>
+
+                    <div class="project-summary">
+                        <p class="project-lede">
+                            Fill in a short form and an LLM writes a full trip plan as structured JSON:
+                            itinerary, attractions, dining and etiquette. Budget, packing and timeline
+                            are computed in code. A streaming concierge chat knows your saved
+                            preferences. Built solo, front to back.
+                        </p>
+                        <ul class="skill-tags" aria-label="Skills">
+                            <li>Structured LLM output</li>
+                            <li>Prompt design</li>
+                            <li>SSE streaming</li>
+                            <li>Gemini · Groq</li>
+                            <li>Cloudflare Workers + KV</li>
+                            <li>JavaScript</li>
+                        </ul>
+                        <div class="project-links">
+                            <a class="primary" href="#" data-page="plan"><i class="bi bi-stars me-1"></i>Plan a trip</a>
+                            <a href="architecture-travel-agent.html"><i class="bi bi-diagram-3 me-1"></i>How it's built</a>
+                            <a href="https://github.com/AllenDufort/portfolio/tree/main/assets/travel" target="_blank" rel="noopener noreferrer"><i class="bi bi-github me-1"></i>Source</a>
+                        </div>
+                        <p class="tp-model-hint">Demo note: saved trips are shared by everyone who visits this page.</p>
+                    </div>
 
                     <div class="tp-stats-row" id="stats-row">
                         <div class="tp-stat-card">
@@ -460,9 +482,14 @@
 
         <footer class="bg-dark text-white py-4 justify-content-center" id="contact">
             <div class="container text-start">
-                <p style="color: rgba(255,255,255,0.4); font-size: 0.85rem;">
-                    © 2026 Allen Dufort. All rights reserved.
-                </p>
+                <div class="footer-links">
+                    <a href="index.html#projects">&larr; All projects</a>
+                    <a href="assets/resume.pdf" target="_blank" rel="noopener noreferrer">Resume</a>
+                    <a href="https://github.com/AllenDufort" target="_blank" rel="noopener noreferrer">GitHub</a>
+                    <a href="https://linkedin.com/in/allen-dufort" target="_blank" rel="noopener noreferrer">LinkedIn</a>
+                    <a href="mailto:allendufort2020@gmail.com">allendufort2020@gmail.com</a>
+                </div>
+                <p class="footer-copy">© 2026 Allen Dufort. All rights reserved.</p>
             </div>
         </footer>
     </div><!-- /.content -->
