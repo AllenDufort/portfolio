@@ -1,5 +1,6 @@
 import { ALLOWED_MODELS } from '../../shared/models.js';
 import { SHEET_URL, readSheetRows, number } from '../sheet.js';
+import { EMBED_DIMS, embedText, textKey, normalize } from '../embed.js';
 
 /* ── Chicago Assistant API — Cloudflare Worker ─────────────────────────────
    A key shipped to a static GitHub Pages widget is public, so the Gemini and Groq keys live
@@ -21,6 +22,8 @@ const DEFAULTS = {
         'http://localhost:8000', 'http://127.0.0.1:8000',
         'http://localhost:5500', 'http://127.0.0.1:5500'
     ].join(','),
+    EMBED_MODEL: 'gemini-embedding-001',
+    EMBEDDINGS_URL: 'https://allendufort.github.io/portfolio/assets/chicago_list/embeddings.json',
     SNAPSHOT_URL: 'https://allendufort.github.io/portfolio/assets/chicago_list/chicago_layers.geojson',
     COORDS_URL: 'https://allendufort.github.io/portfolio/assets/chicago_list/geocode_cache.json'
 };
@@ -38,6 +41,8 @@ const MAX_VOCAB_CHARS    = 1100;          // sub-category list, longest tail dro
 
 const RATE_LIMIT_MAX      = 12;           // requests per IP per window
 const RATE_LIMIT_WINDOW_MS = 60 * 1000;
+
+const KEYWORD_BOOST = 0.05;               // added to the similarity of a place a keyword also hit
 
 const FAR_AWAY_MI   = 25;                 // past this, tell the model the visitor is out of town
 
@@ -103,7 +108,7 @@ export default {
         }
 
         const ip = request.headers.get('CF-Connecting-IP') || 'unknown';
-        if (!allowRequest(ip)) {
+        if (!allowRequest(ip, Number(env.RATE_LIMIT_MAX) || RATE_LIMIT_MAX)) {
             return fail(429, 'That is a lot of questions at once — give it a minute.', cors, 60);
         }
 
@@ -147,7 +152,11 @@ export default {
             { role: 'user', text: question }
         ];
 
-        return askModel(env, { model, provider, catalog, point, systemText, turns, cors });
+        /* The eval harness asks for the tool calls back; the page never does. Tool names, arguments
+           and place names are all already public, so this exposes nothing new. */
+        const trace = body && body.trace === true ? [] : null;
+
+        return askModel(env, { model, provider, catalog, point, systemText, turns, cors, trace });
     }
 };
 
@@ -177,6 +186,8 @@ function buildToolDeclarations() {
                                                               '("argentin" covers Argentine/Argentinian). A region word ' +
                                                               `(${THEME_NAMES}) is expanded for you — pass it alone.` },
                 type:         { type: 'string',  description: 'Type filter; everyday words work ("bookstore" → Books).' },
+                vibe:         { type: 'string',  description: 'Mood, occasion or atmosphere in plain words ' +
+                                                              '("cozy for a rainy day"). Ranks by meaning; use for vague asks.' },
                 neighborhood: { type: 'string',  description: 'Neighborhood filter.' },
                 limit:        { type: 'integer', description: `Max results (default 10, max ${MAX_TOOL_LIMIT}).` }
             }
@@ -215,7 +226,7 @@ function buildToolDeclarations() {
 }
 
 // Execute a tool call against the live catalog, returning plain text the model reads directly.
-function executeTool(name, args, catalog, point) {
+async function executeTool(name, args, catalog, point, env) {
     const cap = n => Math.min(Math.max(1, n || 10), MAX_TOOL_LIMIT);
 
     if (name === 'search_places') {
@@ -229,13 +240,40 @@ function executeTool(name, args, catalog, point) {
         const wanted   = type ? resolveTypes(type, catalog.types) : [];
         const typeWord = type && !wanted.length ? type : '';
 
-        const hits = catalog.places.filter(p => {
-            if (terms.length && !terms.some(term => haystack(p).includes(term))) return false;
+        const vibe = String(args.vibe || '').trim().slice(0, 200);
+
+        const matchesFilters = p => {
             if (wanted.length && !wanted.includes(p.type)) return false;
             if (typeWord && !haystack(p).includes(typeWord)) return false;
             if (hood && !(p.neighborhood || '').toLowerCase().includes(hood)) return false;
             return true;
-        });
+        };
+        const keywordHit = p => terms.some(term => haystack(p).includes(term));
+
+        let hits = catalog.places.filter(p => matchesFilters(p) && (!terms.length || keywordHit(p)));
+        let ranking = '';
+
+        /* Semantic ranking runs alongside the keywords, not instead of them: keyword hits stay
+           candidates and get a boost, and the closest-in-meaning places join them. With no
+           keywords the whole filtered map is ranked, which is what a vague ask needs. */
+        if (vibe) {
+            const scored = await semanticScores(vibe, catalog, env);
+            if (scored) {
+                const pool = catalog.places.filter(matchesFilters);
+                const ranked = pool
+                    .map(p => ({ p, score: scored.get(p) + (terms.length && keywordHit(p) ? KEYWORD_BOOST : 0) }))
+                    .sort((a, b) => b.score - a.score);
+                /* Rank, not a similarity cutoff: scores bunch tightly (0.75 at the top, 0.70 at
+                   100th), so no absolute threshold means anything. The closest `limit` are the
+                   answer, and the line below says it is a ranking, not a complete set. */
+                hits = ranked.slice(0, limit).map(hit => hit.p);
+                ranking = `The ${hits.length} closest to "${vibe}" in meaning, best first — a ranking, not ` +
+                    'every match. Keep this order and drop any whose Type contradicts the ask.';
+            } else if (!hits.length) {
+                hits = catalog.places.filter(p => matchesFilters(p));
+                ranking = 'Semantic search is unavailable, so these are not ranked by the vibe. Pick what fits.';
+            }
+        }
 
         /* Stated ahead of the results so the model reports the search that actually ran —
            otherwise a widened search reads back as a narrow one. */
@@ -266,7 +304,7 @@ function executeTool(name, args, catalog, point) {
             : `${hits.length} place${hits.length === 1 ? '' : 's'} match:`;
         // Single newlines: a place is one line now, so blank lines between them were buying
         // nothing but tokens in a window that re-sends this result on every later round.
-        return [widened, header, ...shown.map(p => formatPlace(p))].filter(Boolean).join('\n');
+        return [widened, ranking, header, ...shown.map(p => formatPlace(p))].filter(Boolean).join('\n');
     }
 
     /* Single-place questions. Names are matched loosely (a visitor types "the bean"; the sheet
@@ -337,6 +375,108 @@ function executeTool(name, args, catalog, point) {
     }
 
     return `Unknown tool: ${name}`;
+}
+
+/* ── Semantic search ───────────────────────────────────────────────────────
+   Keywords only find what the sheet literally says. "Somewhere cozy for a rainy day" shares no
+   word with "Low-lit, cozy craft cocktail lounge" except by luck, so each place is embedded from
+   its name, sub-category and notes (embed.js), the question is embedded the same way, and cosine
+   similarity ranks them.
+
+   Place vectors are built offline by ../embed.mjs and committed as embeddings.json, like
+   geocode_cache.json: Gemini's free tier rate-limits embeddings to ~100/min, so embedding the
+   sheet per cold isolate would take minutes. Only the question is embedded live, plus any row
+   edited since the last build (up to MAX_LIVE_EMBED; the rest stay keyword-only until embed.mjs
+   is re-run). Groq has no embeddings, but a Groq model can still call this tool — the vectors are
+   the Worker's own, whichever model asks.
+
+   Every failure (no GEMINI_API_KEY, quota, timeout, missing file) returns null and the tool
+   falls back to keywords, so semantic search can only add matches, never take the assistant down. */
+
+const EMBED_TIMEOUT_MS = 15000;
+const MAX_LIVE_EMBED   = 30;
+const NO_SCORE         = -1;               // similarity of a place with no vector: never in the band
+
+function embedModel(env) {
+    return env.EMBED_MODEL || DEFAULTS.EMBED_MODEL;
+}
+
+async function embedBatch(texts, taskType, env) {
+    const model = embedModel(env);
+    const res = await fetch(
+        `https://generativelanguage.googleapis.com/v1beta/models/${model}:batchEmbedContents?key=${env.GEMINI_API_KEY}`,
+        {
+            method:  'POST',
+            headers: { 'Content-Type': 'application/json' },
+            signal:  AbortSignal.timeout(EMBED_TIMEOUT_MS),
+            body: JSON.stringify({
+                requests: texts.map(text => ({
+                    model: `models/${model}`,
+                    content: { parts: [{ text }] },
+                    taskType,
+                    outputDimensionality: EMBED_DIMS
+                }))
+            })
+        });
+    if (!res.ok) throw new Error(`embedding HTTP ${res.status}`);
+    const vectors = ((await res.json()).embeddings || []).map(e => normalize(e.values || []));
+    if (vectors.length !== texts.length) throw new Error('embedding count mismatch');
+    return vectors;
+}
+
+/* One vector per place, by the text key. One in-flight build per catalog so concurrent
+   questions share it; a failure is not remembered, so the next question tries again. */
+function placeVectors(catalog, env) {
+    if (!catalog.vectors) {
+        catalog.vectors = (async () => {
+            let stored = {};
+            try {
+                const file = env.EMBEDDINGS_JSON || await fetchText(env.EMBEDDINGS_URL || DEFAULTS.EMBEDDINGS_URL);
+                const data = JSON.parse(file);
+                if (data.model === embedModel(env) && data.dims === EMBED_DIMS) stored = data.vectors || {};
+            } catch (err) { /* no file yet: everything is "new" and the live cap applies */ }
+
+            const byKey = new Map();
+            const missing = [];
+            catalog.places.forEach(place => {
+                const text = embedText(place);
+                const key  = textKey(text);
+                if (stored[key]) byKey.set(place, stored[key]);
+                else missing.push({ place, text, key });
+            });
+
+            const fresh = missing.slice(0, MAX_LIVE_EMBED);
+            if (fresh.length) {
+                const vectors = await embedBatch(fresh.map(m => m.text), 'RETRIEVAL_DOCUMENT', env);
+                fresh.forEach((m, i) => byKey.set(m.place, vectors[i]));
+            }
+            return byKey;
+        })().catch(err => { catalog.vectors = null; throw err; });
+    }
+    return catalog.vectors;
+}
+
+/* Map of place -> cosine similarity to `vibe`, or null if embeddings are unavailable. */
+async function semanticScores(vibe, catalog, env) {
+    if (!env.GEMINI_API_KEY) return null;
+    try {
+        const [vectors, [query]] = await Promise.all([
+            placeVectors(catalog, env),
+            embedBatch([vibe], 'RETRIEVAL_QUERY', env)
+        ]);
+        const scores = new Map();
+        catalog.places.forEach(place => {
+            const v = vectors.get(place);
+            if (!v) { scores.set(place, NO_SCORE); return; }
+            let dot = 0;
+            for (let d = 0; d < query.length; d++) dot += query[d] * v[d];
+            scores.set(place, dot);
+        });
+        return scores;
+    } catch (err) {
+        console.warn(`semantic search unavailable: ${err.message}`);
+        return null;
+    }
 }
 
 /* ── Matching the visitor's words to the sheet's words ─────────────────────
@@ -836,7 +976,7 @@ function liveChannel(cors) {
         async settle(outcome) {
             if (!open) {
                 return outcome.answer
-                    ? streamAnswer(outcome.answer, cors)
+                    ? streamAnswer(outcome.answer, cors, outcome.trace)
                     : fail(outcome.status, outcome.message, cors, outcome.retryAfter);
             }
 
@@ -844,6 +984,7 @@ function liveChannel(cors) {
                 for (const chunk of chunkText(outcome.answer, STREAM_CHUNK_CHARS)) {
                     await frame({ delta: chunk });
                 }
+                if (outcome.trace) await frame({ trace: outcome.trace });
             } else {
                 await frame({ error: outcome.message });
             }
@@ -857,7 +998,7 @@ function liveChannel(cors) {
 /* Returns what happened (`{ answer }`, or a status and a sentence) rather than a Response: by
    the time it finishes the caller may be mid-stream, and only the caller knows which shape is
    still available to it. */
-async function runToolLoop(env, { model, provider, catalog, point, systemText, turns }, live) {
+async function runToolLoop(env, { model, provider, catalog, point, systemText, turns, trace }, live) {
     const apiKey = apiKeyFor(provider, env);
 
     /* Shared by every round, so a question cannot spend the whole retry allowance twice. */
@@ -906,17 +1047,23 @@ async function runToolLoop(env, { model, provider, catalog, point, systemText, t
             break;
         }
 
+        const results = await Promise.all(toolCalls.map(async c => ({
+            id:     c.id,
+            name:   c.name,
+            result: await executeTool(c.name, c.args || {}, catalog, point, env)
+        })));
+        if (trace) {
+            toolCalls.forEach((c, i) => trace.push({
+                tool:   c.name,
+                args:   c.args || {},
+                places: catalog.places.filter(p => results[i].result.includes(`${p.name} (`)).map(p => p.name)
+            }));
+        }
+
         msgs = [
             ...msgs,
             { role: 'assistant', text, toolCalls },
-            {
-                role: 'tool',
-                results: toolCalls.map(c => ({
-                    id:     c.id,
-                    name:   c.name,
-                    result: executeTool(c.name, c.args || {}, catalog, point)
-                }))
-            }
+            { role: 'tool', results }
         ];
     }
 
@@ -926,7 +1073,7 @@ async function runToolLoop(env, { model, provider, catalog, point, systemText, t
         return { status: 502, message: 'The model kept searching without answering — try a simpler question.' };
     }
 
-    return { answer };
+    return { answer, trace };
 }
 
 /* The reply is already complete, so this is the SSE envelope the page expects — same `{"delta"}`
@@ -934,12 +1081,13 @@ async function runToolLoop(env, { model, provider, catalog, point, systemText, t
    long answer paints in reading order, with no artificial delay to pace it out. */
 const STREAM_CHUNK_CHARS = 90;
 
-function streamAnswer(text, cors) {
+function streamAnswer(text, cors, trace) {
     const encoder = new TextEncoder();
     const stream  = new ReadableStream({
         start(controller) {
             const send = obj => controller.enqueue(encoder.encode(`data: ${JSON.stringify(obj)}\n\n`));
             for (const chunk of chunkText(text, STREAM_CHUNK_CHARS)) send({ delta: chunk });
+            if (trace) send({ trace });
             controller.enqueue(encoder.encode('data: [DONE]\n\n'));
             controller.close();
         }
@@ -1015,6 +1163,9 @@ function systemPrompt(catalog, visitorHood, hasPoint) {
         '  Brunch=breakfast, Retail/Market=shops, Bar/Club=nightlife, Snack=dessert, Landmark=sights.',
         `- Region words are auto-expanded to every country, cuisine and dish: ${THEME_NAMES}.`,
         '  Pass one alone as query; never list the countries yourself or narrow to one.',
+        '- Vague mood, occasion or atmosphere ("cozy for a rainy day", "romantic", "somewhere lively"):',
+        '  put the whole phrase in vibe, in the visitor\'s own words ("cozy for a rainy day", not "cozy"), plus type/neighborhood if named. Do not turn a',
+        '  mood into guessed keywords. Add query only for a concrete word (a cuisine, a dish).',
         '- Other themes: expand yourself into ONE comma-separated query of stems ("argentin", "taco").',
         '- Query alone first. A cuisine spans Types (Cuban places are Bars and Cafes too); add type only',
         '  to narrow a long result, drop it if thin. A pure Type ask needs type only, no query.',
@@ -1043,7 +1194,10 @@ function systemPrompt(catalog, visitorHood, hasPoint) {
     /* Where they are, not what is near them: find_nearby already returns distances, so one
        line of neighborhood is the only part a tool cannot supply. */
     if (!hasPoint) lines.push('- No visitor location shared; find_nearby is unavailable until they allow it.');
-    else if (visitorHood) lines.push(`- The visitor is in or near ${visitorHood}.`);
+    else {
+        lines.push('- The visitor has shared their location: for "near me" call find_nearby; do not ask where they are.');
+        if (visitorHood) lines.push(`- The visitor is in or near ${visitorHood}.`);
+    }
 
     return lines.join('\n');
 }
@@ -1285,10 +1439,10 @@ function coords(raw) {
 
 // Fixed-window count per IP, held in the isolate. Not exact across isolates, but enough to keep
 // one script from burning the day's free allowance.
-function allowRequest(ip) {
+function allowRequest(ip, max) {
     const now = Date.now();
     const recent = (rateLog.get(ip) || []).filter(at => now - at < RATE_LIMIT_WINDOW_MS);
-    if (recent.length >= RATE_LIMIT_MAX) {
+    if (recent.length >= max) {
         rateLog.set(ip, recent);
         return false;
     }

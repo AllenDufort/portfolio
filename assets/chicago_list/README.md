@@ -19,6 +19,10 @@ the page reads it on every load, so editing the sheet updates the site with no c
 | `geocodeSheet.gs` | Apps Script filling the sheet's `Lat`/`Lon` via `Maps.newGeocoder()` — free, no API key. Adds a **Chicago Map → Geocode missing rows** menu. |
 | `geocode.py` | Refreshes the snapshot, geocoding rows still missing coordinates via Nominatim (cached). `--no-api` skips the geocoder. |
 | `geocode_cache.json` | Address → `[lon, lat]` cache for rows the sheet has not geocoded yet. Read by `chicagoData.js` and the Worker. |
+| `embed.js` | What gets embedded per place (name, type, neighborhood, sub-category, notes) and its cache key. Shared by `embed.mjs` and the Worker so they cannot disagree. |
+| `embed.mjs` | Builds `embeddings.json` offline with Gemini embeddings; re-runs only embed rows whose text changed. |
+| `embeddings.json` | One 256-d vector per place, keyed by a hash of its text. Read by the Worker for semantic search. |
+| `eval/` | `cases.json` (questions → expected tools and places) and `run.mjs`, which scores every allowlisted model. |
 | `worker/worker.js` | The Worker: keys as secrets, prompt built from the sheet, tool loop, streamed reply. Imports `ALLOWED_MODELS` from `../shared/models.js` (relative to this guide). |
 | `worker/wrangler.toml` | Worker name, default model, allowed origins, snapshot URL. All public — no keys. |
 | `worker/deploy.sh` | Pushes `GEMINI_API_KEY` and `GROQ_API_KEY` as Worker secrets, then deploys. |
@@ -54,7 +58,7 @@ builds the prompt itself**, so no request body can turn it into a general LLM pr
 
 ### The prompt is the map's vocabulary, not the map
 
-Place data reaches the model through `search_places`, `get_place_details` and `find_nearby`, so the prompt
+Place data reaches the model through `search_places` (keywords and, via `vibe`, semantic ranking below), `get_place_details` and `find_nearby`, so the prompt
 carries no rows — only the vocabularies `buildCatalog` counts out of the sheet: every `Type`, and every
 sub-category heading a `description` ("Mexican restaurant"). Without the real words a model asked for *latino
 restaurants* searched that phrasing and called a map holding 40 Latin American places empty. `search_places`
@@ -69,6 +73,51 @@ returns only the best tier that hit, so a place whose notes mention "Kasama" can
 term (`caribbean`, `latin`, `asian`, `middle eastern`, `african`, `mediterranean`, `european`, aliases like
 *west indian*) to every country, demonym and dish under it — left alone, a model reads *Caribbean food*
 literally and finds two places where the map holds twenty.
+
+### Semantic search
+
+Keyword matching only finds what the sheet literally says, so "somewhere cozy for a rainy day" missed places
+whose notes say *candlelit* or *low-lit*. `search_places` takes a `vibe` argument: each place is embedded from its
+name, type, neighborhood, sub-category and notes, the vibe is embedded the same way, and cosine similarity ranks
+them. It runs **alongside** the keywords — a `query` still filters or boosts (+0.05), `type` and `neighborhood`
+still narrow, and with no `query` the whole filtered map is ranked. The result is the closest `limit` places
+(a rank, not a similarity cutoff: scores bunch at 0.70–0.75, so no threshold means anything) and says so,
+so the model never reads a ranking as "that is all the map has".
+
+Embedding 560 rows on a free Gemini key takes minutes (≈100/min limit), so vectors are **built offline and
+committed**, like `geocode_cache.json`:
+
+```sh
+node assets/chicago_list/embed.mjs          # embeds only new or edited rows (reads GEMINI_API_KEY from .env)
+node assets/chicago_list/embed.mjs --force  # redo all
+```
+
+At question time the Worker fetches `embeddings.json` (cached with the catalog), embeds just the vibe, and embeds
+up to 30 rows edited since the last build; beyond that those rows stay keyword-only until `embed.mjs` is re-run.
+Everything degrades to keywords if there is no `GEMINI_API_KEY`, the file is missing, or Gemini errors — a Groq
+model can still call the tool, since the vectors are the Worker's own. Re-run `embed.mjs` and commit after
+meaningful sheet edits.
+
+### Evaluation
+
+`eval/cases.json` is a list of questions with what a good run looks like: `tools` the model must call, `places`
+the answer must name, `anyOf` + `min` (draw `min` from a pool, for open questions), `forbid`, `answerHas`
+(regexes), `vibe: true` (the model must pass a `vibe` argument), plus optional `history` and `coords`. `run.mjs`
+asks the Worker with `trace: true` — the Worker then returns the tool calls and the places each returned in a
+`{"trace"}` frame, which the page never requests — and reports **tool choice** and **answer accuracy** per model.
+
+```sh
+node assets/chicago_list/eval/run.mjs                              # every allowlisted model, in-process
+node assets/chicago_list/eval/run.mjs --model gemini-3.8-flash --case vibe-rainy
+node assets/chicago_list/eval/run.mjs --url http://127.0.0.1:8787  # a running wrangler dev or the deployed Worker
+node assets/chicago_list/eval/run.mjs --save eval/baseline.json    # keep a run
+node assets/chicago_list/eval/run.mjs --baseline eval/baseline.json  # after a prompt change: FIXED / REGRESSED lines
+```
+
+In-process mode imports the Worker directly with keys from `worker/.dev.vars` and the local `embeddings.json`, so
+it scores this checkout rather than what is deployed. It waits out provider 429s instead of scoring them as
+failures. Exit code is non-zero if any case fails, so it can gate a prompt change. Cases are written against the
+sheet as of the last snapshot: a place renamed in the sheet is a case to update, not a model regression.
 
 ### Everything is sized against an 8K context window
 

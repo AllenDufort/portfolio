@@ -1,0 +1,324 @@
+[
+  {
+    "id": "detail-rating",
+    "question": "What's the rating for Hing Kee?",
+    "tools": [
+      "get_place_details"
+    ],
+    "answerHas": [
+      "\\b4(\\.0)?\\b"
+    ]
+  },
+  {
+    "id": "detail-address",
+    "question": "What is the address of Kasama?",
+    "tools": [
+      "get_place_details"
+    ],
+    "places": [
+      "Kasama"
+    ],
+    "answerHas": [
+      "1001 N Winchester"
+    ]
+  },
+  {
+    "id": "detail-hours",
+    "question": "What time does Kasama close?",
+    "tools": [
+      "get_place_details"
+    ],
+    "answerHas": [
+      "not (listed|in)|website|don'?t have|isn'?t"
+    ]
+  },
+  {
+    "id": "detail-followup",
+    "question": "what's its address?",
+    "history": [
+      {
+        "role": "user",
+        "content": "What's the rating for Aba?"
+      },
+      {
+        "role": "assistant",
+        "content": "Aba is rated 4.8★."
+      }
+    ],
+    "tools": [
+      "get_place_details"
+    ],
+    "answerHas": [
+      "302 N Green"
+    ]
+  },
+  {
+    "id": "detail-ambiguous",
+    "question": "Tell me about the museum",
+    "tools": [],
+    "answerHas": [
+      "which"
+    ]
+  },
+  {
+    "id": "kw-dish",
+    "question": "Where can I get jerk chicken?",
+    "tools": [
+      "search_places"
+    ],
+    "places": [
+      "Garifuna Flava"
+    ]
+  },
+  {
+    "id": "kw-theme",
+    "question": "Show me Caribbean food",
+    "tools": [
+      "search_places"
+    ],
+    "anyOf": [
+      "Garifuna Flava",
+      "Lior's Cafe"
+    ],
+    "min": 2
+  },
+  {
+    "id": "kw-type-hood",
+    "question": "Bookstores in Wicker Park",
+    "tools": [
+      "search_places"
+    ],
+    "anyOf": [
+      "Myopic Books",
+      "Quimby's",
+      "Challengers Comics",
+      "Sheep Cult Comics",
+      "Barnes and Noble"
+    ],
+    "min": 3,
+    "forbid": [
+      "Sandmeyer's Bookstore"
+    ]
+  },
+  {
+    "id": "kw-museums-hood",
+    "question": "Which museums are in Hyde Park?",
+    "tools": [
+      "search_places"
+    ],
+    "anyOf": [
+      "DuSable Museum",
+      "Griffin Museum of Science & Industry",
+      "Institute for the Study of Ancient Cultures Museum",
+      "Smart Museum of Art"
+    ],
+    "min": 3
+  },
+  {
+    "id": "kw-beaches",
+    "question": "Which beaches are on the map?",
+    "tools": [
+      "search_places"
+    ],
+    "anyOf": [
+      "Oakwood Beach",
+      "Oak Street Beach",
+      "57th Street Beach",
+      "North Avenue Beach",
+      "12th Street Beach",
+      "Montrose Beach"
+    ],
+    "min": 4
+  },
+  {
+    "id": "kw-jazz",
+    "question": "Where can I hear live jazz?",
+    "tools": [
+      "search_places"
+    ],
+    "anyOf": [
+      "Andy's Jazz Club",
+      "Green Mill",
+      "The Redhead Piano Bar",
+      "Dorian's"
+    ],
+    "min": 2
+  },
+  {
+    "id": "kw-vegan",
+    "question": "Any vegan restaurants?",
+    "tools": [
+      "search_places"
+    ],
+    "anyOf": [
+      "Soul Veg City",
+      "Planta Queen"
+    ],
+    "min": 1
+  },
+  {
+    "id": "kw-rooftop",
+    "question": "Rooftop bars",
+    "tools": [
+      "search_places"
+    ],
+    "anyOf": [
+      "Cindy’s Rooftop",
+      "LH Rooftop",
+      "Raised Chicago",
+      "ROOF on the Wit",
+      "Vu Rooftop Bar",
+      "Z Bar",
+      "Io Godfrey",
+      "Kennedy Rooftop"
+    ],
+    "min": 3
+  },
+  {
+    "id": "kw-none",
+    "question": "Do you have any Ethiopian restaurants?",
+    "tools": [
+      "search_places"
+    ],
+    "answerHas": [
+      "\\b(no|none|not|don'?t|doesn'?t)\\b"
+    ]
+  },
+  {
+    "id": "vibe-rainy",
+    "question": "Somewhere cozy for a rainy day",
+    "tools": [
+      "search_places"
+    ],
+    "vibe": true,
+    "anyOf": [
+      "TRUCE",
+      "Brando's",
+      "The Victor Bar",
+      "Remedy",
+      "Dorian's",
+      "Bourgeois Pig Cafe",
+      "Pasta Palazzo",
+      "Harper Memorial Library",
+      "Mansueto Library",
+      "Sandmeyer's Bookstore",
+      "The Book Cellar",
+      "Smart Museum of Art",
+      "Charnley-Persky House"
+    ],
+    "min": 2
+  },
+  {
+    "id": "vibe-romantic",
+    "question": "I want somewhere romantic for an anniversary dinner",
+    "tools": [
+      "search_places"
+    ],
+    "vibe": true,
+    "anyOf": [
+      "Prosecco",
+      "La Scarola",
+      "Avec",
+      "Le Colonial",
+      "Aba",
+      "Pasta Palazzo",
+      "Sparrow",
+      "The Gage",
+      "Alla Vita",
+      "Lirica",
+      "Topo Gigio"
+    ],
+    "min": 1
+  },
+  {
+    "id": "vibe-reading",
+    "question": "A quiet, chill spot to read with a coffee",
+    "tools": [
+      "search_places"
+    ],
+    "vibe": true,
+    "anyOf": [
+      "Bourgeois Pig Cafe",
+      "Sandmeyer's Bookstore",
+      "The Book Cellar",
+      "Myopic Books",
+      "Gaslight Coffee",
+      "Newberry Library",
+      "Harper Memorial Library",
+      "Mansueto Library",
+      "Olor Coffee",
+      "Dayglow"
+    ],
+    "min": 2
+  },
+  {
+    "id": "vibe-dance",
+    "question": "Somewhere loud and lively to dance late at night",
+    "tools": [
+      "search_places"
+    ],
+    "vibe": true,
+    "anyOf": [
+      "Late Bar",
+      "The Hangge-Uppe",
+      "Kingston Mines",
+      "She-nannigans",
+      "Empty Bottle",
+      "The Original Mother's",
+      "BASSLINE",
+      "Howl at the Moon"
+    ],
+    "min": 2
+  },
+  {
+    "id": "vibe-free-rainy",
+    "question": "Something free and educational for a rainy afternoon",
+    "tools": [
+      "search_places"
+    ],
+    "vibe": true,
+    "anyOf": [
+      "Charnley-Persky House",
+      "Smart Museum of Art",
+      "DuSable Museum",
+      "Institute for the Study of Ancient Cultures Museum",
+      "Newberry Library",
+      "Harper Memorial Library",
+      "Mansueto Library",
+      "Shedd Aquarium",
+      "Adler Planetarium"
+    ],
+    "min": 2
+  },
+  {
+    "id": "vibe-view-hood",
+    "question": "A place with a great view in the Loop",
+    "tools": [
+      "search_places"
+    ],
+    "vibe": true,
+    "anyOf": [
+      "Aire",
+      "Cindy’s Rooftop",
+      "LH Rooftop",
+      "Raised Chicago",
+      "ROOF on the Wit",
+      "Riverwalk",
+      "Millenium Park",
+      "The Gage",
+      "Chicago Athletic Association"
+    ],
+    "min": 2
+  },
+  {
+    "id": "near-me",
+    "question": "What coffee shops are near me?",
+    "coords": {
+      "lat": 41.8827,
+      "lon": -87.6233
+    },
+    "tools": [
+      "find_nearby"
+    ]
+  }
+]
