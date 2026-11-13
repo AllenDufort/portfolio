@@ -1,6 +1,7 @@
 import { DB, callWorkerJSON, streamConcierge } from './travel-api.js';
 import { exportSection } from './travel-export.js';
 import { escapeHtml as esc, renderMarkdown, populateModelSelect } from '../shared/ui.js';
+import { ALLOWED_MODELS } from '../shared/models.js';
 
 /* ── AI Travel Planner — browser app ──────────────────────────────────────
    UI state and rendering for the five existing views. Persistence and AI
@@ -16,7 +17,29 @@ import { escapeHtml as esc, renderMarkdown, populateModelSelect } from '../share
 
 const SLOW_HINT_MS = 10_000;
 const HISTORY_TURNS = 8;
-populateModelSelect(document.getElementById('model-select'), { Gemini: 'Gemini 3', Gemma: 'Gemma 4' });
+
+/* One model choice, shown in two places: beside the Generate button and in the
+   concierge toolbar. Changing either updates both and is remembered per browser.
+   The Worker checks the id against its allowlist, so a stale value costs nothing. */
+const MODEL_KEY = 'travel-model';
+const modelSelects = [...document.querySelectorAll('.tp-model-select')];
+modelSelects.forEach(sel => populateModelSelect(sel, { Gemini: 'Gemini 3', Gemma: 'Gemma 4' }));
+
+function setModel(value) {
+    modelSelects.forEach(sel => { sel.value = value; });
+}
+try {
+    const saved = localStorage.getItem(MODEL_KEY);
+    if (saved && ALLOWED_MODELS.includes(saved)) setModel(saved);
+} catch (err) { /* storage blocked — the default selection stands */ }
+
+modelSelects.forEach(sel => sel.addEventListener('change', () => {
+    setModel(sel.value);
+    try { localStorage.setItem(MODEL_KEY, sel.value); }
+    catch (err) { /* storage blocked — the choice still applies for this visit */ }
+}));
+
+function chosenModel() { return modelSelects[0]?.value || ''; }
 
 /* ── Budget helpers ────────────────────────────────────────────────────── */
 function calcBudgetBreakdown(total, days, level = 'mid-range') {
@@ -198,7 +221,7 @@ document.getElementById('plan-generate-btn').addEventListener('click', async () 
     const retDate    = (() => { const d = new Date(depDate); d.setDate(d.getDate() + duration); return d.toISOString().slice(0, 10); })();
     const activities = [...document.querySelectorAll('#activity-checkboxes input:checked')].map(i => i.value);
     const status     = document.querySelector('[name="plan-status"]:checked').value;
-    const model      = document.getElementById('model-select').value;
+    const model      = chosenModel();
 
     if (!city || !country) { showMsg(document.getElementById('plan-status-msg'), 'Please enter a city and country.', 'error'); return; }
 
@@ -439,7 +462,7 @@ async function sendConcierge(text) {
         if (!bubble.dataset.streaming) bubble.innerHTML = '<span class="tp-chat-cursor">▋</span><span style="font-size:0.78rem;color:rgba(255,255,255,0.35)"> Still thinking…</span>';
     }, SLOW_HINT_MS);
 
-    const model  = document.getElementById('model-select').value;
+    const model  = chosenModel();
     const prefs  = await DB.prefs();
     const hist   = conciergeHistory.slice(-HISTORY_TURNS);
 

@@ -21,6 +21,8 @@
 
    GET / returns a health JSON (model, provider, keyConfigured). */
 
+import { ALLOWED_MODELS } from '../../shared/models.js';
+
 const DEFAULTS = {
     MODEL: 'openai/gpt-oss-120b',
     ALLOWED_ORIGINS: [
@@ -192,8 +194,15 @@ export default {
 
 /* ── /generate — build a full vacation JSON ──────────────────────────────── */
 
+/* Only an allowlisted id is honoured; anything else falls back to the default. */
+function resolveModel(requested, env) {
+    const asked = String(requested || '').trim();
+    if (ALLOWED_MODELS.includes(asked)) return asked;
+    return env.MODEL || DEFAULTS.MODEL;
+}
+
 async function handleGenerate(body, env, cors) {
-    const model    = String(body?.model || env.MODEL || DEFAULTS.MODEL).slice(0, 80);
+    const model    = resolveModel(body?.model, env);
     const provider = providerFor(model);
     const apiKey   = apiKeyFor(provider, env);
     if (!apiKey) return fail(500, missingKeyMessage(provider), cors);
@@ -293,7 +302,7 @@ Provide daily_itinerary with all ${days} days using real, specific locations in 
 /* ── /concierge — streaming travel chat ──────────────────────────────────── */
 
 async function handleConcierge(body, env, cors) {
-    const model    = String(body?.model || env.MODEL || DEFAULTS.MODEL).slice(0, 80);
+    const model    = resolveModel(body?.model, env);
     const provider = providerFor(model);
     const apiKey   = apiKeyFor(provider, env);
     if (!apiKey) return fail(500, missingKeyMessage(provider), cors);
