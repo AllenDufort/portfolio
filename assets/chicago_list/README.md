@@ -25,29 +25,29 @@ the page reads it on every load, so editing the sheet updates the site with no c
 | `eval/` | `cases.json` (questions → expected tools and places) and `run.mjs`, which scores every allowlisted model. |
 | `worker/worker.js` | The Worker: keys as secrets, prompt built from the sheet, tool loop, streamed reply. Imports `ALLOWED_MODELS` from `../shared/models.js` (relative to this guide). |
 | `worker/wrangler.toml` | Worker name, default model, allowed origins, snapshot URL. All public — no keys. |
-| `worker/deploy.sh` | Pushes `GEMINI_API_KEY` and `GROQ_API_KEY` as Worker secrets, then deploys. |
+| `worker/deploy.sh` | Pushes `ANTHROPIC_API_KEY`, `GROQ_API_KEY` and `GEMINI_API_KEY` (embeddings only) as Worker secrets, then deploys. |
 | `worker/.dev.vars.example` | Copy to `.dev.vars` (gitignored) and paste your keys in for local runs. |
 
 ## Chat assistant
 
-Answers come from [Gemini or Gemma](https://ai.google.dev/gemini-api/docs) or
+Answers come from [Claude](https://platform.claude.com/docs) or
 [Groq](https://console.groq.com/docs), whichever the visitor picks — no local retrieval and no canned fallback,
 so if the model cannot be reached the widget says so. **A key shipped to a static page is a public key**, so
 keys live only as Worker secrets.
 
 ```
-browser ──POST {question, history, coords?, model?}──> Worker ──> Gemini or Groq ──SSE──> browser
+browser ──POST {question, history, coords?, model?}──> Worker ──> Claude or Groq ──SSE──> browser
                                                         │
                                                         └── Google Sheet + geocode_cache.json (prompt)
 ```
 
-Provider follows from the model id — `gemini-`/`gemma-` to Google, everything else to Groq — and both APIs'
+Provider follows from the model id — `claude-` to Anthropic, everything else to Groq — and both APIs'
 shapes are normalised inside the Worker, so the page's request and SSE envelope never change. **The Worker
 builds the prompt itself**, so no request body can turn it into a general LLM proxy.
 
 | Concern | How the Worker handles it |
 |---------|---------------------------|
-| The keys | `GEMINI_API_KEY`, `GROQ_API_KEY`, pushed by `deploy.sh`. Never in `wrangler.toml`, the repo, or a response. |
+| The keys | `ANTHROPIC_API_KEY`, `GROQ_API_KEY` (plus `GEMINI_API_KEY` for embeddings), pushed by `deploy.sh`. Never in `wrangler.toml`, the repo, or a response. |
 | Who may call it | `ALLOWED_ORIGINS` in `wrangler.toml`. A foreign origin gets `403`, no CORS header. |
 | Abuse | 12 requests/min per IP (`429` + `Retry-After`). Temperature and token cap pinned server-side. |
 | The provider's rate limit | Retried once honouring its `Retry-After` (1–20s; 5s if absent), capped at 45s/question under the client's 90s. Never applied to the Worker's own `429` — that one slows a caller down. |
@@ -94,7 +94,7 @@ node assets/chicago_list/embed.mjs --force  # redo all
 
 At question time the Worker fetches `embeddings.json` (cached with the catalog), embeds just the vibe, and embeds
 up to 30 rows edited since the last build; beyond that those rows stay keyword-only until `embed.mjs` is re-run.
-Everything degrades to keywords if there is no `GEMINI_API_KEY`, the file is missing, or Gemini errors — a Groq
+Everything degrades to keywords if there is no `GEMINI_API_KEY`, the file is missing, or Gemini errors — a Claude or Groq
 model can still call the tool, since the vectors are the Worker's own. Re-run `embed.mjs` and commit after
 meaningful sheet edits.
 
@@ -108,7 +108,7 @@ asks the Worker with `trace: true` — the Worker then returns the tool calls an
 
 ```sh
 node assets/chicago_list/eval/run.mjs                              # every allowlisted model, in-process
-node assets/chicago_list/eval/run.mjs --model gemini-3.8-flash --case vibe-rainy
+node assets/chicago_list/eval/run.mjs --model claude-haiku-5-5 --case vibe-rainy
 node assets/chicago_list/eval/run.mjs --url http://127.0.0.1:8787  # a running wrangler dev or the deployed Worker
 node assets/chicago_list/eval/run.mjs --save eval/baseline.json    # keep a run
 node assets/chicago_list/eval/run.mjs --baseline eval/baseline.json  # after a prompt change: FIXED / REGRESSED lines
@@ -182,9 +182,9 @@ connected.
 ### Deploying
 
 **Prerequisites:** a free [Cloudflare account](https://dash.cloudflare.com/sign-up), a
-[Gemini](https://aistudio.google.com/apikey) and/or [Groq](https://console.groq.com/keys) key, and
-`WRANGLER_WORKER_NAME` plus at least one of `GEMINI_API_KEY` / `GROQ_API_KEY` in the repo-root `.env` (see
-`.env.example`). With one key set, the other provider's models return a clear error.
+[Claude](https://platform.claude.com/settings/keys) and/or [Groq](https://console.groq.com/keys) key, and
+`WRANGLER_WORKER_NAME` plus at least one of `ANTHROPIC_API_KEY` / `GROQ_API_KEY` in the repo-root `.env` (see
+`.env.example`). `GEMINI_API_KEY` is optional and only powers vibe search. With one key set, the other provider's models return a clear error.
 
 ```sh
 bash assets/chicago_list/worker/deploy.sh
@@ -206,7 +206,7 @@ Google Sheet ──gviz CSV──> chicagoData.js ────> chicagoMap.js   
  (source of truth)     │    (per page load) │
                        │                    └── sheet unreachable? ──> chicago_layers.geojson
                        │
-                       └──gviz CSV──> worker/worker.js ──> Gemini or Groq ──> chicagoChat.js
+                       └──gviz CSV──> worker/worker.js ──> Claude or Groq ──> chicagoChat.js
                                        (prompt, 5-min cache)  (page's choice)  (streamed reply)
 ```
 

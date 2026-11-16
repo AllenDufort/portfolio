@@ -3,7 +3,7 @@ import { SHEET_URL, readSheetRows, number } from '../sheet.js';
 import { EMBED_DIMS, embedText, textKey, normalize } from '../embed.js';
 
 /* ── Chicago Assistant API — Cloudflare Worker ─────────────────────────────
-   A key shipped to a static GitHub Pages widget is public, so the Gemini and Groq keys live
+   A key shipped to a static GitHub Pages widget is public, so the Claude and Groq keys live
    here as Worker secrets. The Worker builds the whole prompt itself and the page only sends a
    question, a little history and optional coordinates — so this can *only* answer questions
    about the Chicago map, not act as a general LLM relay, which is the main risk of putting a
@@ -16,7 +16,7 @@ import { EMBED_DIMS, embedText, textKey, normalize } from '../embed.js';
 /* Overridable in wrangler.toml [vars]. MODEL is the fallback when the page asks for nothing,
    or for something not in the shared model catalog. */
 const DEFAULTS = {
-    MODEL: 'openai/gpt-oss-120b',
+    MODEL: 'claude-haiku-5-5',
     ALLOWED_ORIGINS: [
         'https://allendufort.github.io',
         'http://localhost:8000', 'http://127.0.0.1:8000',
@@ -55,28 +55,38 @@ let catalogCache = null;
 const rateLog = new Map();   // ip -> recent request timestamps
 
 /* ── Providers ─────────────────────────────────────────────────────────────
-   Two upstreams, chosen by model id. Both "gemini-*" and "gemma-*" take the Google path: on
-   this key Gemma is served by the same endpoint, and matching only "gemini-" would route it to
-   Groq, which does not serve it. Duplicated in ../../travel/worker/worker.js rather than shared
+   Two upstreams, chosen by model id: "claude-*" goes to Anthropic, anything else to Groq.
+   (Google's API is used only for the embedding model behind vibe search, below.) Duplicated in ../../travel/worker/worker.js rather than shared
    — each worker deploys as one standalone file, and sharing would mean a build step. */
 
 const GROQ_URL = 'https://api.groq.com/openai/v1/chat/completions';
 
+/* Claude ("claude-*") on the Messages API, called with plain fetch so the Worker stays one
+   dependency-free file. No temperature (any sampling parameter is a 400 on this API
+   version). Thinking is on by default: effort is set low so the token cap goes to the
+   answer, and each assistant turn's raw content, thinking blocks included, is sent back
+   unchanged with its tool results, as the API requires. */
+const ANTHROPIC_URL     = 'https://api.anthropic.com/v1/messages';
+const ANTHROPIC_VERSION = '2026-10-21';
+const ANTHROPIC_EFFORT  = 'low';
+
+const KEY_NAMES = { anthropic: 'ANTHROPIC_API_KEY', groq: 'GROQ_API_KEY' };
+
 /* Hidden reasoning tokens bill against the same budget as the reply, so a bare 700-token cap
-   can be spent entirely on thinking and return nothing. Both providers reason, and this is a
+   can be spent entirely on thinking and return nothing. Both providers' models reason, and this is a
    ceiling rather than a reservation, so a model that does not think is unaffected. */
 const REASONING_HEADROOM = 1024;
 
-// Only Groq dials thinking effort; Gemma rejects thinkingConfig, so headroom is the only lever.
+// How much thinking Groq's reasoning models do.
 const GROQ_REASONING_EFFORT = 'low';
 
 function providerFor(model) {
     const id = String(model);
-    return (id.startsWith('gemini-') || id.startsWith('gemma-')) ? 'gemini' : 'groq';
+    return id.startsWith('claude-') ? 'anthropic' : 'groq';
 }
 
 function apiKeyFor(provider, env) {
-    return provider === 'gemini' ? env.GEMINI_API_KEY : env.GROQ_API_KEY;
+    return env[KEY_NAMES[provider]];
 }
 
 /* Only an allowlisted id is honoured; anything else falls back to the default. */
@@ -84,12 +94,6 @@ function resolveModel(requested, env) {
     const asked = String(requested || '').trim();
     if (ALLOWED_MODELS.includes(asked)) return asked;
     return env.MODEL || DEFAULTS.MODEL;
-}
-
-/* Always the non-streaming endpoint: the reply is buffered here so the tool calls can be
-   parsed out of it, and streamAnswer re-frames the finished text as SSE for the browser. */
-function geminiUrl(model, apiKey) {
-    return `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
 }
 
 export default {
@@ -126,8 +130,7 @@ export default {
         const model    = resolveModel(body && body.model, env);
         const provider = providerFor(model);
         if (!apiKeyFor(provider, env)) {
-            const keyName = provider === 'gemini' ? 'GEMINI_API_KEY' : 'GROQ_API_KEY';
-            return fail(500, `The assistant is missing its ${keyName}. Run: bash deploy.sh`, cors);
+            return fail(500, `The assistant is missing its ${KEY_NAMES[provider]}. Run: bash deploy.sh`, cors);
         }
 
         let catalog;
@@ -162,8 +165,8 @@ export default {
 
 /* ── Function calling + agentic loop ─────────────────────────────────────── */
 
-/* Canonical tool schema in Gemini's functionDeclarations format; buildBody() maps it to Groq's
-   OpenAI shape, so each JSON Schema is written once. Descriptions stay terse because the schema
+/* Canonical tool schema (name, description, JSON-Schema parameters); buildBody() maps it to each
+   provider's tool shape, so each JSON Schema is written once. Descriptions stay terse because the schema
    is re-sent every round — long-form guidance (stemming, Type synonyms) belongs in the system
    prompt, sent once. Built on first use: the descriptions interpolate THEME_NAMES. */
 let toolDeclarationsCache = null;
@@ -757,41 +760,39 @@ function formatPlaceDetails(p, fields = []) {
 /* ── Provider adapters ─────────────────────────────────────────────────────
    The transcript and TOOL_DECLARATIONS are canonical; these translate them into whichever
    shape the provider speaks. Transcript turns are:
-     {role:'user', text} / {role:'assistant', text, toolCalls:[{id,name,args,signature?}]}
+     {role:'user', text} / {role:'assistant', text, toolCalls:[{id,name,args}]}
      {role:'tool', results:[{id, name, result}]}
-   `signature` is provider-opaque and only Gemini sets it; see parseTurn().           */
+   Claude turns also carry `raw`, the reply's content blocks, replayed verbatim.        */
 
 function buildBody(provider, { model, systemText, turns }) {
-    if (provider === 'gemini') {
-        const contents = [];
-        turns.forEach(turn => {
+    if (provider === 'anthropic') {
+        const messages = turns.map(turn => {
             if (turn.role === 'tool') {
-                // Gemini takes all results as one "user" turn and ignores call ids.
-                contents.push({
+                // All results in one user turn, each tied back by tool_use_id.
+                return {
                     role: 'user',
-                    parts: turn.results.map(r => ({
-                        functionResponse: { name: r.name, response: { result: r.result } }
+                    content: turn.results.map(r => ({
+                        type: 'tool_result', tool_use_id: r.id, content: r.result
                     }))
-                });
-                return;
+                };
             }
-            const parts = [];
-            if (turn.text) parts.push({ text: turn.text });
-            (turn.toolCalls || []).forEach(c => parts.push({
-                functionCall: { name: c.name, args: c.args },
-                ...(c.signature ? { thoughtSignature: c.signature } : {})
-            }));
-            contents.push({ role: turn.role === 'assistant' ? 'model' : 'user', parts });
+            if (turn.role === 'assistant') {
+                /* A turn Claude produced goes back exactly as received (thinking blocks and
+                   all). History from the page is plain text. */
+                return { role: 'assistant', content: turn.raw || [{ type: 'text', text: turn.text }] };
+            }
+            return { role: 'user', content: turn.text };
         });
 
         return JSON.stringify({
-            systemInstruction: { parts: [{ text: systemText }] },
-            contents,
-            tools: [{ functionDeclarations: toolDeclarations() }],
-            generationConfig: {
-                maxOutputTokens: MODEL_MAX_TOKENS + REASONING_HEADROOM,
-                temperature:     MODEL_TEMPERATURE
-            }
+            model,
+            max_tokens:    MODEL_MAX_TOKENS + REASONING_HEADROOM,
+            system:        systemText,
+            messages,
+            tools: toolDeclarations().map(d => ({
+                name: d.name, description: d.description, input_schema: d.parameters
+            })),
+            output_config: { effort: ANTHROPIC_EFFORT }
         });
     }
 
@@ -834,25 +835,21 @@ function buildBody(provider, { model, systemText, turns }) {
 
 /* Normalise one non-streaming response to {text, toolCalls}.
 
-   Gemini:  candidates[0].content.parts[] — each part is {text} or {functionCall:{name,args}}
+   Claude:  content[] — blocks of type text, tool_use or thinking
    Groq:    choices[0].message — {content, tool_calls:[{id,function:{name,arguments}}]}   */
 function parseTurn(provider, data) {
-    if (provider === 'gemini') {
-        const parts = data?.candidates?.[0]?.content?.parts || [];
+    if (provider === 'anthropic') {
+        // A decline arrives as a 200; say so rather than report "kept searching".
+        if (data?.stop_reason === 'refusal') {
+            return { text: 'Sorry, I can\'t help with that one. Try asking about the places on the map.', toolCalls: [] };
+        }
+        const blocks = data?.content || [];
         return {
-            /* Thought parts dropped: on a tool round this text becomes the assistant turn,
-               so keeping them feeds a model its own reasoning back as something it said. */
-            text: parts.filter(p => !p.thought && typeof p.text === 'string')
-                .map(p => p.text).join(''),
-            toolCalls: parts.filter(p => p.functionCall).map((p, i) => ({
-                // Gemini 3 sends an id; older models do not, so fall back to a stable one.
-                id:   p.functionCall.id || `call_${i}`,
-                name: p.functionCall.name,
-                args: p.functionCall.args || {},
-                /* Opaque to us, but Gemini 3 rejects the turn unless the signature it issued
-                   with a functionCall comes back alongside it. Carried through untouched. */
-                signature: p.thoughtSignature
-            }))
+            text: blocks.filter(b => b.type === 'text').map(b => b.text).join(''),
+            toolCalls: blocks.filter(b => b.type === 'tool_use').map(b => ({
+                id: b.id, name: b.name, args: b.input || {}
+            })),
+            raw: blocks       // replayed verbatim on the next round; see buildBody()
         };
     }
 
@@ -860,7 +857,7 @@ function parseTurn(provider, data) {
     return {
         text: message.content || '',
         toolCalls: (message.tool_calls || []).map(c => {
-            // Groq sends arguments as a JSON string, where Gemini sends a real object.
+            // Groq sends arguments as a JSON string.
             let args = {};
             try { args = JSON.parse(c.function?.arguments || '{}'); }
             catch (err) { /* malformed — run the tool with no arguments */ }
@@ -871,10 +868,14 @@ function parseTurn(provider, data) {
 
 function upstreamRequest(provider, { model, apiKey, systemText, turns }) {
     const body = buildBody(provider, { model, systemText, turns });
-    if (provider === 'gemini') {
-        return [geminiUrl(model, apiKey), {
-            method:  'POST',
-            headers: { 'Content-Type': 'application/json' },
+    if (provider === 'anthropic') {
+        return [ANTHROPIC_URL, {
+            method: 'POST',
+            headers: {
+                'Content-Type':      'application/json',
+                'x-api-key':         apiKey,
+                'anthropic-version': ANTHROPIC_VERSION
+            },
             body
         }];
     }
@@ -1037,11 +1038,11 @@ async function runToolLoop(env, { model, provider, catalog, point, systemText, t
             return { status: 502, message: 'Unexpected response from the model.' };
         }
 
-        const { text, toolCalls } = parseTurn(provider, data);
+        const { text, toolCalls, raw } = parseTurn(provider, data);
 
         /* No tool calls — the model is answering, so this text IS the answer. finishReason is
-           not consulted: Gemini reports "STOP" on the tool-call turn itself, so testing it meant
-           tools never ran there. Tool-call presence is the reliable signal on both providers. */
+           not consulted: some providers report a normal stop on the tool-call turn itself, so
+           testing it meant tools never ran. Tool-call presence is the reliable signal. */
         if (!toolCalls.length || round === MAX_TOOL_ROUNDS) {
             answer = text;
             break;
@@ -1062,7 +1063,7 @@ async function runToolLoop(env, { model, provider, catalog, point, systemText, t
 
         msgs = [
             ...msgs,
-            { role: 'assistant', text, toolCalls },
+            { role: 'assistant', text, toolCalls, raw },
             { role: 'tool', results }
         ];
     }
@@ -1486,8 +1487,9 @@ async function health(env, cors) {
             defaultModel: env.MODEL || DEFAULTS.MODEL,
             allowedModels: ALLOWED_MODELS,
             keyConfigured: {
-                gemini: Boolean(env.GEMINI_API_KEY),
-                groq:   Boolean(env.GROQ_API_KEY)
+                anthropic: Boolean(env.ANTHROPIC_API_KEY),
+                embeddings: Boolean(env.GEMINI_API_KEY),
+                groq:      Boolean(env.GROQ_API_KEY)
             }
         };
     } catch (err) {

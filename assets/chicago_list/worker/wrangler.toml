@@ -1,4 +1,4 @@
-# Cloudflare Worker behind the Chicago map's chat widget. It holds the Gemini and Groq
+# Cloudflare Worker behind the Chicago map's chat widget. It holds the Claude and Groq
 # API keys so the static page never has to, and builds the whole prompt from the sheet itself.
 #
 #   bash assets/chicago_list/worker/deploy.sh       # sets the secrets and deploys
@@ -17,11 +17,10 @@ enabled = true
 [vars]
 # The default model, used when the page sends nothing or sends an id that is not in
 # ALLOWED_MODELS in ../../shared/models.js — that list is what stops a leaked
-# endpoint being pointed at an expensive model. An id starting with "gemini-" goes to
-# Gemini, anything else to Groq.
-#   https://ai.google.dev/gemini-api/docs/models
+# endpoint being pointed at an expensive model. "claude-*" goes to Anthropic, anything else to
+# Groq.
 #   https://console.groq.com/docs/models
-MODEL = "openai/gpt-oss-120b"
+MODEL = "claude-haiku-5-5"
 
 # Only these origins may POST. Add a port here if you serve the site locally another way.
 ALLOWED_ORIGINS = "https://allendufort.github.io,http://localhost:8000,http://127.0.0.1:8000,http://localhost:5500,http://127.0.0.1:5500"

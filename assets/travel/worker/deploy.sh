@@ -18,8 +18,8 @@ source "$REPO_ROOT/.env"
 set +a
 
 # Either provider alone is enough to run the app; only both missing is fatal.
-if [[ -z "${GEMINI_API_KEY:-}" && -z "${GROQ_API_KEY:-}" ]]; then
-    echo "error: neither GEMINI_API_KEY nor GROQ_API_KEY is set in $REPO_ROOT/.env" >&2
+if [[ -z "${ANTHROPIC_API_KEY:-}" && -z "${GROQ_API_KEY:-}" ]]; then
+    echo "error: neither ANTHROPIC_API_KEY nor GROQ_API_KEY is set in $REPO_ROOT/.env" >&2
     exit 1
 fi
 
@@ -71,7 +71,7 @@ npx wrangler deploy worker.js --config wrangler.toml
 
 # ── Secrets (set after deploy so the worker exists) ───────────────────────
 # Whichever key is absent is skipped; its models then return a clear 500.
-for KEY_NAME in GEMINI_API_KEY GROQ_API_KEY; do
+for KEY_NAME in ANTHROPIC_API_KEY GROQ_API_KEY; do
     KEY_VALUE="${!KEY_NAME:-}"
     if [[ -z "$KEY_VALUE" ]]; then
         echo "==> Skipping $KEY_NAME (not set in .env)"

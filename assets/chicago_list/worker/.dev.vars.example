@@ -1,4 +1,6 @@
 # Copy to .dev.vars (gitignored) for local development via deploy.sh.
 # In production the same value is pushed as a Worker secret by deploy.sh.
+ANTHROPIC_API_KEY=<apikey from platform.claude.com>
+# Used only for the embedding model behind vibe search; the chat models are Claude and Groq.
 GEMINI_API_KEY=<apikey from aistudio.google.com>
 GROQ_API_KEY=<apikey from console.groq.com>

@@ -40,9 +40,9 @@ test('Travel concierge keeps the chosen model, conversation and preferences in i
     const {streamConcierge} = await import('../assets/travel/travel-api.js?request-test');
     const history = [{role:'user',content:'I like art.'}];
     const prefs = {interests:['art'],dietary:[],pace:'relaxed'};
-    assert.equal(await streamConcierge('What next?',history,prefs,'gemma-4-31b-it',() => {}), 'Visit the museum.');
+    assert.equal(await streamConcierge('What next?',history,prefs,'claude-haiku-5-5',() => {}), 'Visit the museum.');
     assert.equal(sent.url, 'https://travel-planner.chicagochat.workers.dev');
-    assert.deepEqual({...sent,url:undefined}, {url:undefined,type:'concierge',question:'What next?',history,prefs,model:'gemma-4-31b-it'});
+    assert.deepEqual({...sent,url:undefined}, {url:undefined,type:'concierge',question:'What next?',history,prefs,model:'claude-haiku-5-5'});
 });
 
 test('PDF export keeps the selected panel, destination heading and print styles', async t => {

@@ -133,7 +133,7 @@ ol.steps li::marker { font-family: var(--font-mono); color: var(--accent); }
         <li>Retrieval &amp; search design</li>
         <li>Token budgeting</li>
         <li>Geospatial (haversine)</li>
-        <li>Gemini · Groq APIs</li>
+        <li>Claude · Groq APIs</li>
         <li>SSE streaming</li>
         <li>Prompt-injection defense</li>
     </ul>
@@ -144,7 +144,7 @@ ol.steps li::marker { font-family: var(--font-mono); color: var(--accent); }
     <div class="cards">
         <div class="card">
             <h3>Retrieve with tools, don't stuff the prompt</h3>
-            <p>The allowlisted models have an 8,000-token context, so all 550 rows can't go in the prompt. The model searches the data through three tools instead.</p>
+            <p>The smallest allowlisted models (the Groq ones) have an 8,000-token context, so all 550 rows can't go in the prompt. The model searches the data through three tools instead.</p>
             <p class="result"><b>Result</b>Fixed overhead is about 2,900 tokens, which leaves room for a question that takes three tool rounds.</p>
         </div>
         <div class="card">
@@ -249,7 +249,7 @@ ol.steps li::marker { font-family: var(--font-mono); color: var(--accent); }
         <span><i class="k-cf"></i>Inside the chicago-chat Worker</span>
         <span><i class="k-ext"></i>External data</span>
     </div>
-    <p class="muted">The model call goes to Gemini (ids starting <code>gemini-</code> or <code>gemma-</code>) or Groq (everything else). The transcript is kept in a provider-neutral shape and converted to each API's format only when a request is built.</p>
+    <p class="muted">The model call goes to Claude (ids starting <code>claude-</code>) or Groq (everything else). The transcript is kept in a provider-neutral shape and converted to each API's format only when a request is built.</p>
 </section>
 
 <section>
@@ -290,13 +290,13 @@ ol.steps li::marker { font-family: var(--font-mono); color: var(--accent); }
         <tbody>
             <tr><td>System prompt</td><td>Place and neighborhood counts, the closed list of Types, the searchable sub-categories, then searching and answering rules.</td><td>Carries vocabulary, not rows. Without the real words, a model searched its own phrasing and reported a map with 40 Latin American places as empty.</td></tr>
             <tr><td>Location line</td><td>The visitor's nearest neighborhood, or a note that no location was shared.</td><td>Distances come from <code>find_nearby</code>, so the model never estimates one.</td></tr>
-            <tr><td>Tool schema</td><td>Three terse declarations, written once in Gemini's format and mapped to Groq's.</td><td>The schema is re-sent every round, so long guidance lives in the prompt, which is sent once.</td></tr>
+            <tr><td>Tool schema</td><td>Three terse declarations, written once as JSON Schema and mapped to each provider's tool format.</td><td>The schema is re-sent every round, so long guidance lives in the prompt, which is sent once.</td></tr>
             <tr><td>History</td><td>Last 4 messages, 280 characters each.</td><td>Enough for follow-ups like "what about its rating?" without growing the request.</td></tr>
             <tr><td>Tool results</td><td>List rows hold name, type, sub-category, neighborhood, rating and address only.</td><td>Full detail per row costs about 3 times as much. The rest is one <code>get_place_details</code> call away.</td></tr>
         </tbody>
     </table>
     </div>
-    <p>The allowlisted models have an 8,000-token context, and everything above is re-sent on each round. The fixed overhead sits near 2,900 tokens, which leaves room for a three-round question.</p>
+    <p>The smallest allowlisted models have an 8,000-token context, and everything above is re-sent on each round. The fixed overhead sits near 2,900 tokens, which leaves room for a three-round question.</p>
 </section>
 
 <section>
@@ -307,7 +307,7 @@ ol.steps li::marker { font-family: var(--font-mono); color: var(--accent); }
         <tbody>
             <tr><td>Tool rounds</td><td class="num">5 + 1</td><td>Stops a runaway loop while still giving the model a turn to write.</td></tr>
             <tr><td>Reply tokens</td><td class="num">700 + 1,024</td><td>The extra 1,024 is headroom for hidden reasoning, which bills against the same cap.</td></tr>
-            <tr><td>Temperature</td><td class="num">0.3</td><td>Pinned server-side; the page cannot change it.</td></tr>
+            <tr><td>Temperature</td><td class="num">0.3</td><td>Pinned server-side on Groq; the page cannot change it. Not sent to Claude, whose current models reject sampling parameters.</td></tr>
             <tr><td>Rate limit</td><td class="num">12 / min / IP</td><td>Held in Worker memory. Keeps one script from using the day's free quota.</td></tr>
             <tr><td>Provider 429 retry</td><td class="num">1 retry, 45 s</td><td>Honors <code>Retry-After</code> between 1 and 20 seconds; the budget is shared across all rounds.</td></tr>
             <tr><td>Place embeddings</td><td class="num">256-d, offline</td><td><code>embed.mjs</code> writes <code>embeddings.json</code>, keyed by a hash of each place's text. The Worker embeds only the question, plus up to 30 rows edited since the last build.</td></tr>
@@ -324,7 +324,7 @@ ol.steps li::marker { font-family: var(--font-mono); color: var(--accent); }
         <li><strong>Normal case keeps real status codes.</strong> The Worker holds its response until the loop finishes, so a failure can still be returned as a 4xx or 5xx with a sentence the visitor can act on.</li>
         <li><strong>Rate-limit waits open the stream early.</strong> If a provider returns 429, the Worker starts the response and sends a <code>{"notice"}</code> frame saying it is waiting. A later failure then arrives as an <code>{"error"}</code> frame, since the status code is already spent.</li>
         <li><strong>Searching without answering.</strong> If every round was spent on tools and no text came back, the visitor is told to try a simpler question.</li>
-        <li><strong>Semantic search degrades to keywords.</strong> With no Gemini key, a missing <code>embeddings.json</code> or an embedding error, the vibe argument is ignored and the keyword search runs, so it can only add matches.</li>
+        <li><strong>Semantic search degrades to keywords.</strong> With no embeddings key, a missing <code>embeddings.json</code> or an embedding error, the vibe argument is ignored and the keyword search runs, so it can only add matches.</li>
         <li><strong>No canned fallback.</strong> There is no local retrieval. If the model cannot be reached, the widget says so.</li>
         <li><strong>Prompt injection through history.</strong> Only user and assistant turns are forwarded, so an injected system turn is dropped.</li>
         <li><strong>Not a general relay.</strong> The page cannot supply a prompt, only a question, so a leaked endpoint can only answer questions about this map.</li>

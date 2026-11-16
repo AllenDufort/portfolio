@@ -8,7 +8,7 @@
    baseline.
 
      node assets/chicago_list/eval/run.mjs                        # all models, in-process
-     node ... --model openai/gpt-oss-120b --model gemini-3.8-flash
+     node ... --model openai/gpt-oss-120b --model claude-haiku-5-5
      node ... --case vibe-rainy --case kw-jazz                    # subset
      node ... --url http://127.0.0.1:8787                         # a running wrangler dev / deployed Worker
      node ... --save eval/baseline.json                           # write results

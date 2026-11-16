@@ -151,7 +151,7 @@ ul.notes { margin: 0; padding-left: 20px; display: flex; flex-direction: column;
     <div class="cards">
         <div class="card">
             <h3>Two LLM providers, one interface</h3>
-            <p>Gemini, Gemma and Groq-hosted models sit behind one provider-neutral message format. Visitors pick a model and the back end routes by model id.</p>
+            <p>Claude and Groq-hosted models sit behind one provider-neutral message format. Visitors pick a model and the back end routes by model id.</p>
             <p class="result"><b>Why</b>Free-tier quotas run out. Being able to switch providers keeps the demos running.</p>
         </div>
         <div class="card">
@@ -175,7 +175,7 @@ ul.notes { margin: 0; padding-left: 20px; display: flex; flex-direction: column;
 <section>
     <h2>System architecture</h2>
     <div class="scroll diagram">
-        <svg viewBox="0 0 1140 524" role="img" aria-label="System diagram: GitHub Pages serves static pages to the browser; the Chicago map page reads a Google Sheet and OpenStreetMap; both app pages call Cloudflare Workers, which call Gemini or Groq; the travel Worker stores data in Workers KV.">
+        <svg viewBox="0 0 1140 524" role="img" aria-label="System diagram: GitHub Pages serves static pages to the browser; the Chicago map page reads a Google Sheet and OpenStreetMap; both app pages call Cloudflare Workers, which call Claude or Groq; the travel Worker stores data in Workers KV.">
             <defs>
                 <marker id="arr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
                     <path class="head" d="M0 0 L10 5 L0 10 z"/>
@@ -236,9 +236,8 @@ ul.notes { margin: 0; padding-left: 20px; display: flex; flex-direction: column;
 
             <!-- column 4 -->
             <rect class="ext" x="1000" y="180" width="120" height="254" rx="6"/>
-            <text class="t" x="1014" y="237">Gemini</text>
-            <text class="s" x="1014" y="255">gemini-*</text>
-            <text class="s" x="1014" y="271">gemma-*</text>
+            <text class="t" x="1014" y="237">Claude</text>
+            <text class="s" x="1014" y="255">claude-*</text>
             <text class="t" x="1014" y="381">Groq</text>
             <text class="s" x="1014" y="399">all other ids</text>
 
@@ -278,7 +277,7 @@ ul.notes { margin: 0; padding-left: 20px; display: flex; flex-direction: column;
         <span><i class="k-cf"></i>Cloudflare (Workers, KV)</span>
         <span><i class="k-ext"></i>Third-party service</span>
     </div>
-    <p class="muted">Not drawn: if the sheet is unreachable, both the map page and the chicago-chat Worker fall back to <code>chicago_layers.geojson</code> on GitHub Pages. The Worker also reads <code>geocode_cache.json</code> from there for rows that have no coordinates in the sheet, and <code>embeddings.json</code> (place vectors for the semantic <code>vibe</code> search, built offline by <code>embed.mjs</code>). The question itself is embedded through the Gemini API at request time.</p>
+    <p class="muted">Not drawn: if the sheet is unreachable, both the map page and the chicago-chat Worker fall back to <code>chicago_layers.geojson</code> on GitHub Pages. The Worker also reads <code>geocode_cache.json</code> from there for rows that have no coordinates in the sheet, and <code>embeddings.json</code> (place vectors for the semantic <code>vibe</code> search, built offline by <code>embed.mjs</code>). The question itself is embedded at request time with Google's <code>gemini-embedding-001</code>, the one remaining Google dependency, used only for that search.</p>
 </section>
 
 <section>
@@ -294,7 +293,7 @@ ul.notes { margin: 0; padding-left: 20px; display: flex; flex-direction: column;
             <tr><td>Place data</td><td>Google Sheet via the gviz CSV endpoint</td><td>No API key. The sheet must stay shared as "anyone with the link can view".</td></tr>
             <tr><td>Backend</td><td>Two Cloudflare Workers, deployed with Wrangler</td><td><code>chicago-chat</code> and <code>travel-planner</code>, each a single <code>worker.js</code> with no dependencies.</td></tr>
             <tr><td>Storage</td><td>Workers KV (<code>TRAVEL_DB</code>), browser <code>localStorage</code></td><td>KV holds travel preferences and trips. localStorage only remembers the chosen model.</td></tr>
-            <tr><td>Models</td><td>Google Gemini and Gemma, Groq-hosted models</td><td>The visitor picks from an allowlist in <code>assets/shared/models.js</code>. The provider follows from the model id.</td></tr>
+            <tr><td>Models</td><td>Anthropic Claude (default: Haiku 5.5), Groq-hosted models</td><td>The visitor picks from an allowlist in <code>assets/shared/models.js</code>. The provider follows from the model id.</td></tr>
             <tr><td>Data tooling</td><td>Google Apps Script, Python 3 standard library</td><td><code>geocodeSheet.gs</code> fills Lat/Lon in the sheet. <code>geocode.py</code> refreshes the offline snapshot.</td></tr>
             <tr><td>Hosting</td><td>GitHub Pages at allendufort.github.io/portfolio</td><td>A root <code>wrangler.jsonc</code> can also publish the repo as Cloudflare static assets.</td></tr>
             <tr><td>Tests</td><td><code>node --test</code>, Node 22.7 or newer</td><td>Three dependency-free files covering streaming, Markdown, sheet parsing and the snapshot fallback.</td></tr>
@@ -353,7 +352,7 @@ ul.notes { margin: 0; padding-left: 20px; display: flex; flex-direction: column;
             <tr><td>Provider 429</td><td>One retry, with a notice to the visitor</td><td>Returned as an error</td></tr>
             <tr><td>Rate limit</td><td>12 requests a minute per IP</td><td>15 requests a minute per IP</td></tr>
             <tr><td>History</td><td>4 messages, 280 characters each</td><td>8 messages, 800 characters each</td></tr>
-            <tr><td>Temperature</td><td>0.3</td><td>0.4</td></tr>
+            <tr><td>Temperature</td><td>0.3 (Groq; not sent to Claude)</td><td>0.4 (Groq; not sent to Claude)</td></tr>
             <tr><td>Client timeout</td><td>90 seconds</td><td>120 seconds</td></tr>
         </tbody>
     </table>
@@ -363,7 +362,7 @@ ul.notes { margin: 0; padding-left: 20px; display: flex; flex-direction: column;
 <section>
     <h2>Security and cost controls</h2>
     <ul class="notes">
-        <li><strong>Keys stay server-side.</strong> <code>GEMINI_API_KEY</code> and <code>GROQ_API_KEY</code> are Worker secrets pushed by each <code>deploy.sh</code> from the git-ignored <code>.env</code>. Nothing in the repo or a response contains them.</li>
+        <li><strong>Keys stay server-side.</strong> <code>ANTHROPIC_API_KEY</code> and <code>GROQ_API_KEY</code> (plus <code>GEMINI_API_KEY</code> for embeddings) are Worker secrets pushed by each <code>deploy.sh</code> from the git-ignored <code>.env</code>. Nothing in the repo or a response contains them.</li>
         <li><strong>Origin allowlist.</strong> POSTs are accepted only from the GitHub Pages origin and a few localhost ports. Other origins get a 403.</li>
         <li><strong>Per-IP rate limits</strong> held in Worker memory, answered with 429 and <code>Retry-After</code>.</li>
         <li><strong>Model allowlist.</strong> Both Workers check the requested model against the shared list in <code>assets/shared/models.js</code>. Any other id falls back to the default, so a caller can't spend the keys on models the site doesn't offer.</li>

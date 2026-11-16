@@ -5,7 +5,7 @@
      type: "generate"   — build a full JSON itinerary (non-streaming)
      type: "concierge"  — open travel Q&A chat (SSE streaming)
 
-   Either can run on Gemini or on Groq. The page sends a model id with every
+   Either can run on Claude or Groq. The page sends a model id with every
    request and the provider is derived from it — see providerFor() below.
 
    Deploy:
@@ -24,7 +24,7 @@
 import { ALLOWED_MODELS } from '../../shared/models.js';
 
 const DEFAULTS = {
-    MODEL: 'openai/gpt-oss-120b',
+    MODEL: 'claude-haiku-5-5',
     ALLOWED_ORIGINS: [
         'https://allendufort.github.io',
         'http://localhost:8000', 'http://127.0.0.1:8000',
@@ -41,16 +41,12 @@ const TEMPERATURE          = 0.4;
    same budget as the reply. Left alone, a 700 token concierge cap can be spent entirely on
    thinking, so every request gets this much extra room on top of the caps.
 
-   This applies to both providers. Groq's gpt-oss and qwen models reason, and so does Gemma
-   on the Gemini path — verified against the live API, where a substantive concierge question
-   at a bare 700 spent ~2.5k characters on thoughts and returned finishReason MAX_TOKENS with
-   no answer text at all, i.e. an empty reply. The headroom is a ceiling rather than a
-   reservation, so a model that does not think is unaffected by it. */
+   Groq's gpt-oss and qwen models reason, so a bare 700 token cap can be spent entirely on
+   thoughts and return an empty reply. The headroom is a ceiling rather than a reservation,
+   so a model that does not think is unaffected by it. */
 const REASONING_HEADROOM = 1024;
 
-/* Groq alone exposes a dial for how much thinking to do; Gemma rejects thinkingConfig
-   outright ("Thinking budget is not supported for this model"), so on the Gemini path the
-   headroom above is the only lever. */
+// How much thinking Groq's reasoning models do.
 const GROQ_REASONING_EFFORT = 'low';
 
 const RATE_LIMIT_MAX       = 15;
@@ -59,60 +55,63 @@ const RATE_LIMIT_WINDOW_MS = 60 * 1000;
 const rateLog = new Map();
 
 /* ── Providers ───────────────────────────────────────────────────────────────
-   Two upstreams, chosen by model id. Every Groq id is either namespaced
-   ("openai/gpt-oss-120b", "qwen/qwen3.8-27b") or bare, and Groq serves none of
-   Google's models, so the prefix is enough to route on.
-
-   Both "gemini-*" and "gemma-*" are Google's. Gemma is open-weights, but on this key it
-   is served by the same generativelanguage.googleapis.com endpoint in the same request
-   shape, so it rides the Gemini path; matching only "gemini-" would send it to Groq,
-   which does not serve it. */
+   Two upstreams, chosen by model id. "claude-*" goes to Anthropic; every other id is
+   Groq's, namespaced ("openai/gpt-oss-120b", "qwen/qwen3.8-27b"), so the prefix is
+   enough to route on. */
 
 const GROQ_URL = 'https://api.groq.com/openai/v1/chat/completions';
 
+/* Claude ("claude-*") is called with plain fetch on the Messages API, like Groq, so
+   the Worker stays a single dependency-free file. Two rules for the current Claude models:
+   no temperature (any sampling parameter is a 400 on this API version), and thinking is on
+   by default, so replies are read by block type and effort is set low to leave the token
+   cap for the answer. */
+const ANTHROPIC_URL     = 'https://api.anthropic.com/v1/messages';
+const ANTHROPIC_VERSION = '2026-10-21';
+const ANTHROPIC_EFFORT  = 'low';
+// A 7-day itinerary plus thinking overran the shared 1,024 headroom and truncated the JSON.
+const ANTHROPIC_HEADROOM = 4096;
+
+const KEY_NAMES = { anthropic: 'ANTHROPIC_API_KEY', groq: 'GROQ_API_KEY' };
+
 function providerFor(model) {
     const id = String(model);
-    return (id.startsWith('gemini-') || id.startsWith('gemma-')) ? 'gemini' : 'groq';
+    return id.startsWith('claude-') ? 'anthropic' : 'groq';
 }
 
 function apiKeyFor(provider, env) {
-    return provider === 'gemini' ? env.GEMINI_API_KEY : env.GROQ_API_KEY;
+    return env[KEY_NAMES[provider]];
 }
 
 function missingKeyMessage(provider) {
-    const key = provider === 'gemini' ? 'GEMINI_API_KEY' : 'GROQ_API_KEY';
-    return `${key} is not configured, so ${provider} models are unavailable. Run: bash deploy.sh`;
-}
-
-function geminiUrl(model, stream, apiKey) {
-    const action = stream ? 'streamGenerateContent?alt=sse&' : 'generateContent?';
-    return `https://generativelanguage.googleapis.com/v1beta/models/${model}:${action}key=${apiKey}`;
+    return `${KEY_NAMES[provider]} is not configured, so ${provider} models are unavailable. Run: bash deploy.sh`;
 }
 
 /* One chat request in whichever shape the provider wants.
 
    system    — system instruction text
    turns     — [{role: "user" | "assistant", content}], oldest first
-   jsonMode  — ask the provider to emit a JSON object. Groq-only: Gemini keeps
-               the prompt-based JSON contract it already ships with, since the
-               fence-stripping in handleGenerate is written around it.  */
+   jsonMode  — ask the provider to emit a JSON object. Groq-only: Claude keeps
+               the prompt-based JSON contract, since the fence-stripping in
+               handleGenerate is written around it.  */
 function upstreamRequest(provider, { model, apiKey, system, turns, maxTokens, stream, jsonMode }) {
-    if (provider === 'gemini') {
+    if (provider === 'anthropic') {
         return {
-            url: geminiUrl(model, stream, apiKey),
+            url: ANTHROPIC_URL,
             init: {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
+                headers: {
+                    'Content-Type':      'application/json',
+                    'x-api-key':         apiKey,
+                    'anthropic-version': ANTHROPIC_VERSION
+                },
                 body: JSON.stringify({
-                    systemInstruction: { parts: [{ text: system }] },
-                    contents: turns.map(t => ({
-                        role:  t.role === 'assistant' ? 'model' : 'user',
-                        parts: [{ text: t.content }]
-                    })),
-                    generationConfig: {
-                        maxOutputTokens: maxTokens + REASONING_HEADROOM,
-                        temperature:     TEMPERATURE
-                    }
+                    model,
+                    max_tokens:    maxTokens + ANTHROPIC_HEADROOM,
+                    system,
+                    messages:      turns.map(t => ({ role: t.role, content: t.content })),
+                    output_config: { effort: ANTHROPIC_EFFORT },
+                    ...(stream ? { stream: true } : {})
                 })
             }
         };
@@ -139,23 +138,20 @@ function upstreamRequest(provider, { model, apiKey, system, turns, maxTokens, st
     };
 }
 
-/* Pull the reply text out of a non-streaming response.
-
-   Every text part, not just parts[0], and thought parts dropped — the same rule
-   geminiSseTransform applies to the streaming path. A thinking model puts its reasoning in
-   the leading parts and the answer after them, so reading parts[0] returns the model
-   thinking out loud. On the itinerary path that reached JSON.parse as prose and surfaced as
-   "Model returned malformed JSON" for every Gemma request. */
+/* Pull the reply text out of a non-streaming response. */
 function extractText(provider, data) {
-    if (provider !== 'gemini') return data?.choices?.[0]?.message?.content || '';
-    return (data?.candidates?.[0]?.content?.parts || [])
-        .filter(part => !part.thought && typeof part.text === 'string')
-        .map(part => part.text)
-        .join('');
+    if (provider === 'anthropic') {
+        // content[] can open with thinking blocks; only text blocks are the reply.
+        return (data?.content || [])
+            .filter(block => block.type === 'text')
+            .map(block => block.text)
+            .join('');
+    }
+    return data?.choices?.[0]?.message?.content || '';
 }
 
 function sseTransform(provider) {
-    return provider === 'gemini' ? geminiSseTransform() : groqSseTransform();
+    return provider === 'anthropic' ? anthropicSseTransform() : groqSseTransform();
 }
 
 export default {
@@ -281,6 +277,11 @@ Provide daily_itinerary with all ${days} days using real, specific locations in 
     let data;
     try { data = await upstream.json(); } catch { return fail(502, 'Unexpected model response.', cors); }
 
+    // Claude can decline with a 200; without this it would surface as "malformed JSON".
+    if (provider === 'anthropic' && data?.stop_reason === 'refusal') {
+        return fail(422, 'The model declined to plan this trip. Try adjusting the details.', cors);
+    }
+
     const raw = extractText(provider, data);
 
     // Strip any markdown fences the model might have added
@@ -356,10 +357,7 @@ async function handleConcierge(body, env, cors) {
    Both providers are normalised to the one envelope the page understands:
    {"delta":"..."} per token, {"error":"..."} on failure, then [DONE]. */
 
-/* SSE event blocks are blank-line separated, but the two providers disagree on the line
-   ending: Gemini sends CRLF (so its blocks end "\r\n\r\n") and Groq sends bare LF. Splitting
-   on "\n\n" alone therefore finds no boundary at all in a Gemini stream — the whole reply
-   accumulates in the buffer and is thrown away at flush. Match either. */
+/* SSE event blocks are blank-line separated; accept either LF or CRLF line endings. */
 const SSE_BLOCK_SPLIT = /\r?\n\r?\n/;
 
 /* Pull the payload out of one event block, tolerating CRLF line endings inside it too.
@@ -372,11 +370,12 @@ function sseData(block) {
     try { return JSON.parse(payload); } catch { return null; }
 }
 
-/* Gemini streams SSE lines like:
-     data: {"candidates":[{"content":{"parts":[{"text":"Hello"}],...}}]}
-   We extract the text delta from each chunk and forward it as {"delta":"..."},
-   then emit [DONE] at the end. */
-function geminiSseTransform() {
+/* Claude streams typed events:
+     event: content_block_delta
+     data: {"type":"content_block_delta","delta":{"type":"text_delta","text":"Hello"}}
+   Only text_delta is the answer. thinking_delta and signature_delta belong to thinking
+   blocks and are dropped. A refusal or a mid-stream error becomes an {"error"} frame. */
+function anthropicSseTransform() {
     const decoder = new TextDecoder();
     const encoder = new TextEncoder();
     let buffer = '';
@@ -388,14 +387,11 @@ function geminiSseTransform() {
         const data = sseData(block);
         if (!data) return;
 
-        /* Every text part, not just parts[0]: a chunk can carry a thought part alongside
-           the answer, in which case the answer is not the first one. */
-        (data?.candidates?.[0]?.content?.parts || []).forEach(part => {
-            if (part.thought) return;     // the model thinking out loud, not the answer
-            if (typeof part.text === 'string' && part.text) send(ctrl, { delta: part.text });
-        });
-
-        if (data?.error) {
+        if (data.type === 'content_block_delta' && data.delta?.type === 'text_delta' && data.delta.text) {
+            send(ctrl, { delta: data.delta.text });
+        } else if (data.type === 'message_delta' && data.delta?.stop_reason === 'refusal') {
+            send(ctrl, { error: 'The model declined to answer that one. Try rephrasing.' });
+        } else if (data.type === 'error') {
             send(ctrl, { error: data.error?.message || 'Model error.' });
         }
     };
@@ -753,8 +749,8 @@ async function health(env, cors) {
         model,
         provider:      providerFor(model),
         keyConfigured: {
-            gemini: Boolean(env.GEMINI_API_KEY),
-            groq:   Boolean(env.GROQ_API_KEY)
+            anthropic: Boolean(env.ANTHROPIC_API_KEY),
+            groq:      Boolean(env.GROQ_API_KEY)
         }
     }, null, 2), {
         headers: { ...cors, 'Content-Type': 'application/json' }

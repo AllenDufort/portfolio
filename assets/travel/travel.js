@@ -23,7 +23,7 @@ const HISTORY_TURNS = 8;
    The Worker checks the id against its allowlist, so a stale value costs nothing. */
 const MODEL_KEY = 'travel-model';
 const modelSelects = [...document.querySelectorAll('.tp-model-select')];
-modelSelects.forEach(sel => populateModelSelect(sel, { Gemini: 'Gemini 3', Gemma: 'Gemma 4' }));
+modelSelects.forEach(sel => populateModelSelect(sel));
 
 function setModel(value) {
     modelSelects.forEach(sel => { sel.value = value; });

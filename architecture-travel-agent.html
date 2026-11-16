@@ -133,7 +133,7 @@ ol.steps li::marker { font-family: var(--font-mono); color: var(--accent); }
         <li>Prompt design</li>
         <li>Input validation</li>
         <li>SSE stream normalization</li>
-        <li>Gemini · Groq APIs</li>
+        <li>Claude · Groq APIs</li>
         <li>Cloudflare Workers + KV</li>
         <li>Vanilla JS app architecture</li>
     </ul>
@@ -159,7 +159,7 @@ ol.steps li::marker { font-family: var(--font-mono); color: var(--accent); }
         </div>
         <div class="card">
             <h3>One stream format for two providers</h3>
-            <p>Gemini and Groq stream in different formats. The Worker converts both to one <code>{"delta"}</code> frame format and drops Gemini's hidden reasoning text.</p>
+            <p>Claude and Groq stream in different formats. The Worker converts both to one <code>{"delta"}</code> frame format and drops hidden reasoning text.</p>
             <p class="result"><b>Result</b>The chat UI works the same whichever provider the visitor picks.</p>
         </div>
     </div>
@@ -203,8 +203,8 @@ ol.steps li::marker { font-family: var(--font-mono); color: var(--accent); }
             <text class="s" x="354" y="329">expenses and bucket list. No model.</text>
 
             <rect class="ext" x="830" y="46" width="220" height="182" rx="6"/>
-            <text class="t" x="844" y="88">Gemini, Gemma</text>
-            <text class="s" x="844" y="106">ids gemini-*, gemma-*</text>
+            <text class="t" x="844" y="88">Claude</text>
+            <text class="s" x="844" y="106">ids claude-*</text>
             <text class="t" x="844" y="186">Groq</text>
             <text class="s" x="844" y="204">all other ids</text>
 
@@ -241,7 +241,7 @@ ol.steps li::marker { font-family: var(--font-mono); color: var(--accent); }
         <li><code>travel.js</code> loads saved preferences and sends a <code>generate</code> request with the form values plus interests and dietary restrictions.</li>
         <li>The Worker clamps every field: duration 1 to 30 days, pace and budget tier from fixed lists, at most 10 activities of 60 characters each.</li>
         <li>It writes one prompt containing the trip details and the exact JSON schema to return. The itinerary is capped at 7 days even for longer trips.</li>
-        <li>It makes a single non-streamed call with JSON mode on and up to 4,096 reply tokens, plus 1,024 of headroom for hidden reasoning.</li>
+        <li>It makes a single non-streamed call: JSON mode on Groq, and the prompt's own schema for Claude. It allows up to 4,096 reply tokens, plus headroom for hidden reasoning (1,024 on Groq, 4,096 on Claude, which otherwise truncated 7-day plans).</li>
         <li>It strips any Markdown code fences, parses the JSON, and returns it. Malformed JSON becomes a 502 asking the visitor to try again.</li>
         <li>The page saves the trip with <code>add_trip</code>, then attaches the AI content and the locally computed sections with <code>update_trip</code>.</li>
         <li>The results tabs render from the saved trip, so a reload shows the same plan.</li>
@@ -283,7 +283,7 @@ ol.steps li::marker { font-family: var(--font-mono); color: var(--accent); }
         </div>
         <div>
             <p>The concierge has no access to saved trips, the current plan or any tools. Its only personal context is the three preference fields, so it cannot answer questions like "what is on day 2 of my Lisbon trip?".</p>
-            <p>The stream conversion handles one provider difference directly: Gemini separates events with CRLF and Groq with LF. It also drops Gemini's "thought" parts so reasoning text never reaches the chat.</p>
+            <p>The stream conversion handles one provider difference directly: Claude sends typed events (<code>content_block_delta</code>) and Groq sends OpenAI-style chunks. Only text deltas are forwarded, so thinking blocks never reach the chat.</p>
         </div>
     </div>
 </section>

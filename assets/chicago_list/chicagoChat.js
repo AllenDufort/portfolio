@@ -9,7 +9,7 @@ import { workerEndpoint, readEventStream } from '../shared/worker-client.js';
    API key in a static page is a public key. The Worker also owns all place knowledge — it
    exposes the map's Google Sheet to the model as search tools rather than pasting every
    place into the 8K context window — so this file needs no place data and never waits on
-   the map's data loader. The Model dropdown offers Gemini and Groq; the Worker validates the
+   the map's data loader. The Model dropdown offers Claude and Groq; the Worker validates the
    choice and normalises both providers to one SSE shape, so nothing here depends on which
    one answered.
 

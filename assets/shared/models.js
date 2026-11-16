@@ -1,21 +1,13 @@
-// Model choices shared by both pages and the Chicago Worker. No API keys belong here.
+// Model choices shared by both pages and both Workers. No API keys belong here.
+// The first entry is what the pickers show by default, so keep the default model first.
 export const MODEL_GROUPS = {
+    Claude: [
+        'claude-haiku-5-5',
+    ],
     Groq: [
         'openai/gpt-oss-120b',
         'openai/gpt-oss-20b',
         'qwen/qwen3.8-27b',
-    ],
-    Gemini: [
-        'gemini-3.8-flash',
-        'gemini-3.7-flash',
-        'gemini-3.6-flash',
-        'gemini-3.5-flash',
-        'gemini-3.5-flash-lite',
-        'gemini-3.1-flash-lite',
-    ],
-    Gemma: [
-        'gemma-4-31b-it',
-        'gemma-4-26b-a4b-it',
     ],
 };
 
