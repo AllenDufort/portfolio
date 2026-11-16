@@ -1,0 +1,386 @@
+{
+  "openai/gpt-oss-120b": {
+    "detail-rating": {
+      "toolOk": true,
+      "accurate": true,
+      "pass": true,
+      "why": ""
+    },
+    "detail-address": {
+      "toolOk": true,
+      "accurate": true,
+      "pass": true,
+      "why": ""
+    },
+    "detail-hours": {
+      "toolOk": true,
+      "accurate": true,
+      "pass": true,
+      "why": ""
+    },
+    "detail-followup": {
+      "toolOk": true,
+      "accurate": false,
+      "pass": false,
+      "why": "answer text did not match"
+    },
+    "detail-ambiguous": {
+      "toolOk": true,
+      "accurate": true,
+      "pass": true,
+      "why": ""
+    },
+    "kw-dish": {
+      "toolOk": true,
+      "accurate": true,
+      "pass": true,
+      "why": ""
+    },
+    "kw-theme": {
+      "toolOk": true,
+      "accurate": true,
+      "pass": true,
+      "why": ""
+    },
+    "kw-type-hood": {
+      "toolOk": true,
+      "accurate": true,
+      "pass": true,
+      "why": ""
+    },
+    "kw-museums-hood": {
+      "toolOk": true,
+      "accurate": true,
+      "pass": true,
+      "why": ""
+    },
+    "kw-beaches": {
+      "toolOk": true,
+      "accurate": true,
+      "pass": true,
+      "why": ""
+    },
+    "kw-jazz": {
+      "toolOk": true,
+      "accurate": false,
+      "pass": false,
+      "why": "named 1/2 of pool"
+    },
+    "kw-vegan": {
+      "toolOk": true,
+      "accurate": true,
+      "pass": true,
+      "why": ""
+    },
+    "kw-rooftop": {
+      "toolOk": true,
+      "accurate": true,
+      "pass": true,
+      "why": ""
+    },
+    "kw-none": {
+      "toolOk": true,
+      "accurate": true,
+      "pass": true,
+      "why": ""
+    },
+    "vibe-rainy": {
+      "toolOk": true,
+      "accurate": false,
+      "pass": false,
+      "why": "named 0/2 of pool"
+    },
+    "vibe-romantic": {
+      "toolOk": true,
+      "accurate": true,
+      "pass": true,
+      "why": ""
+    },
+    "vibe-reading": {
+      "toolOk": true,
+      "accurate": false,
+      "pass": false,
+      "why": "named 1/2 of pool"
+    },
+    "vibe-dance": {
+      "toolOk": true,
+      "accurate": true,
+      "pass": true,
+      "why": ""
+    },
+    "vibe-free-rainy": {
+      "toolOk": true,
+      "accurate": false,
+      "pass": false,
+      "why": "named 0/2 of pool"
+    },
+    "vibe-view-hood": {
+      "toolOk": false,
+      "accurate": false,
+      "pass": false,
+      "why": "no vibe argument; named 1/2 of pool"
+    },
+    "near-me": {
+      "toolOk": true,
+      "accurate": true,
+      "pass": true,
+      "why": ""
+    }
+  },
+  "openai/gpt-oss-20b": {
+    "detail-rating": {
+      "toolOk": true,
+      "accurate": true,
+      "pass": true,
+      "why": ""
+    },
+    "detail-address": {
+      "toolOk": true,
+      "accurate": false,
+      "pass": false,
+      "why": "answer text did not match"
+    },
+    "detail-hours": {
+      "toolOk": false,
+      "accurate": false,
+      "pass": false,
+      "why": "error: HTTP 400: {\"error\":\"Tool call validation failed: tool call validation failed: parameters for tool get_place_details did not match schema: errors: [`/fields/0`: value must"
+    },
+    "detail-followup": {
+      "toolOk": true,
+      "accurate": false,
+      "pass": false,
+      "why": "answer text did not match"
+    },
+    "detail-ambiguous": {
+      "toolOk": true,
+      "accurate": false,
+      "pass": false,
+      "why": "answer text did not match"
+    },
+    "kw-dish": {
+      "toolOk": true,
+      "accurate": true,
+      "pass": true,
+      "why": ""
+    },
+    "kw-theme": {
+      "toolOk": true,
+      "accurate": true,
+      "pass": true,
+      "why": ""
+    },
+    "kw-type-hood": {
+      "toolOk": true,
+      "accurate": true,
+      "pass": true,
+      "why": ""
+    },
+    "kw-museums-hood": {
+      "toolOk": true,
+      "accurate": true,
+      "pass": true,
+      "why": ""
+    },
+    "kw-beaches": {
+      "toolOk": true,
+      "accurate": true,
+      "pass": true,
+      "why": ""
+    },
+    "kw-jazz": {
+      "toolOk": true,
+      "accurate": false,
+      "pass": false,
+      "why": "named 1/2 of pool"
+    },
+    "kw-vegan": {
+      "toolOk": true,
+      "accurate": true,
+      "pass": true,
+      "why": ""
+    },
+    "kw-rooftop": {
+      "toolOk": true,
+      "accurate": true,
+      "pass": true,
+      "why": ""
+    },
+    "kw-none": {
+      "toolOk": true,
+      "accurate": false,
+      "pass": false,
+      "why": "answer text did not match"
+    },
+    "vibe-rainy": {
+      "toolOk": true,
+      "accurate": false,
+      "pass": false,
+      "why": "named 0/2 of pool"
+    },
+    "vibe-romantic": {
+      "toolOk": true,
+      "accurate": true,
+      "pass": true,
+      "why": ""
+    },
+    "vibe-reading": {
+      "toolOk": true,
+      "accurate": true,
+      "pass": true,
+      "why": ""
+    },
+    "vibe-dance": {
+      "toolOk": true,
+      "accurate": true,
+      "pass": true,
+      "why": ""
+    },
+    "vibe-free-rainy": {
+      "toolOk": true,
+      "accurate": true,
+      "pass": true,
+      "why": ""
+    },
+    "vibe-view-hood": {
+      "toolOk": true,
+      "accurate": true,
+      "pass": true,
+      "why": ""
+    },
+    "near-me": {
+      "toolOk": true,
+      "accurate": true,
+      "pass": true,
+      "why": ""
+    }
+  },
+  "qwen/qwen3.8-27b": {
+    "detail-rating": {
+      "toolOk": true,
+      "accurate": true,
+      "pass": true,
+      "why": ""
+    },
+    "detail-address": {
+      "toolOk": true,
+      "accurate": false,
+      "pass": false,
+      "why": "named 0/1 required"
+    },
+    "detail-hours": {
+      "toolOk": true,
+      "accurate": true,
+      "pass": true,
+      "why": ""
+    },
+    "detail-followup": {
+      "toolOk": true,
+      "accurate": true,
+      "pass": true,
+      "why": ""
+    },
+    "detail-ambiguous": {
+      "toolOk": true,
+      "accurate": true,
+      "pass": true,
+      "why": ""
+    },
+    "kw-dish": {
+      "toolOk": true,
+      "accurate": true,
+      "pass": true,
+      "why": ""
+    },
+    "kw-theme": {
+      "toolOk": true,
+      "accurate": true,
+      "pass": true,
+      "why": ""
+    },
+    "kw-type-hood": {
+      "toolOk": true,
+      "accurate": true,
+      "pass": true,
+      "why": ""
+    },
+    "kw-museums-hood": {
+      "toolOk": true,
+      "accurate": true,
+      "pass": true,
+      "why": ""
+    },
+    "kw-beaches": {
+      "toolOk": true,
+      "accurate": true,
+      "pass": true,
+      "why": ""
+    },
+    "kw-jazz": {
+      "toolOk": true,
+      "accurate": true,
+      "pass": true,
+      "why": ""
+    },
+    "kw-vegan": {
+      "toolOk": true,
+      "accurate": true,
+      "pass": true,
+      "why": ""
+    },
+    "kw-rooftop": {
+      "toolOk": true,
+      "accurate": true,
+      "pass": true,
+      "why": ""
+    },
+    "kw-none": {
+      "toolOk": true,
+      "accurate": true,
+      "pass": true,
+      "why": ""
+    },
+    "vibe-rainy": {
+      "toolOk": true,
+      "accurate": false,
+      "pass": false,
+      "why": "named 1/2 of pool"
+    },
+    "vibe-romantic": {
+      "toolOk": true,
+      "accurate": true,
+      "pass": true,
+      "why": ""
+    },
+    "vibe-reading": {
+      "toolOk": true,
+      "accurate": true,
+      "pass": true,
+      "why": ""
+    },
+    "vibe-dance": {
+      "toolOk": true,
+      "accurate": true,
+      "pass": true,
+      "why": ""
+    },
+    "vibe-free-rainy": {
+      "toolOk": true,
+      "accurate": true,
+      "pass": true,
+      "why": ""
+    },
+    "vibe-view-hood": {
+      "toolOk": true,
+      "accurate": true,
+      "pass": true,
+      "why": ""
+    },
+    "near-me": {
+      "toolOk": true,
+      "accurate": true,
+      "pass": true,
+      "why": ""
+    }
+  }
+}
