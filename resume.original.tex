@@ -1,0 +1,279 @@
+%-------------------------
+% Resume in Latex
+% Author : Allen Dufort
+% Based off of: sb2nov/resume
+% License : MIT
+%------------------------
+
+\documentclass[letterpaper,10.9pt]{article}
+
+\usepackage{latexsym}
+\usepackage[empty]{fullpage}
+\usepackage{titlesec}
+\usepackage{marvosym}
+\usepackage[usenames,dvipsnames]{color}
+\usepackage{verbatim}
+\usepackage{enumitem}
+\usepackage[hidelinks]{hyperref}
+\usepackage{fancyhdr}
+\usepackage[english]{babel}
+\usepackage{tabularx}
+\input{glyphtounicode}
+
+%----------FONT OPTIONS----------
+% sans-serif
+\usepackage{fontawesome5}
+
+\pagestyle{fancy}
+\fancyhf{} % clear all header and footer fields
+\fancyfoot{}
+\renewcommand{\headrulewidth}{0pt}
+\renewcommand{\footrulewidth}{0pt}
+
+% Adjust margins
+\addtolength{\oddsidemargin}{-0.5in}
+\addtolength{\evensidemargin}{-0.5in}
+\addtolength{\textwidth}{1in}
+\addtolength{\topmargin}{-.5in}
+\addtolength{\textheight}{1.0in}
+
+\urlstyle{same}
+
+\raggedbottom
+\raggedright
+\setlength{\tabcolsep}{0in}
+
+% Sections formatting
+\titleformat{\section}{
+  \vspace{-5pt}\scshape\raggedright\large
+}{}{0em}{}[\color{black}\titlerule \vspace{-6pt}]
+
+% Ensure that generated pdf is machine readable/ATS parsable
+\pdfgentounicode=1
+
+%-------------------------
+% Custom commands
+\newcommand{\resumeItem}[1]{
+  \item\small{
+    {#1 \vspace{-2pt}}
+  }
+}
+
+\newcommand{\resumeEdHeading}[6]{
+  \item
+  \begin{tabular*}{\textwidth}{l@{\extracolsep{\fill}}r}
+    \textbf{#1} & \textit{\small #2} \\
+    \textit{#3} & \textbf{\small #4} \\
+    \textit{#5} & \textbf{\small #6} \\
+  \end{tabular*}\vspace{-7pt}
+}
+
+% \newcommand{\resumeSubheading}[4]{
+%   \item
+%   \begin{tabular*}{\textwidth}{l@{\extracolsep{\fill}}r}
+%     \textbf{#1} & \textbf{\small #2} \\
+%     \textit{\small #3} & \textit{\small #4} \\
+%   \end{tabular*}\vspace{-7pt}
+% }
+
+\newcommand{\resumeSubheading}[4]{
+  \item
+  \begin{tabular*}{\textwidth}{l@{\extracolsep{\fill}}r}
+    \textbf{#1, \small \emph{#3}} & \small{\emph{#4}} $|$ \small{\textbf{#2}} \\
+  \end{tabular*}\vspace{-7pt}
+}
+
+\newcommand{\resumeSubSubheading}[2]{
+  \item
+  \begin{tabular*}{0.97\textwidth}{l@{\extracolsep{\fill}}r}
+    \textit{\small#1} & \textit{\small #2} \\
+  \end{tabular*}\vspace{-7pt}
+}
+
+\newcommand{\resumeProjectHeading}[2]{
+  \item
+  \begin{tabular*}{\textwidth}{l@{\extracolsep{\fill}}r}
+    #1 & \textbf{\small#2} \\
+  \end{tabular*}\vspace{-7pt}
+}
+
+\newcommand{\resumeSubItem}[1]{\resumeItem{#1}\vspace{-4pt}}
+
+\renewcommand\labelitemii{$\vcenter{\hbox{\tiny$\bullet$}}$}
+
+\newcommand{\resumeSubHeadingListStart}{\begin{itemize}[leftmargin=0in, label={}]}
+\newcommand{\resumeSubHeadingListEnd}{\end{itemize}}
+\newcommand{\resumeItemListStart}{\begin{itemize}}
+\newcommand{\resumeItemListEnd}{\end{itemize}\vspace{-5pt}}
+
+%-------------------------------------------
+%%%%%%  RESUME STARTS HERE  %%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\begin{document}
+
+%----------HEADING----------
+\begin{center}
+  \textbf{\Huge \scshape Allen Dufort} \\ \vspace{8pt}
+  \href{mailto:allendufort2020@gmail.com}{\faEnvelope \thinspace \thinspace \underline{allendufort2020@gmail.com}} $|$
+  \faPhone \thinspace \thinspace (860) 710-1473 $|$
+  \faMapMarker* \thinspace \thinspace Chicago, IL $|$
+  \href{https://www.linkedin.com/in/allen-dufort/}{\faLinkedin \thinspace \thinspace \underline{LinkedIn}} $|$
+  \href{https://github.com/AllenDufort}{\faGithub \thinspace \thinspace \underline{GitHub}}
+\end{center}
+
+%-----------EDUCATION-----------
+\section{Education}
+\resumeSubHeadingListStart
+  \resumeEdHeading
+    {Brown University}{Providence, RI}
+    {\textbf{Master of Science in Computer Science}, GPA: 4.0}{May 2025}
+    {\textbf{Bachelor of Science in Computer Science}, GPA: 3.85}{May 2024}
+\resumeSubHeadingListEnd
+
+%-----------TECHNICAL SKILLS-----------
+\section{Technical Skills}
+\resumeItemListStart[leftmargin=0in, label={}]
+  \item{
+    \textbf{Languages:}\small{ Python, SQL, Golang, JavaScript, Java, C++, C, HTML, CSS} \\
+    \textbf{Tools \& Frameworks:}\small{ watsonx.ai, watsonx Orchestrate, IBM Maximo, Hugging Face, Git, OpenAI API, MongoDB, AWS, Azure, WordPress} \\
+    \textbf{Areas of Expertise:}\small{ Generative AI, Large Language Models, Agentic \& Multi-Agent Systems, Machine Learning, Deep Learning, Predictive Modeling, NLP, Computer Vision, Data Analysis \& Visualization, Responsible AI \& AI Ethics} \\
+    \textbf{Certifications:}\small{ IBM AI Associate Data Scientist, watsonx.ai Generative AI Models Technical Sales Intermediate, Data Science Tools, Data Science Methodologies, IBM Cloud Essentials, IBM Garage Essentials, IBM Agile Explorer, Enterprise Design Thinking Practitioner} \\
+    \textbf{Spoken Languages:}\small{ English (fluent), French (proficient), Spanish (proficient)} \\
+  }
+\resumeItemListEnd\vspace{-7pt}
+
+%-----------WORK EXPERIENCE-----------
+\section{Experience}
+\resumeSubHeadingListStart
+
+\resumeSubheading
+  {Data Scientist Consultant}{2025 -- Present}
+  {IBM}{Chicago, IL}
+  \resumeItemListStart
+    \resumeItem{Built and delivered generative AI supervisor assistant in watsonx Orchestrate that centralizes work-order information, flags anomalies, and streamlines review and approval workflows for a global pharmaceutical enterprise}
+    \resumeItem{Developed AI/ML models and dashboards for an energy enterprise to proactively predict and prevent serious injuries and fatalities, automating content summarization, classification, and compliance checking while partnering with subject-matter experts to validate model outputs}
+    \resumeItem{Reduced work-order review time by 75 percent across 300+ work orders per week, unlocking roughly 10.5K labor hours of capacity and \$1.12M in repurposed labor value annually}
+    \resumeItem{Translated business use cases into AI solution architecture with clients, and produced documentation and demos that enabled adoption across delivery teams}
+    \resumeItem{Developed Python-based AI tools, integrating live enterprise asset-management (Maximo) data with resilient handling of upstream failures}
+    \resumeItem{Improved AI scalability, throughput, and latency through optimized model inference, efficient tool orchestration, parallel processing, and robust error handling}
+    \resumeItem{Built unit testing frameworks and ran integration testing to prevent functional and AI accuracy defects}
+    \resumeItem{Integrated 2024 release core code into a semiconductor manufacturer's custom C++ codebase for IBM's SiView Manufacturing Execution System, independently completing and unit testing merges across three subsystems (specification management, material transport, and floor control)}
+  \resumeItemListEnd
+
+\resumeSubheading
+  {Graduate Teaching Assistant}{January 2025 -- May 2025}
+  {Brown University}{Providence, RI}
+  \resumeItemListStart
+    \resumeItem{Created course content and led live demos teaching students to design multi-agent systems with generative AI and build large language model applications using Python, Jupyter Notebook, and the OpenAI API}
+    \resumeItem{Graded assignments and held office hours, guiding students in debugging code, optimizing algorithms, and applying generative AI techniques to practical use cases}
+  \resumeItemListEnd
+
+\resumeSubheading
+  {Software Engineering Intern}{June 2024 -- August 2024}
+  {Marqeta}{Remote}
+  \resumeItemListStart
+    \resumeItem{Developed a GitHub application integrated with the CI team's service, issuing on-demand personal access tokens scoped to user-specified repositories; the design was adopted as a team best practice}
+    \resumeItem{Reduced token retrieval time by 95 percent and delivered documentation and demos that drove company-wide adoption, enhancing the CI/CD pipeline's efficiency}
+  \resumeItemListEnd
+
+% \resumeSubheading
+%   {Computer Science Teaching Assistant}{January 2024 -- May 2024}
+%   {Brown University}{Providence, RI}
+%   \resumeItemListStart
+%     \resumeItem{Facilitated monthly discussion sections for over 150 students to deepen their understanding of computer vision concepts and their social implications, such as legal policies surrounding AI and data privacy}
+%   \resumeItemListEnd
+
+\resumeSubheading
+  {Software Engineering Intern}{June 2023 -- August 2023}
+  {General Motors}{Roswell, GA}
+  \resumeItemListStart
+    \resumeItem{Implemented front-end features for Account Overview used by over 22 million online users}
+    \resumeItem{Led testing phase, automating and executing tests to identify critical bugs and enhance product quality}
+    \resumeItem{Engaged in scrum practices, including creating and reviewing PRs, bug triages, PI planning, and deployments}
+  \resumeItemListEnd
+
+\resumeSubheading
+  {Research Assistant}{November 2021 -- May 2024}
+  {Brown University Physics Department}{Providence, RI}
+  \resumeItemListStart
+    \resumeItem{Owned and developed backend software for the cryostat control system of NASA's Exoplanet Climate Infrared Telescope (EXCITE), managing commands and data exchange between the ground computer and temperature-sensitive sensors}
+    \resumeItem{Diagnosed and resolved cross-system communication issues via robust serial and network connections, and collaborated with NASA's Goddard Space Flight Center and partner institutions to plan, test, and document solutions}
+  \resumeItemListEnd
+
+\resumeSubheading
+  {Freelance Web Developer}{January 2015 -- Present}
+  {Diabetic and Hypertension Relief Center}{Remote}
+  \resumeItemListStart
+    \resumeItem{Oversee UI design, including CSS/HTML elements, text updates, and photo uploads, for the WordPress-supported site \href{http://www.dhreliefcenter.org/}{dhreliefcenter.org} since 2021}
+  \resumeItemListEnd
+
+\resumeSubHeadingListEnd
+
+%-----------PROJECTS-----------
+\section{Projects}
+\resumeSubHeadingListStart
+  \resumeProjectHeading
+    {\textbf{Language Models as Reward Functions for RL} $|$ \emph{\small{Python, Jupyter Notebook, Gymnasium, Hugging Face}}}{Spring 2025}
+    \resumeItemListStart
+      \resumeItem{Developed a reinforcement learning framework using large language models as reward signal generators instead of traditional mathematical reward functions}
+      \resumeItem{Implemented and evaluated Q-learning agents in Frozen Lake and Blackjack environments, comparing LLM-based rewards against numeric baselines across 400--500 training episodes, and showed language-driven rewards yield more flexible, human-aligned feedback}
+    \resumeItemListEnd
+
+  \resumeProjectHeading
+    {\textbf{Iterative Design} $|$ \emph{\small{HTML, CSS, Figma, Balsamiq}}}{Spring 2025}
+    \resumeItemListStart
+      \resumeItem{Redesigned a healthcare platform to improve accessibility and personalization for AI-driven healthcare tools, developing iterative prototypes refined through structured critique cycles with industry executives}
+    \resumeItemListEnd
+
+  \resumeProjectHeading
+    {\textbf{JeopardyAI!} $|$ \emph{\small{Python, Jupyter Notebook, AutoGen, OpenAI}}}{Fall 2024}
+    \resumeItemListStart
+      \resumeItem{Built a Jeopardy-style trivia game with a multi-agent system that dynamically generated questions, moderated gameplay, and kept score against an AI game host}
+      \resumeItem{Integrated OpenAI and Cluebase APIs to deliver an engaging experience with access to over 350,000 trivia questions}
+    \resumeItemListEnd
+
+% \resumeProjectHeading
+%   {\textbf{DraftBears Sportsbook} $|$ \emph{\small{Python, SQLite, JSON}}}{Spring 2024}
+%   \resumeItemListStart
+%     \resumeItem{Analyzed NBA player performance metrics by using machine learning algorithms to predict player performance, while collecting over 23,000 data points from multiple APIs}
+%   \resumeItemListEnd
+
+% \resumeProjectHeading
+%   {\textbf{Rendering 360\textdegree{} Images into Paintings} $|$ \emph{\small{Python, Jupyter Notebook, TensorFlow}}}{Fall 2023}
+%   \resumeItemListStart
+%     \resumeItem{Transformed 360\textdegree{} panoramic images into interactive artistic stylizations using patch-based algorithms and convolutional neural networks}
+%   \resumeItemListEnd
+
+% \resumeProjectHeading
+%   {\textbf{Semantic Parsing} $|$ \emph{\small{Python, Jupyter Notebook, PyTorch}}}{Fall 2023}
+%   \resumeItemListStart
+%     \resumeItem{Designed a natural language parser capable of interpreting user commands into executable computer code by utilizing deep learning}
+%   \resumeItemListEnd
+\resumeSubHeadingListEnd
+
+%-----------AWARDS & HONORS-----------
+\section{Honors and Awards}
+\resumeSubHeadingListStart
+  \resumeProjectHeading
+    {\textbf{Brown University Computer Science Scholarship}}{March 2024}
+    \resumeItemListStart
+      \resumeItem{Merit-based full-tuition scholarship for the Master's Program of Computer Science at Brown}
+    \resumeItemListEnd
+  \resumeProjectHeading
+    {\textbf{Brown University Undergraduate Teaching and Research Award}}{Spring 2024, Spring 2023, Fall 2022}
+    \resumeItemListStart
+      \resumeItem{Supports Brown students collaborating with Brown faculty on research}
+    \resumeItemListEnd
+  \resumeProjectHeading
+    {\textbf{NASA Rhode Island Space Grant Summer Scholarship}}{April 2022}
+    \resumeItemListStart
+      \resumeItem{Awarded to undergraduates carrying out NASA-related research projects}
+    \resumeItemListEnd
+  \resumeProjectHeading
+    {\textbf{Dr. Martin Luther King Jr. Trust Fund Scholarship}}{October 2019}
+    \resumeItemListStart
+      \resumeItem{Awarded to college-bound students with exceptional academics and community service experience}
+    \resumeItemListEnd
+\resumeSubHeadingListEnd
+
+\end{document}
