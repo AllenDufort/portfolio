@@ -1,0 +1,233 @@
+%-------------------------
+% Resume in Latex
+% Author : Allen Dufort
+% Based off of: sb2nov/resume
+% License : MIT
+%------------------------
+
+\documentclass[letterpaper,10pt]{article}
+
+\usepackage{latexsym}
+\usepackage[empty]{fullpage}
+\usepackage{titlesec}
+\usepackage[usenames,dvipsnames]{color}
+\usepackage{verbatim}
+\usepackage{enumitem}
+\usepackage[hidelinks]{hyperref}
+\usepackage{fancyhdr}
+\usepackage[english]{babel}
+\usepackage{tabularx}
+\usepackage{iftex}
+\ifPDFTeX\input{glyphtounicode}\else
+  % XeTeX/LuaTeX (e.g. Tectonic): turn off fi/ff/ffi ligatures so text extracts as plain letters for ATS
+  \usepackage{fontspec}
+  \setmainfont{lmroman10-regular.otf}[BoldFont=lmroman10-bold.otf, BoldFeatures={SmallCapsFont=lmroman10-bold.otf}, ItalicFont=lmroman10-italic.otf, BoldItalicFont=lmroman10-bolditalic.otf, SmallCapsFont=lmromancaps10-regular.otf, Ligatures={NoCommon,TeX}]
+\fi
+
+\pagestyle{fancy}
+\fancyhf{} % clear all header and footer fields
+\fancyfoot{}
+\renewcommand{\headrulewidth}{0pt}
+\renewcommand{\footrulewidth}{0pt}
+
+% Adjust margins
+\addtolength{\oddsidemargin}{-0.5in}
+\addtolength{\evensidemargin}{-0.5in}
+\addtolength{\textwidth}{1in}
+\addtolength{\topmargin}{-.5in}
+\addtolength{\textheight}{1.0in}
+
+\urlstyle{same}
+
+\raggedbottom
+\raggedright
+\setlength{\tabcolsep}{0in}
+
+% Sections formatting
+\titleformat{\section}{
+  \vspace{-5pt}\scshape\raggedright\large
+}{}{0em}{}[\color{black}\titlerule \vspace{-6pt}]
+
+% Ensure that generated pdf is machine readable/ATS parsable
+\ifPDFTeX\pdfgentounicode=1\fi
+
+% PDF metadata read by some ATS parsers
+\hypersetup{
+  pdftitle={Allen Dufort - Resume},
+  pdfauthor={Allen Dufort},
+  pdfkeywords={Data Engineer, Data Pipelines, Data Integration, Python, SQL, Microsoft Azure, Power BI, CI/CD}
+}
+
+%-------------------------
+% Custom commands
+\newcommand{\resumeItem}[1]{
+  \item\small{
+    {#1 \vspace{-2pt}}
+  }
+}
+
+\newcommand{\resumeEdHeading}[6]{
+  \item
+  \begin{tabular*}{\textwidth}{l@{\extracolsep{\fill}}r}
+    \textbf{#1} & \textit{\small #2} \\
+    \textit{#3} & \textbf{\small #4} \\
+    \textit{#5} & \textbf{\small #6} \\
+  \end{tabular*}\vspace{-7pt}
+}
+
+\newcommand{\resumeSubheading}[4]{
+  \item
+  \begin{tabular*}{\textwidth}{l@{\extracolsep{\fill}}r}
+    \textbf{#1, \small \emph{#3}} & \small{\emph{#4}} $|$ \small{\textbf{#2}} \\
+  \end{tabular*}\vspace{-7pt}
+}
+
+\newcommand{\resumeProjectHeading}[2]{
+  \item
+  \begin{tabular*}{\textwidth}{l@{\extracolsep{\fill}}r}
+    #1 & \textbf{\small#2} \\
+  \end{tabular*}\vspace{-7pt}
+}
+
+\renewcommand\labelitemii{$\vcenter{\hbox{\tiny$\bullet$}}$}
+
+\newcommand{\resumeSubHeadingListStart}{\begin{itemize}[leftmargin=0in, label={}]}
+\newcommand{\resumeSubHeadingListEnd}{\end{itemize}}
+\newcommand{\resumeItemListStart}{\begin{itemize}}
+\newcommand{\resumeItemListEnd}{\end{itemize}\vspace{-5pt}}
+
+%-------------------------------------------
+%%%%%%  RESUME STARTS HERE  %%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\begin{document}
+
+%----------HEADING----------
+% Plain text only (no icon fonts) and full URLs spelled out so ATS parsers can read every contact field
+\begin{center}
+  \textbf{\Huge \scshape Allen Dufort} \\ \vspace{6pt}
+  \small
+  Chicago, IL $|$
+  (860) 710-1473 $|$
+  \href{mailto:allendufort2020@gmail.com}{allendufort2020@gmail.com} $|$
+  \href{https://www.linkedin.com/in/allen-dufort/}{linkedin.com/in/allen-dufort} $|$
+  \href{https://github.com/AllenDufort}{github.com/AllenDufort}
+\end{center}
+
+%-----------SUMMARY-----------
+\section{Summary}
+\resumeItemListStart[leftmargin=0in, label={}]
+  \item\small{
+    Data and software engineer with a Master of Science in Computer Science from Brown University (GPA 4.0) and experience at IBM integrating complex enterprise data sources, building reliable Python and SQL data solutions, and delivering analytics and AI products with measurable business impact. Experienced in data integration, validation, error handling, performance optimization, testing, and CI/CD, and in translating business and reporting requirements into well-designed data solutions with analysts, engineers, and business stakeholders. Regular user of AI-assisted development tools to improve engineering productivity and code quality.
+  }
+\resumeItemListEnd
+
+%-----------EDUCATION-----------
+\section{Education}
+\resumeSubHeadingListStart
+  \resumeEdHeading
+    {Brown University}{Providence, RI}
+    {\textbf{Master of Science in Computer Science}, GPA: 4.0}{May 2025}
+    {\textbf{Bachelor of Science in Computer Science}, GPA: 3.85}{May 2024}
+\resumeSubHeadingListEnd
+
+%-----------SKILLS-----------
+\section{Skills}
+\resumeItemListStart[leftmargin=0in, label={}]
+  \item{
+    \textbf{Data Engineering:}\small{ Data Pipelines, Data Integration, Data Ingestion and Transformation, Data Modeling, Database Design, Data Cleaning, Data Quality and Validation, Data Profiling, API Integration, Error Handling, Performance Optimization, Data Analysis and Visualization} \\
+    \textbf{Programming Languages:}\small{ Python, SQL, Java, C++, C, Go, JavaScript} \\
+    \textbf{Platforms and Tools:}\small{ Microsoft Azure, Azure AI, Power BI, AWS, SQLite, MongoDB, IBM Maximo, IBM watsonx.ai, watsonx Orchestrate, Jupyter Notebook, REST APIs, Podman, Jira} \\
+    \textbf{Engineering Practices:}\small{ Git, GitHub, Code Reviews, Unit and Integration Testing, CI/CD, Documentation, Agile and Scrum, AI-Assisted Development (IBM Bob), Spec-Driven Development} \\
+    \textbf{Analytics and AI:}\small{ Predictive Modeling, Machine Learning, Statistical Hypothesis Testing, Generative AI, Large Language Models (LLMs), Natural Language Processing (NLP), Embeddings} \\
+    \textbf{Certifications:}\small{ IBM AI Associate Data Scientist, Data Science Tools, Data Science Methodologies, IBM Cloud Essentials, IBM Agile Explorer} \\
+  }
+\resumeItemListEnd\vspace{-7pt}
+
+%-----------WORK EXPERIENCE-----------
+\section{Professional Experience}
+\resumeSubHeadingListStart
+
+\resumeSubheading
+  {Data Scientist Consultant}{July 2025 -- Present}
+  {IBM}{Chicago, IL}
+  \resumeItemListStart
+    \resumeItem{Integrated complex enterprise data sources for an energy enterprise (incident history, verification findings, permits, and safety-management system data), mapping table structures and data dictionaries and profiling the data to feed predictive models and analytics}
+    \resumeItem{Processed and enriched that data with Azure AI for summarization, classification, and compliance checking, validating outputs with client subject-matter experts, and delivering visualizations and a demo-ready Power BI dashboard in an 8-week sprint (team earned an IBM 2025 Growth Award)}
+    \resumeItem{Built a custom Python API wrapper integrating live enterprise asset-management (IBM Maximo) work-order data for a global pharmaceutical enterprise, with resilient handling of upstream failures and automated validation of work orders that returns actionable supporting details}
+    \resumeItem{Optimized processing for scalability, throughput, and latency through parallel processing and robust error handling; the resulting solution reduced work-order review time by 75\% across 300+ work orders per week, unlocking about 10,500 labor hours and \$1.12M in annual labor value}
+    \resumeItem{Built a unit-testing framework and ran integration testing to prevent functional and accuracy defects before production, and wrote tests for API endpoints integrating GitHub, Jira, and Monday.com data}
+    \resumeItem{Partnered with client stakeholders and delivery teams to translate business requirements into solution architecture mapped to enterprise data, communicating progress and producing documentation and demos that enabled adoption}
+    \resumeItem{Integrated the 2024 release of IBM's SiView Manufacturing Execution System into a semiconductor manufacturer's custom C++ codebase, independently completing and unit-testing merges across three subsystems and restructuring the folder hierarchy for future compatibility between custom and core code}
+    \resumeItem{Use AI-assisted development (IBM Bob) and an automated pipeline to deploy equipment-integration tools across environments; wrote knowledge-transfer documentation and onboarded new team members}
+    \resumeItem{Built a web interface and defined metrics for a telecommunications proof of concept tracking developer productivity with and without AI tools}
+  \resumeItemListEnd
+
+\resumeSubheading
+  {Graduate Teaching Assistant}{January 2025 -- May 2025}
+  {Brown University}{Providence, RI}
+  \resumeItemListStart
+    \resumeItem{Created course content and led live demos on building LLM applications in Python and Jupyter Notebook; guided students in debugging code and optimizing algorithms}
+  \resumeItemListEnd
+
+\resumeSubheading
+  {Software Engineering Intern}{June 2024 -- August 2024}
+  {Marqeta}{Remote}
+  \resumeItemListStart
+    \resumeItem{Developed a GitHub application integrated with the CI team's service that issues on-demand access tokens scoped to user-specified repositories, enforcing least-privilege, identity-based access; the design was adopted as a team best practice}
+    \resumeItem{Reduced token retrieval time by 95\% and delivered documentation and demos that drove company-wide adoption and improved CI/CD pipeline efficiency}
+  \resumeItemListEnd
+
+\resumeSubheading
+  {Software Engineering Intern}{June 2023 -- August 2023}
+  {General Motors}{Roswell, GA}
+  \resumeItemListStart
+    \resumeItem{Implemented features for Account Overview, used by over 22 million online users, and led the testing phase, automating and executing tests to identify critical bugs}
+    \resumeItem{Worked in scrum, creating and reviewing pull requests and taking part in bug triage, PI planning, and deployments}
+  \resumeItemListEnd
+
+\resumeSubheading
+  {Research Assistant}{November 2021 -- May 2024}
+  {Brown University Physics Department}{Providence, RI}
+  \resumeItemListStart
+    \resumeItem{Owned backend software for the cryostat control system of NASA's Exoplanet Climate Infrared Telescope (EXCITE), managing commands and data exchange between the ground computer and temperature-sensitive sensors}
+    \resumeItem{Performed root-cause analysis of cross-system communication issues over serial and network connections and implemented durable fixes, collaborating with NASA's Goddard Space Flight Center and partner institutions to plan, test, and document solutions}
+  \resumeItemListEnd
+
+\resumeSubHeadingListEnd
+
+%-----------PROJECTS-----------
+\section{Projects}
+\resumeSubHeadingListStart
+  \resumeProjectHeading
+    {\textbf{DraftBears Sportsbook} $|$ \emph{\small{Python, SQL, SQLite}}}{Spring 2024}
+    \resumeItemListStart
+      \resumeItem{Designed a multi-table SQL database combining two NBA data APIs after no single source held both player and team data, collecting and cleaning over 23,000 data points}
+      \resumeItem{Ran statistical hypothesis tests and built visualizations relating player performance metrics to team success}
+    \resumeItemListEnd
+
+  \resumeProjectHeading
+    {\textbf{Chicago Guide Data Pipeline and AI Agent} $|$ \emph{\small{Python, JavaScript, Cloudflare Workers}}}{2026}
+    \resumeItemListStart
+      \resumeItem{Built an incremental data pipeline over 560 records: ingests a Google Sheets source, geocodes addresses with a cache, and re-embeds only rows whose content hash changed, with a committed snapshot as fallback when the source is unreachable}
+      \resumeItem{Added an automated evaluation suite of 21 test cases with a saved baseline that flags regressions, and secured the API with server-side secrets, origin allowlists, and per-IP rate limiting}
+    \resumeItemListEnd
+
+  \resumeProjectHeading
+    {\textbf{LLMs as Reward Functions for Reinforcement Learning} $|$ \emph{\small{Python, Gymnasium, Hugging Face}}}{Spring 2025}
+    \resumeItemListStart
+      \resumeItem{Implemented and evaluated Q-learning agents using LLM-generated rewards against numeric baselines across 400--500 training episodes}
+    \resumeItemListEnd
+\resumeSubHeadingListEnd
+
+%-----------HONORS & AWARDS-----------
+\section{Honors and Awards}
+\resumeItemListStart[leftmargin=0in, label={}]
+  \item\small{
+    \textbf{IBM Growth Award}, December 2025: team recognition for outstanding contributions to an energy-sector data and AI engagement \\
+    \textbf{Brown University Computer Science Scholarship}, March 2024: merit-based full-tuition scholarship for the Master's program \\
+    \textbf{Brown University Undergraduate Teaching and Research Award}, 2022 -- 2024: awarded multiple terms for faculty research \\
+    \textbf{NASA Rhode Island Space Grant Summer Scholarship}, April 2022: awarded for NASA-related undergraduate research
+  }
+\resumeItemListEnd
+
+\end{document}

@@ -1,0 +1,228 @@
+%-------------------------
+% Resume in Latex
+% Author : Allen Dufort
+% Based off of: sb2nov/resume
+% License : MIT
+%------------------------
+
+\documentclass[letterpaper,10pt]{article}
+
+\usepackage{latexsym}
+\usepackage[empty]{fullpage}
+\usepackage{titlesec}
+\usepackage[usenames,dvipsnames]{color}
+\usepackage{verbatim}
+\usepackage{enumitem}
+\usepackage[hidelinks]{hyperref}
+\usepackage{fancyhdr}
+\usepackage[english]{babel}
+\usepackage{tabularx}
+\usepackage{needspace}
+\usepackage{iftex}
+\ifPDFTeX\input{glyphtounicode}\else
+  % XeTeX/LuaTeX (e.g. Tectonic): turn off fi/ff/ffi ligatures so text extracts as plain letters for ATS
+  \usepackage{fontspec}
+  \setmainfont{lmroman10-regular.otf}[BoldFont=lmroman10-bold.otf, BoldFeatures={SmallCapsFont=lmroman10-bold.otf}, ItalicFont=lmroman10-italic.otf, BoldItalicFont=lmroman10-bolditalic.otf, SmallCapsFont=lmromancaps10-regular.otf, Ligatures={NoCommon,TeX}]
+\fi
+
+\pagestyle{fancy}
+\fancyhf{} % clear all header and footer fields
+\fancyfoot{}
+\renewcommand{\headrulewidth}{0pt}
+\renewcommand{\footrulewidth}{0pt}
+
+% Adjust margins
+\addtolength{\oddsidemargin}{-0.5in}
+\addtolength{\evensidemargin}{-0.5in}
+\addtolength{\textwidth}{1in}
+\addtolength{\topmargin}{-.5in}
+\addtolength{\textheight}{1.0in}
+
+\urlstyle{same}
+
+\raggedbottom
+\raggedright
+\setlength{\tabcolsep}{0in}
+
+% Sections formatting
+\titleformat{\section}{
+  \vspace{-5pt}\scshape\raggedright\large
+}{}{0em}{}[\color{black}\titlerule \vspace{-6pt}]
+
+% Ensure that generated pdf is machine readable/ATS parsable
+\ifPDFTeX\pdfgentounicode=1\fi
+
+% PDF metadata read by some ATS parsers
+\hypersetup{
+  pdftitle={Allen Dufort - Resume},
+  pdfauthor={Allen Dufort},
+  pdfkeywords={AI Agent Engineer, AI Agents, Large Language Models, Function Calling, RAG, Prompt Engineering, Python, Golang, API Integration}
+}
+
+%-------------------------
+% Custom commands
+\newcommand{\resumeItem}[1]{
+  \item\small{
+    {#1 \vspace{-2pt}}
+  }
+}
+
+\newcommand{\resumeEdHeading}[6]{
+  \item
+  \begin{tabular*}{\textwidth}{l@{\extracolsep{\fill}}r}
+    \textbf{#1} & \textit{\small #2} \\
+    \textit{#3} & \textbf{\small #4} \\
+    \textit{#5} & \textbf{\small #6} \\
+  \end{tabular*}\vspace{-7pt}
+}
+
+\newcommand{\resumeSubheading}[4]{
+  \needspace{4\baselineskip} % keep a role heading on the same page as its first bullet
+  \item
+  \begin{tabular*}{\textwidth}{l@{\extracolsep{\fill}}r}
+    \textbf{#1, \small \emph{#3}} & \small{\emph{#4}} $|$ \small{\textbf{#2}} \\
+  \end{tabular*}\vspace{-7pt}
+}
+
+\newcommand{\resumeProjectHeading}[2]{
+  \item
+  \begin{tabular*}{\textwidth}{l@{\extracolsep{\fill}}r}
+    #1 & \textbf{\small#2} \\
+  \end{tabular*}\vspace{-7pt}
+}
+
+\renewcommand\labelitemii{$\vcenter{\hbox{\tiny$\bullet$}}$}
+
+\newcommand{\resumeSubHeadingListStart}{\begin{itemize}[leftmargin=0in, label={}]}
+\newcommand{\resumeSubHeadingListEnd}{\end{itemize}}
+\newcommand{\resumeItemListStart}{\begin{itemize}}
+\newcommand{\resumeItemListEnd}{\end{itemize}\vspace{-5pt}}
+
+%-------------------------------------------
+%%%%%%  RESUME STARTS HERE  %%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\begin{document}
+
+%----------HEADING----------
+% Plain text only (no icon fonts) and full URLs spelled out so ATS parsers can read every contact field
+\begin{center}
+  \textbf{\Huge \scshape Allen Dufort} \\ \vspace{6pt}
+  \small
+  Chicago, IL $|$
+  (860) 710-1473 $|$
+  \href{mailto:allendufort2020@gmail.com}{allendufort2020@gmail.com} $|$
+  \href{https://www.linkedin.com/in/allen-dufort/}{linkedin.com/in/allen-dufort} $|$
+  \href{https://github.com/AllenDufort}{github.com/AllenDufort}
+\end{center}
+
+%-----------SUMMARY-----------
+\section{Summary}
+\resumeItemListStart[leftmargin=0in, label={}]
+  \item\small{
+    Customer-facing AI engineer at IBM with a Master of Science in Computer Science from Brown University who develops, deploys, and optimizes AI agents built on large language models (LLMs) for enterprise customers. Hands-on with function calling, retrieval-augmented generation (RAG), prompt engineering, and integration of AI agents with external systems through APIs and data pipelines. Gathers requirements with customers, delivers demos and proofs of concept, and takes solutions to production with measurable impact (\$1.12M in annual value on one deployment). Proficient in Python, with working knowledge of Go (Golang) and JavaScript.
+  }
+\resumeItemListEnd
+
+%-----------EDUCATION-----------
+\section{Education}
+\resumeSubHeadingListStart
+  \resumeEdHeading
+    {Brown University}{Providence, RI}
+    {\textbf{Master of Science in Computer Science}, GPA: 4.0}{May 2025}
+    {\textbf{Bachelor of Science in Computer Science}, GPA: 3.85}{May 2024}
+\resumeSubHeadingListEnd
+
+%-----------SKILLS-----------
+\section{Skills}
+\resumeItemListStart[leftmargin=0in, label={}]
+  \item{
+    \textbf{AI Agents and LLMs:}\small{ AI Agents, Agentic AI, Multi-Agent Systems, Large Language Models (LLMs), Prompt Engineering, Function Calling (Tool Calling), Retrieval-Augmented Generation (RAG), Embeddings, Semantic Search, Conversational AI, Model Evaluation, Generative AI, Natural Language Processing (NLP), Machine Learning} \\
+    \textbf{Programming Languages:}\small{ Python, Go (Golang), JavaScript, SQL, Java, C++} \\
+    \textbf{Integration, Cloud, and DevOps:}\small{ REST APIs, API Integration, Data Pipelines, AWS, Microsoft Azure, Azure AI, Cloudflare Workers, CI/CD, Containers (Podman), Unit and Integration Testing, Git, GitHub} \\
+    \textbf{AI Platforms and Tools:}\small{ IBM watsonx Orchestrate, watsonx.ai, OpenAI API, Anthropic Claude API, AutoGen, Hugging Face, n8n, IBM Bob, IBM Maximo, Jira, Monday.com, Power BI} \\
+    \textbf{Customer Delivery:}\small{ Requirements Gathering, Technical Demos, Proofs of Concept, Solution Architecture, Project Coordination, Sprint Planning, Documentation, Customer Enablement} \\
+    \textbf{Certifications:}\small{ IBM AI Associate Data Scientist, watsonx.ai Generative AI Models Technical Sales Intermediate, IBM Cloud Essentials, IBM Agile Explorer} \\
+  }
+\resumeItemListEnd\vspace{-7pt}
+
+%-----------WORK EXPERIENCE-----------
+\section{Professional Experience}
+\resumeSubHeadingListStart
+
+\resumeSubheading
+  {Data Scientist Consultant}{July 2025 -- Present}
+  {IBM}{Chicago, IL}
+  \resumeItemListStart
+    \resumeItem{Developed and deployed a generative AI agent in watsonx Orchestrate for a global pharmaceutical enterprise that centralizes work-order information, flags anomalies, and streamlines review and approval workflows; reduced review time by 75\% across 300+ work orders per week, unlocking about 10,500 labor hours and \$1.12M in annual labor value}
+    \resumeItem{Collaborated with customer stakeholders to gather requirements and translate business needs into an AI agent solution architecture, mapping operational requirements to enterprise data and agent capabilities; delivered demos and documentation that enabled adoption across delivery teams}
+    \resumeItem{Built Python agent tools that integrate with an external enterprise asset-management system (IBM Maximo) through a custom API wrapper, with resilient handling of upstream failures and compliance checks that return actionable details to users}
+    \resumeItem{Optimized AI agent performance, improving scalability, throughput, and latency through optimized model inference, efficient tool orchestration, parallel processing, and robust error handling}
+    \resumeItem{Built a unit-testing framework, ran integration testing, and validated LLM outputs with customer subject-matter experts to prevent functional and AI accuracy defects before production}
+    \resumeItem{Delivered, in an 8-week sprint, a predictive modeling and generative AI solution for an energy enterprise: integrated incident, verification, and permit data, applied Azure AI to summarization, classification, and compliance checking, and shipped a demo-ready Power BI dashboard (team earned an IBM 2025 Growth Award)}
+    \resumeItem{Built proofs of concept for prospective and existing customers: a web interface with defined metrics comparing AI-assisted and traditional software development for a telecommunications company, and an AI invoice-processing workflow in n8n; contributed to an RFP response for a generative AI engagement}
+    \resumeItem{Designed an agentic AI framework integrating GitHub, Jira, and Monday.com APIs, wrote API endpoint tests, and ran sprint planning for the team}
+    \resumeItem{Integrated the 2024 release of IBM's SiView Manufacturing Execution System into a semiconductor manufacturer's custom C++ codebase, independently completing and unit-testing merges across three subsystems; the customer signed a \$1.05M follow-on upgrade after this phase}
+    \resumeItem{Coordinated project delivery: set up the project board around the developer workflow, interviewed developer candidates, onboarded new team members, and wrote knowledge-transfer documentation}
+  \resumeItemListEnd
+
+\resumeSubheading
+  {Graduate Teaching Assistant}{January 2025 -- May 2025}
+  {Brown University}{Providence, RI}
+  \resumeItemListStart
+    \resumeItem{Created course content and led live demos teaching students to design multi-agent systems and build LLM applications using Python, Jupyter Notebook, and the OpenAI API; guided students in debugging and optimizing their code}
+  \resumeItemListEnd
+
+\resumeSubheading
+  {Software Engineering Intern}{June 2024 -- August 2024}
+  {Marqeta}{Remote}
+  \resumeItemListStart
+    \resumeItem{Developed a GitHub application integrated with the CI team's service that issues on-demand, least-privilege access tokens scoped to user-specified repositories; the design was adopted as a team best practice}
+    \resumeItem{Reduced token retrieval time by 95\% and delivered documentation and demos that drove company-wide adoption and improved CI/CD pipeline efficiency}
+  \resumeItemListEnd
+
+\resumeSubheading
+  {Research Assistant}{November 2021 -- May 2024}
+  {Brown University Physics Department}{Providence, RI}
+  \resumeItemListStart
+    \resumeItem{Owned backend software for the cryostat control system of NASA's Exoplanet Climate Infrared Telescope (EXCITE), managing commands and data exchange between the ground computer and sensors, and resolved cross-system communication issues with NASA's Goddard Space Flight Center and partner institutions}
+  \resumeItemListEnd
+
+\resumeSubHeadingListEnd
+
+%-----------PROJECTS-----------
+\section{Projects}
+\resumeSubHeadingListStart
+  \resumeProjectHeading
+    {\textbf{Chicago Guide AI Agent} $|$ \emph{\small{JavaScript, Python, Claude API, Cloudflare Workers}}}{2026}
+    \resumeItemListStart
+      \resumeItem{Built and deployed a conversational AI agent with LLM function calling and retrieval: semantic search over embeddings of 560 places combined with keyword filters, served through a serverless API with streamed responses across two LLM providers}
+      \resumeItem{Built an evaluation harness of 21 test cases that scores tool choice and answer accuracy across multiple LLMs and flags regressions against a saved baseline, so prompt changes are tested with data before they ship}
+      \resumeItem{Built the supporting data pipeline (Google Sheets ingest, cached geocoding, incremental re-embedding of changed rows) and secured the API with server-side secrets, origin and model allowlists, per-IP rate limiting, and prompt-injection defenses}
+    \resumeItemListEnd
+
+  \resumeProjectHeading
+    {\textbf{JeopardyAI!} $|$ \emph{\small{Python, AutoGen, OpenAI API}}}{Fall 2024}
+    \resumeItemListStart
+      \resumeItem{Built a multi-agent system with the AutoGen agent framework that generates trivia questions, moderates gameplay, and keeps score against an AI host, integrating the OpenAI API and an external trivia API}
+    \resumeItemListEnd
+
+  \resumeProjectHeading
+    {\textbf{LLMs as Reward Functions for Reinforcement Learning} $|$ \emph{\small{Python, Gymnasium, Hugging Face}}}{Spring 2025}
+    \resumeItemListStart
+      \resumeItem{Implemented and evaluated Q-learning agents that learn from LLM-generated rewards, benchmarked against numeric baselines}
+    \resumeItemListEnd
+\resumeSubHeadingListEnd
+
+%-----------WORKSHOPS, HONORS & AWARDS-----------
+\section{Workshops, Honors, and Awards}
+\resumeItemListStart[leftmargin=0in, label={}]
+  \item\small{
+    \textbf{Agentic Engineering Workshop, Northwestern University}, November 2026: co-delivered a hands-on workshop on responsible agentic AI and spec-driven development for Master of Data Science students \\
+    \textbf{IBM College and University Tech Talks}, 2026: spoke to audiences of 100+ and 1,500+ students and answered live questions \\
+    \textbf{IBM Growth Award}, December 2025: team recognition for outstanding contributions to an energy-sector AI engagement \\
+    \textbf{Brown University Computer Science Scholarship}, March 2024: merit-based full-tuition scholarship for the Master's program \\
+    \textbf{NASA Rhode Island Space Grant Summer Scholarship}, April 2022: awarded for NASA-related undergraduate research
+  }
+\resumeItemListEnd
+
+\end{document}
